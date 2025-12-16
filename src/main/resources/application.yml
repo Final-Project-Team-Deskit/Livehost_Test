@@ -1,0 +1,5 @@
+server:
+  port: 8080
+
+OPENVIDU_URL: https://49.50.134.59:4443/  # 설치한 미디어 서버 주소
+OPENVIDU_SECRET: openvidu010831         # 아까 .env에 설정한 그 비밀번호
