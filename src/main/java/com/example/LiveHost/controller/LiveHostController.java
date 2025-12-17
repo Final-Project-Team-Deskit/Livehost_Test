@@ -48,7 +48,22 @@ public class LiveHostController {
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         }
 
-        ConnectionProperties properties = ConnectionProperties.fromJson(params).build();
+        // [수정] 클라이언트에서 요청한 role 값을 확인 (기본값: SUBSCRIBER)
+        OpenViduRole role = OpenViduRole.SUBSCRIBER;
+        if (params != null && params.containsKey("role")) {
+            String roleParam = (String) params.get("role");
+            if ("PUBLISHER".equals(roleParam)) {
+                role = OpenViduRole.PUBLISHER;
+            }
+        }
+
+        // [수정] 연결 속성에 Role 설정
+        ConnectionProperties properties = new ConnectionProperties.Builder()
+                .type(ConnectionType.WEBRTC)
+                .role(role) // 설정된 Role 적용
+                .data(params != null ? (String) params.get("clientData") : "")
+                .build();
+
         Connection connection = session.createConnection(properties);
 
         return new ResponseEntity<>(connection.getToken(), HttpStatus.OK);
