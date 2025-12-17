@@ -38,6 +38,9 @@ dependencies {
 	implementation 'io.jsonwebtoken:jjwt-impl:0.11.5'
 	implementation 'io.jsonwebtoken:jjwt-jackson:0.11.5'
 	implementation 'io.openvidu:openvidu-java-client:2.30.0' // 미디어 서버 버전과 맞춰야 함
+
+	// NCP Object Storage (AWS S3 호환) 연동을 위한 라이브러리
+	implementation 'com.amazonaws:aws-java-sdk-s3:1.12.470'
 }
 
 tasks.named('test') {

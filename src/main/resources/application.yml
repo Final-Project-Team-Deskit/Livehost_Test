@@ -2,4 +2,14 @@ server:
   port: 8080
 
 OPENVIDU_URL: https://49.50.134.59:4443/  # 설치한 미디어 서버 주소
-OPENVIDU_SECRET: openvidu010831         # 아까 .env에 설정한 그 비밀번호
+OPENVIDU_SECRET: openvidu010831
+
+cloud:
+  aws:
+    credentials:
+      access-key: ${NCP_ACCESS_KEY}  # 실제 키 대신 변수명 입력
+      secret-key: ${NCP_SECRET_KEY}  # 실제 키 대신 변수명 입력
+    s3:
+      bucket: "live-vod-bucket"      # 버킷 이름은 공개돼도 상관없음
+      endpoint: "https://kr.object.ncloudstorage.com"
+      region: "kr-standard"# 아까 .env에 설정한 그 비밀번호

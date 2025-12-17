@@ -118,9 +118,19 @@ export default {
                   mirror: false,
                 });
 
+                // [수정] 바로 startRecording 하지 말고, 이벤트 리스너 등록
+                publisher.on('streamPlaying', () => {
+                  console.log("📺 영상 송출 시작됨! 이제 녹화를 요청합니다.");
+                  this.startRecording(this.mySessionId);
+                });
+
                 this.mainStreamManager = publisher;
                 this.publisher = publisher;
                 this.session.publish(this.publisher);
+                console.log(publisher);
+
+                // [핵심] 2. 방송이 시작되었으니, 즉시 녹화 시작 API를 호출합니다. (자동화)
+                // this.startRecording(this.mySessionId);
               }
             })
             .catch((error) => {
@@ -132,6 +142,10 @@ export default {
     },
 
     leaveSession() {
+      // [핵심] 3. 방송을 끌 때 녹화 종료 API도 같이 호출
+      if (this.myRole === 'PUBLISHER' && this.session) {
+        this.stopRecording(this.mySessionId);
+      }
       if (this.session) this.session.disconnect();
       this.session = undefined;
       this.mainStreamManager = undefined;
@@ -152,13 +166,35 @@ export default {
       return response.data;
     },
 
-    // [수정] role 정보를 백엔드로 전송
+    // [수정] 토큰 및 role 정보를 백엔드로 전송
     async createToken(sessionId, role) {
       const response = await axios.post(APPLICATION_SERVER_URL + 'api/sessions/' + sessionId + '/connections',
           { role: role }, // body에 role 추가
           { headers: { 'Content-Type': 'application/json', } }
       );
       return response.data;
+    },
+
+    // [신규 추가] 녹화 시작 요청 함수
+    async startRecording(sessionId) {
+      try {
+        // 백엔드 컨트롤러의 startRecording API 호출
+        await axios.post(APPLICATION_SERVER_URL + 'api/sessions/' + sessionId + '/recording/start');
+        console.log("✅ VOD 녹화가 자동으로 시작되었습니다.");
+      } catch (error) {
+        console.error("❌ 녹화 시작 실패:", error);
+      }
+    },
+
+    // [신규 추가] 녹화 종료 요청 함수
+    async stopRecording(sessionId) {
+      try {
+        // 백엔드 컨트롤러의 stopRecording API 호출
+        const response = await axios.post(APPLICATION_SERVER_URL + 'api/sessions/' + sessionId + '/recording/stop');
+        console.log("✅ 녹화 종료 & VOD URL 생성 완료:", response.data);
+      } catch (error) {
+        console.error("❌ 녹화 종료 실패:", error);
+      }
     },
   },
 };
