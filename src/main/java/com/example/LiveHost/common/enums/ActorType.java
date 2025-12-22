@@ -1,0 +1,13 @@
+package com.example.LiveHost.common.enums;
+
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
+@Getter
+@RequiredArgsConstructor
+public enum ActorType {
+    ADMIN("관리자"),
+    SELLER("판매자");
+
+    private final String description;
+}

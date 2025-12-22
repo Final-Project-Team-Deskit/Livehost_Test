@@ -1,0 +1,52 @@
+package com.example.LiveHost.entity;
+
+import com.example.LiveHost.common.enums.VodStatus;
+import com.example.LiveHost.common.utils.BooleanToYNConverter;
+import com.example.LiveHost.entity.Broadcast;
+import jakarta.persistence.*;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import org.hibernate.annotations.CreationTimestamp;
+
+import java.time.LocalDateTime;
+
+@Entity
+@Getter
+@NoArgsConstructor
+@Table(name = "Vod")
+public class Vod {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "vod_id")
+    private Long vodId;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "broadcast_id", nullable = false)
+    private Broadcast broadcast;
+
+    @Column(name = "vod_url")
+    private String vodUrl;
+
+    @Column(name = "vod_size", nullable = false)
+    private Long vodSize;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "vod_status", nullable = false)
+    private VodStatus vodStatus;
+
+    @Column(name = "vod_report_count", nullable = false)
+    private int vodReportCount;
+
+    @Column(name = "vod_duration")
+    private Integer vodDuration;
+
+    @Convert(converter = BooleanToYNConverter.class)
+    @Column(name = "vod_admin_lock", nullable = false, length = 1)
+    private boolean vodAdminLock;
+
+    @Column(name = "created_at", nullable = false, updatable = false)
+    @CreationTimestamp
+    private LocalDateTime createdAt;
+}

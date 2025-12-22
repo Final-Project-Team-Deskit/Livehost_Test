@@ -32,10 +32,10 @@ import java.util.concurrent.ConcurrentHashMap;
 @RestController
 @RequestMapping("/api")
 public class LiveHostController {
-    @Value("${OPENVIDU_URL}")
+    @Value("${openvidu.url}")
     private String OPENVIDU_URL;
 
-    @Value("${OPENVIDU_SECRET}")
+    @Value("${openvidu.secret}")
     private String OPENVIDU_SECRET;
 
     private OpenVidu openvidu;
