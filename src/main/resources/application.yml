@@ -37,3 +37,8 @@ cloud:
 #      host: {REDIS_IP}
 #      port: 6379
 #      password: {REDIS_PW}
+
+logging:
+  level:
+    com.example.LiveHost: debug  # 우리 패키지 로그는 자세히(Debug) 보여줘
+    org.hibernate.SQL: debug # 실행되는 SQL 쿼리도 보여줘

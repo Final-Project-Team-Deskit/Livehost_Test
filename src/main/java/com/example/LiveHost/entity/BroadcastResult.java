@@ -16,6 +16,7 @@ public class BroadcastResult {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "broadcast_id")
     private Long broadcastId;
 
     @Column(name = "total_views", nullable = false)

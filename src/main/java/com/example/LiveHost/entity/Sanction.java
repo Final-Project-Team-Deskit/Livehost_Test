@@ -15,7 +15,8 @@ import java.time.LocalDateTime;
 @Table(name = "Sanction")
 public class Sanction {
 
-    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "sanction_id")
     private Long sanctionId;
 
