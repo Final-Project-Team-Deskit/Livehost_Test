@@ -47,6 +47,9 @@ dependencies {
 
 	// Spring Security (필수: 보안 및 인증 관리)
 	implementation 'org.springframework.boot:spring-boot-starter-security'
+
+	// Validation (유효성 검사)
+	implementation 'org.springframework.boot:spring-boot-starter-validation'
 }
 
 tasks.named('test') {

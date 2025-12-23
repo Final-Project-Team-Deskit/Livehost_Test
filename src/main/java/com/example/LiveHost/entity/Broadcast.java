@@ -3,6 +3,8 @@ package com.example.LiveHost.entity;
 import com.example.LiveHost.common.enums.BroadcastLayout;
 import com.example.LiveHost.common.enums.BroadcastStatus;
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
@@ -15,6 +17,8 @@ import java.util.List;
 @Getter
 @Entity
 @NoArgsConstructor
+@AllArgsConstructor
+@Builder
 @Table(name = "Broadcast")
 public class Broadcast {
     @Id
@@ -22,8 +26,8 @@ public class Broadcast {
     @Column(name = "broadcast_id")
     private Long broadcastId;
 
-    @Column(name = "customer_id", nullable = false)
-    private Long customerId; // 판매자 ID
+    @Column(name = "seller_id", nullable = false)
+    private Long sellerId; // 판매자 ID
 
     @Column(name = "category_id", nullable = false)
     private Long categoryId;
@@ -84,5 +88,22 @@ public class Broadcast {
 
     public void deleteBroadcast() {
         this.broadcastStatus = BroadcastStatus.DELETED;
+    }
+
+    /**
+     * [비즈니스 로직] 방송 정보 수정
+     * - 수정 가능한 필드만 파라미터로 받아서 변경
+     * - null이 들어오지 않도록 DTO에서 검증했으므로 바로 대입
+     */
+    public void updateBroadcastInfo(Long categoryId, String title, String notice,
+                                    LocalDateTime scheduledAt, String thumbUrl,
+                                    String waitUrl, BroadcastLayout layout) {
+        this.categoryId = categoryId;
+        this.broadcastTitle = title;
+        this.broadcastNotice = notice;
+        this.scheduledAt = scheduledAt;
+        this.broadcastThumbUrl = thumbUrl;
+        this.broadcastWaitUrl = waitUrl;
+        this.broadcastLayout = layout;
     }
 }
