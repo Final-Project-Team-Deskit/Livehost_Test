@@ -106,4 +106,8 @@ public class Broadcast {
         this.broadcastWaitUrl = waitUrl;
         this.broadcastLayout = layout;
     }
+
+    public void delete() {
+        this.broadcastStatus = BroadcastStatus.DELETED;
+    }
 }

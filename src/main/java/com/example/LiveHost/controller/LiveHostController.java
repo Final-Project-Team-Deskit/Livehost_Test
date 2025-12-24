@@ -11,6 +11,7 @@ import com.amazonaws.services.s3.model.PutObjectRequest;
 import io.openvidu.java.client.*;
 import jakarta.annotation.PostConstruct;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -31,6 +32,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @CrossOrigin(origins = "*") // 어떤 도메인에서든 애플리케이션에 접근 가능, 추후 수정
 @RestController
 @RequestMapping("/api")
+@RequiredArgsConstructor
 public class LiveHostController {
     @Value("${openvidu.url}")
     private String OPENVIDU_URL;
@@ -44,29 +46,18 @@ public class LiveHostController {
     private Map<String, String> sessionRecordings = new ConcurrentHashMap<>();
 
     // [NCP 설정 값 주입]
-    @Value("${cloud.aws.credentials.access-key}")
-    private String accessKey;
-    @Value("${cloud.aws.credentials.secret-key}")
-    private String secretKey;
+
     @Value("${cloud.aws.s3.bucket}")
     private String bucketName;
     @Value("${cloud.aws.s3.endpoint}")
     private String endpoint;
-    @Value("${cloud.aws.s3.region}")
-    private String region;
 
-    private AmazonS3 s3Client;
+    private final AmazonS3 amazonS3;
 
     @PostConstruct
     public void init() {
         // 1. OpenVidu 객체 초기화 (미디어 서버와 연결 준비)
         this.openvidu = new OpenVidu(OPENVIDU_URL, OPENVIDU_SECRET);
-
-        // 2. NCP Object Storage (S3) 클라이언트 초기화
-        this.s3Client = AmazonS3ClientBuilder.standard()
-                .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(endpoint, region))
-                .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials(accessKey, secretKey)))
-                .build();
     }
 
     // 1. 방송 방(session) 만들기
@@ -134,7 +125,8 @@ public class LiveHostController {
 
     // 4. 녹화 종료 (방송 종료 버튼 클릭 시 호출)
     @PostMapping("/sessions/{sessionId}/recording/stop")
-    public ResponseEntity<String> stopRecording(@PathVariable("sessionId") String sessionId) {
+    public ResponseEntity<String> stopRecording(@RequestHeader("X-Seller-Id") Long sellerId, // Gateway 등에서 넘어온 판매자 ID
+            @PathVariable("sessionId") String sessionId) {
         String recordingId = this.sessionRecordings.remove(sessionId);
         if (recordingId == null) {
             return new ResponseEntity<>("Recording not found for session", HttpStatus.NOT_FOUND);
@@ -177,10 +169,10 @@ public class LiveHostController {
                     metadata.setContentLength(conn.getContentLengthLong()); // OpenVidu 서버가 헤더로 알려준 정보를 NCP한테 전달하는 것
                     metadata.setContentType("video/mp4");
 
-                    String objectName = "vods/" + recordingId + ".mp4";
+                    String objectName = "seller_" + sellerId + "/vods/" + recordingId + ".mp4";
 
                     // [업로드 실행] OpenVidu -> (Stream) -> Backend -> NCP
-                    s3Client.putObject(new PutObjectRequest(bucketName, objectName, inputStream, metadata)
+                    amazonS3.putObject(new PutObjectRequest(bucketName, objectName, inputStream, metadata)
                             .withCannedAcl(CannedAccessControlList.PublicRead));
 
                     // E. 업로드 완료된 URL 반환

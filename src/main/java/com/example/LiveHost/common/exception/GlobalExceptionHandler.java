@@ -1,10 +1,13 @@
 package com.example.LiveHost.common.exception;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 @Slf4j // Simple Logging Facade for Java : 다양한 로깅 프레임 워크에 대한 추상화 역할을 하는 라이브러리
@@ -21,13 +24,21 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler { // 
     }
 
     // 2. @Valid 유효성 검사 실패 (입력값 이상)
-    @ExceptionHandler(MethodArgumentNotValidException.class)
-    protected ResponseEntity<ApiResult<?>> handleMethodArgumentNotValidException(MethodArgumentNotValidException e) {
+    @Override
+    protected ResponseEntity<Object> handleMethodArgumentNotValid(
+            MethodArgumentNotValidException e,
+            HttpHeaders headers,
+            HttpStatusCode status,
+            WebRequest request
+    ) {
         log.error("Validation Error: {}", e.getMessage());
+
+        // 네 기존 응답 형태(ApiResult<?>) 유지하려면 Object로 감싸서 반환
         return ResponseEntity
                 .status(400)
                 .body(ApiResult.error(ErrorCode.INVALID_INPUT_VALUE));
     }
+
 
     // 3. 그 외 알 수 없는 에러 (최후의 보루)
     @ExceptionHandler(Exception.class)

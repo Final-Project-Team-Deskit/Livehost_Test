@@ -3,12 +3,12 @@ package com.example.LiveHost.entity;
 import com.example.LiveHost.common.enums.BroadcastProductStatus;
 import com.example.LiveHost.common.utils.BooleanToYNConverter;
 import jakarta.persistence.*;
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 @Entity
 @Getter
+@Builder
+@AllArgsConstructor
 @NoArgsConstructor
 @Table(name = "BroadcastProduct")
 public class BroadcastProduct {
