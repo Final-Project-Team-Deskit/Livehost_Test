@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
 @Getter
 @Entity
 @NoArgsConstructor
-@Table(name = "Sanction")
+@Table(name = "sanction")
 public class Sanction {
 
     @Id
@@ -31,7 +31,7 @@ public class Sanction {
     @Column(name = "actor_type", nullable = false)
     private ActorType actorType;
 
-    @Column(name = "customer_id")
+    @Column(name = "seller_id")
     private Long sellerId; // 판매자 ID
 
     @Column(name = "admin_id")

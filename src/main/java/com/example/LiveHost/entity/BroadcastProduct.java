@@ -10,7 +10,7 @@ import lombok.*;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-@Table(name = "BroadcastProduct")
+@Table(name = "broadcast_product")
 public class BroadcastProduct {
 
     @Id
@@ -35,7 +35,7 @@ public class BroadcastProduct {
     private int bpQuantity;
 
     @Convert(converter = BooleanToYNConverter.class)
-    @Column(name = "is_pinned", nullable = false, length = 1)
+    @Column(name = "is_pinned", nullable = false, columnDefinition = "char(1)")
     private boolean isPinned; // DB엔 'Y'/'N', 자바엔 true/false
 
     @Enumerated(EnumType.STRING)

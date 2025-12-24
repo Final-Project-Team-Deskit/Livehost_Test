@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
 @Entity
 @Getter
 @NoArgsConstructor
-@Table(name = "Vod")
+@Table(name = "vod")
 public class Vod {
 
     @Id
@@ -43,7 +43,7 @@ public class Vod {
     private Integer vodDuration;
 
     @Convert(converter = BooleanToYNConverter.class)
-    @Column(name = "vod_admin_lock", nullable = false, length = 1)
+    @Column(name = "vod_admin_lock", nullable = false, columnDefinition = "char(1)")
     private boolean vodAdminLock;
 
     @Column(name = "created_at", nullable = false, updatable = false)

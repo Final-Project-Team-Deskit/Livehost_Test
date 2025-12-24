@@ -15,7 +15,7 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "BroadcastResult")
+@Table(name = "broadcast_result")
 public class BroadcastResult {
 
     @Id
@@ -29,7 +29,7 @@ public class BroadcastResult {
     @Column(name = "max_views", nullable = false)
     private int maxViews;
 
-    @Column(name = "pick_views_at")
+    @Column(name = "max_views_at")
     private LocalDateTime pickViewsAt;
 
     @Column(name = "total_likes", nullable = false)
@@ -38,7 +38,7 @@ public class BroadcastResult {
     @Column(name = "total_chats", nullable = false)
     private int totalChats;
 
-    @Column(name = "total_sales", nullable = false)
+    @Column(name = "total_sales", nullable = false, precision = 30, scale = 0)
     private BigDecimal totalSales; // 금액은 BigDecimal 사용 권장
 
     @Column(name = "avg_watch_time", nullable = false)

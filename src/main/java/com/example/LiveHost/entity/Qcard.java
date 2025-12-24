@@ -8,7 +8,7 @@ import lombok.*;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-@Table(name = "Qcard")
+@Table(name = "qcard")
 public class Qcard {
 
     @Id

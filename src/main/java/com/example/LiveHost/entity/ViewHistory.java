@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 @Getter
 @Entity
 @NoArgsConstructor
-@Table(name = "ViewHistory")
+@Table(name = "view_history")
 public class ViewHistory {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -34,5 +34,5 @@ public class ViewHistory {
     private LocalDateTime leftAt;
 
     @Column(name = "history_time")
-    private Long historyTime; // 초 단위 시청 시간
+    private Integer historyTime; // 초 단위 시청 시간
 }
