@@ -25,14 +25,11 @@ public class ViewHistory {
     @Column(name = "member_id", nullable = false)
     private Long memberId;
 
-    @Column(name = "joined_at", nullable = false)
+    @Column(name = "created_at", nullable = false, updatable = false)
     @CreationTimestamp
-    private LocalDateTime joinedAt;
+    private LocalDateTime createdAt;
 
-    @Column(name = "left_at")
+    @Column(name = "updated_at", nullable = false)
     @UpdateTimestamp
-    private LocalDateTime leftAt;
-
-    @Column(name = "history_time")
-    private Integer historyTime; // 초 단위 시청 시간
+    private LocalDateTime updatedAt;
 }

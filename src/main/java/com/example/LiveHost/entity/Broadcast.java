@@ -29,8 +29,8 @@ public class Broadcast {
     @Column(name = "seller_id", nullable = false)
     private Long sellerId; // 판매자 ID
 
-    @Column(name = "category_id", nullable = false)
-    private Long categoryId;
+    @Column(name = "tag_category_id", nullable = false)
+    private Long tagCategoryId;
 
     @Column(name = "broadcast_title", length = 30, nullable = false)
     private String broadcastTitle;
@@ -39,8 +39,8 @@ public class Broadcast {
     private String broadcastNotice;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "broadcast_status", nullable = false)
-    private BroadcastStatus broadcastStatus;
+    @Column(name = "status", nullable = false)
+    private BroadcastStatus status;
 
     @Column(name = "scheduled_at", nullable = false)
     private LocalDateTime scheduledAt;
@@ -87,7 +87,7 @@ public class Broadcast {
     private List<Qcard> qcards = new ArrayList<>();
 
     public void deleteBroadcast() {
-        this.broadcastStatus = BroadcastStatus.DELETED;
+        this.status = BroadcastStatus.DELETED;
     }
 
     /**
@@ -98,7 +98,7 @@ public class Broadcast {
     public void updateBroadcastInfo(Long categoryId, String title, String notice,
                                     LocalDateTime scheduledAt, String thumbUrl,
                                     String waitUrl, BroadcastLayout layout) {
-        this.categoryId = categoryId;
+        this.tagCategoryId = categoryId;
         this.broadcastTitle = title;
         this.broadcastNotice = notice;
         this.scheduledAt = scheduledAt;
@@ -108,6 +108,6 @@ public class Broadcast {
     }
 
     public void delete() {
-        this.broadcastStatus = BroadcastStatus.DELETED;
+        this.status = BroadcastStatus.DELETED;
     }
 }

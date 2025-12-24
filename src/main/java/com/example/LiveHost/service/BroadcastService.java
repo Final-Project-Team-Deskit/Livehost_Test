@@ -36,7 +36,7 @@ public class BroadcastService {
     public Long createBroadcast(Long sellerId, BroadcastCreateRequest request) {
 
         // 1. [검증] 예약된 방송 7개 제한 체크
-        long reservedCount = broadcastRepository.countBySellerIdAndBroadcastStatus(sellerId, BroadcastStatus.RESERVED);
+        long reservedCount = broadcastRepository.countBySellerIdAndStatus(sellerId, BroadcastStatus.RESERVED);
         if (reservedCount >= 7) {
             throw new BusinessException(ErrorCode.RESERVATION_LIMIT_EXCEEDED);
         }
@@ -45,14 +45,14 @@ public class BroadcastService {
         // (주의: DTO에 toEntity 메서드가 없다면 Builder로 직접 생성)
         Broadcast broadcast = Broadcast.builder()
                 .sellerId(sellerId)
-                .categoryId(request.getCategoryId())
+                .tagCategoryId(request.getCategoryId())
                 .broadcastTitle(request.getTitle())
                 .broadcastNotice(request.getNotice())
                 .scheduledAt(request.getScheduledAt())
                 .broadcastThumbUrl(request.getThumbnailUrl())
                 .broadcastWaitUrl(request.getWaitScreenUrl())
                 .broadcastLayout(request.getBroadcastLayout())
-                .broadcastStatus(BroadcastStatus.RESERVED) // 초기 상태는 예약
+                .status(BroadcastStatus.RESERVED) // 초기 상태는 예약
                 .build();
 
         Broadcast savedBroadcast = broadcastRepository.save(broadcast);
@@ -81,7 +81,7 @@ public class BroadcastService {
         }
 
         // 3. 상태 검증 (예약 상태일 때만 수정 가능)
-        if (broadcast.getBroadcastStatus() != BroadcastStatus.RESERVED) {
+        if (broadcast.getStatus() != BroadcastStatus.RESERVED) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE); // "이미 시작된 방송은 수정 불가" 등의 메시지 필요
         }
 
@@ -117,14 +117,14 @@ public class BroadcastService {
         }
 
         // 상태 체크 (예약 상태일 때만 삭제 가능)
-        if (broadcast.getBroadcastStatus() != BroadcastStatus.RESERVED) {
+        if (broadcast.getStatus() != BroadcastStatus.RESERVED) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
         }
 
         // 상태를 DELETED로 변경
         broadcast.delete();
 
-        log.info("방송 삭제(취소) 처리 완료: id={}, status={}", broadcastId, broadcast.getBroadcastStatus());
+        log.info("방송 삭제(취소) 처리 완료: id={}, status={}", broadcastId, broadcast.getStatus());
 
         // 트랜잭션이 닫힐 때, JPA가 값이 달라진 것을 감지하고, 자동으로 UPDATE 쿼리를 생성해서 DB에 날림
     }

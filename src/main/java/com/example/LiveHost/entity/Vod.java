@@ -2,12 +2,11 @@ package com.example.LiveHost.entity;
 
 import com.example.LiveHost.common.enums.VodStatus;
 import com.example.LiveHost.common.utils.BooleanToYNConverter;
-import com.example.LiveHost.entity.Broadcast;
 import jakarta.persistence.*;
-import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 
@@ -33,8 +32,8 @@ public class Vod {
     private Long vodSize;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "vod_status", nullable = false)
-    private VodStatus vodStatus;
+    @Column(name = "status", nullable = false)
+    private VodStatus status;
 
     @Column(name = "vod_report_count", nullable = false)
     private int vodReportCount;
@@ -49,4 +48,8 @@ public class Vod {
     @Column(name = "created_at", nullable = false, updatable = false)
     @CreationTimestamp
     private LocalDateTime createdAt;
+
+    @Column(name = "updated_at", nullable = false)
+    @UpdateTimestamp
+    private LocalDateTime updatedAt;
 }

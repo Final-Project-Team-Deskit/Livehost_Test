@@ -30,7 +30,7 @@ public class BroadcastProductResponse {
                 .saleQuantity(bp.getBpQuantity())
                 .displayOrder(bp.getDisplayOrder())
                 .isPinned(bp.isPinned()) // DB는 Char(1) Y/N -> Java boolean
-                .status(bp.getBpStatus().name())
+                .status(bp.getStatus().name())
                 .build();
     }
 }

@@ -4,6 +4,10 @@ import com.example.LiveHost.common.enums.BroadcastProductStatus;
 import com.example.LiveHost.common.utils.BooleanToYNConverter;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
+
+import java.time.LocalDateTime;
 
 @Entity
 @Getter
@@ -39,6 +43,14 @@ public class BroadcastProduct {
     private boolean isPinned; // DB엔 'Y'/'N', 자바엔 true/false
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "bp_status", nullable = false)
-    private BroadcastProductStatus bpStatus;
+    @Column(name = "status", nullable = false)
+    private BroadcastProductStatus status;
+
+    @Column(name = "created_at", nullable = false, updatable = false)
+    @CreationTimestamp
+    private LocalDateTime createdAt;
+
+    @Column(name = "updated_at", nullable = false)
+    @UpdateTimestamp
+    private LocalDateTime updatedAt;
 }

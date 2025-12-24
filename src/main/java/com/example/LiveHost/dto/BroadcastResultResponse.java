@@ -30,7 +30,7 @@ public class BroadcastResultResponse {
                 .totalChats(result.getTotalChats())
                 .totalSales(result.getTotalSales())
                 .avgWatchTime(result.getAvgWatchTime())
-                .broadcastDate(result.getCalculatedAt())
+                .broadcastDate(result.getCreatedAt())
                 .build();
     }
 }

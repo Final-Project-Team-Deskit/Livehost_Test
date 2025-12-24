@@ -52,14 +52,14 @@ public class BroadcastCreateRequest {
     public Broadcast toEntity(Long sellerId) {
         return Broadcast.builder()
                 .sellerId(sellerId)
-                .categoryId(this.categoryId)
+                .tagCategoryId(this.categoryId)
                 .broadcastTitle(this.title)
                 .broadcastNotice(this.notice)
                 .scheduledAt(this.scheduledAt)
                 .broadcastThumbUrl(this.thumbnailUrl)
                 .broadcastWaitUrl(this.waitScreenUrl)
                 .broadcastLayout(this.broadcastLayout)
-                .broadcastStatus(BroadcastStatus.RESERVED) // 초기 상태는 예약
+                .status(BroadcastStatus.RESERVED) // 초기 상태는 예약
                 .build();
     }
 }

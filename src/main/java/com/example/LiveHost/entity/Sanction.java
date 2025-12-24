@@ -6,6 +6,7 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 
@@ -38,13 +39,13 @@ public class Sanction {
     private Long adminId; // 관리자 ID
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "sanction_status", nullable = false)
-    private SanctionType sanctionStatus;
+    @Column(name = "status", nullable = false)
+    private SanctionType status;
 
     @Column(name = "sanction_reason", length = 50)
     private String sanctionReason;
 
-    @Column(name = "started_at", nullable = false)
+    @Column(name = "created_at", nullable = false, updatable = false)
     @CreationTimestamp
-    private LocalDateTime startedAt;
+    private LocalDateTime createdAt;
 }

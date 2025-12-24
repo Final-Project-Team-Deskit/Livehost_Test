@@ -4,15 +4,13 @@ import com.example.LiveHost.common.exception.BusinessException;
 import com.example.LiveHost.common.exception.ErrorCode;
 import com.example.LiveHost.entity.Broadcast;
 import com.example.LiveHost.repository.BroadcastRepository;
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Before;
 import org.springframework.stereotype.Component;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
+
 
 import java.util.Arrays;
 
