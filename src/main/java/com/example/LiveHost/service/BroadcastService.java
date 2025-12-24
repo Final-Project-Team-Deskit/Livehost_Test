@@ -5,6 +5,7 @@ import com.example.LiveHost.common.exception.BusinessException;
 import com.example.LiveHost.common.exception.ErrorCode;
 import com.example.LiveHost.dto.BroadcastCreateRequest;
 import com.example.LiveHost.dto.BroadcastProductRequest;
+import com.example.LiveHost.dto.BroadcastUpdateRequest;
 import com.example.LiveHost.dto.QcardRequest;
 import com.example.LiveHost.entity.Broadcast;
 import com.example.LiveHost.entity.BroadcastProduct;
@@ -28,11 +29,9 @@ public class BroadcastService {
     private final BroadcastProductRepository broadcastProductRepository;
     private final QcardRepository qcardRepository;
 
-    /**
-     * [4.1.2] 방송 생성 (POST)
-     * - 기능: 방송 정보 저장 + 상품 매핑 + 큐카드 저장
-     * - 정책: 예약된 방송은 판매자당 최대 7개까지만 가능
-     */
+    // 방송 생성 (POST)
+      // 기능: 방송 정보 저장 + 상품 매핑 + 큐카드 저장
+      // 정책: 예약된 방송은 판매자당 최대 7개까지만 가능
     @Transactional
     public Long createBroadcast(Long sellerId, BroadcastCreateRequest request) {
 
@@ -68,8 +67,70 @@ public class BroadcastService {
         return savedBroadcast.getBroadcastId();
     }
 
-    // --- Private Helper Methods (코드 가독성을 위해 분리) ---
 
+    // 방송 정보 수정 (PUT)
+    @Transactional
+    public Long updateBroadcast(Long sellerId, Long broadcastId, BroadcastUpdateRequest request) {
+        // 1. 방송 조회
+        Broadcast broadcast = broadcastRepository.findById(broadcastId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.BROADCAST_NOT_FOUND));
+
+        // 2. 권한 검증 (Aspect가 해주지만, Service에서도 이중 체크 권장)
+        if (!broadcast.getSellerId().equals(sellerId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN_ACCESS);
+        }
+
+        // 3. 상태 검증 (예약 상태일 때만 수정 가능)
+        if (broadcast.getBroadcastStatus() != BroadcastStatus.RESERVED) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE); // "이미 시작된 방송은 수정 불가" 등의 메시지 필요
+        }
+
+        // 4. 방송 기본 정보 수정
+        broadcast.updateBroadcastInfo(
+                request.getCategoryId(),
+                request.getTitle(),
+                request.getNotice(),
+                request.getScheduledAt(),
+                request.getThumbnailUrl(),
+                request.getWaitScreenUrl(),
+                request.getBroadcastLayout()
+        );
+
+        // 5. 상품/큐카드 수정 (전체 삭제 후 재등록 전략)
+        updateBroadcastProducts(broadcast, request.getProducts());
+        updateQcards(broadcast, request.getQcards());
+
+        return broadcast.getBroadcastId();
+
+        // 트랜잭션이 닫힐 때, JPA가 값이 달라진 것을 감지하고, 자동으로 UPDATE 쿼리를 생성해서 DB에 날림
+    }
+
+    // [방송 예약 취소 (DELETE)
+    @Transactional
+    public void cancelBroadcast(Long sellerId, Long broadcastId) {
+        Broadcast broadcast = broadcastRepository.findById(broadcastId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.BROADCAST_NOT_FOUND));
+
+        // 권한 체크
+        if (!broadcast.getSellerId().equals(sellerId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN_ACCESS);
+        }
+
+        // 상태 체크 (예약 상태일 때만 삭제 가능)
+        if (broadcast.getBroadcastStatus() != BroadcastStatus.RESERVED) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+
+        // 상태를 DELETED로 변경
+        broadcast.delete();
+
+        log.info("방송 삭제(취소) 처리 완료: id={}, status={}", broadcastId, broadcast.getBroadcastStatus());
+
+        // 트랜잭션이 닫힐 때, JPA가 값이 달라진 것을 감지하고, 자동으로 UPDATE 쿼리를 생성해서 DB에 날림
+    }
+
+
+    // --- Private Helper Methods (코드 가독성을 위해 분리) ---
     private void saveBroadcastProducts(Broadcast broadcast, List<BroadcastProductRequest> products) {
         if (products == null || products.isEmpty()) return;
 
@@ -99,6 +160,41 @@ public class BroadcastService {
                     .build();
 
             qcardRepository.save(qcard);
+        }
+    }
+
+    private void updateBroadcastProducts(Broadcast broadcast, List<BroadcastProductRequest> products) {
+        // 1. 기존 상품 싹 지우기
+        broadcastProductRepository.deleteByBroadcast(broadcast);
+
+        // 2. 새 상품 등록 (create 때와 동일 로직)
+        if (products != null && !products.isEmpty()) {
+            for (BroadcastProductRequest dto : products) {
+                BroadcastProduct product = BroadcastProduct.builder()
+                        .broadcast(broadcast)
+                        .productId(dto.getProductId())
+                        .bpPrice(dto.getLivePrice())
+                        .bpQuantity(dto.getSaleQuantity())
+                        .isPinned(false)
+                        .build();
+                broadcastProductRepository.save(product);
+            }
+        }
+    }
+
+    private void updateQcards(Broadcast broadcast, List<QcardRequest> qcards) {
+        qcardRepository.deleteByBroadcast(broadcast);
+
+        if (qcards != null && !qcards.isEmpty()) {
+            int order = 1;
+            for (QcardRequest dto : qcards) {
+                Qcard qcard = Qcard.builder()
+                        .broadcast(broadcast)
+                        .sortOrder(order++)
+                        .qcardQuestion(dto.getQuestion())
+                        .build();
+                qcardRepository.save(qcard);
+            }
         }
     }
 }
