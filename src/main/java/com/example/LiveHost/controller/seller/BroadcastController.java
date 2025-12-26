@@ -3,6 +3,7 @@ package com.example.LiveHost.controller.seller;
 import com.example.LiveHost.common.exception.ApiResult;
 import com.example.LiveHost.dto.*;
 import com.example.LiveHost.service.BroadcastService;
+import com.example.LiveHost.service.RedisService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
@@ -10,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("seller/api/broadcasts")
@@ -17,6 +19,7 @@ import java.util.List;
 public class BroadcastController {
 
     private final BroadcastService broadcastService;
+    private final RedisService redisService;
 
     // 방송 생성 API
     // POST /api/v1/broadcasts
@@ -78,5 +81,20 @@ public class BroadcastController {
             @ModelAttribute BroadcastSearch condition,
             Pageable pageable) {
         return ResponseEntity.ok(ApiResult.success(broadcastService.getBroadcastList(sellerId, condition, pageable)));
+    }
+
+    // 2. [실시간] 통계 조회 (Polling용 - 3초마다 호출)
+    // 상품 정보 등 무거운 데이터 제외하고 숫자만 리턴 -> 서버 부하 감소
+    @GetMapping("/{broadcastId}/stats")
+    public ResponseEntity<ApiResult<Map<String, Integer>>> getRealtimeStats(@PathVariable Long broadcastId) {
+        Integer views = redisService.getStatOrZero(redisService.getViewKey(broadcastId));
+        Integer likes = redisService.getStatOrZero(redisService.getLikeKey(broadcastId));
+        Integer sanctions = redisService.getStatOrZero(redisService.getSanctionKey(broadcastId));
+
+        return ResponseEntity.ok(ApiResult.success(Map.of(
+                "totalViews", views,
+                "totalLikes", likes,
+                "totalSanctions", sanctions
+        )));
     }
 }

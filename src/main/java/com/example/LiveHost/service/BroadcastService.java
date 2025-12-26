@@ -36,6 +36,7 @@ public class BroadcastService {
     private final TagCategoryRepository tagCategoryRepository;
     private final ProductRepository productRepository;
     private final RedisService redisService;
+    private final SseService sseService;
 
     // 방송 생성 (POST)
       // 기능: 방송 정보 저장 + 상품 매핑 + 큐카드 저장
@@ -95,6 +96,9 @@ public class BroadcastService {
         // 5. 상품/큐카드 수정 (전체 삭제 후 재등록 전략)
         updateBroadcastProducts(sellerId, broadcast, request.getProducts());
         updateQcards(broadcast, request.getQcards());
+
+        // ★ [핵심 추가] 정보가 변경되었음을 시청자들에게 알림 (SSE)
+        sseService.notifyBroadcastUpdate(broadcastId);
 
         return broadcast.getBroadcastId();
 
@@ -233,6 +237,7 @@ public class BroadcastService {
             return slice;
         }
     }
+
 
 
 
