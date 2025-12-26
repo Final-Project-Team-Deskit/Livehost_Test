@@ -25,6 +25,7 @@ public enum ErrorCode { // 에러 코드 모음
 
     // 5. 상품(Product) 에러
     PRODUCT_SOLD_OUT(HttpStatus.BAD_REQUEST, "P001", "품절된 상품은 핀 설정이 불가능합니다."),
+    PRODUCT_NOT_FOUND(HttpStatus.NOT_FOUND, "P002", "상품을 찾을 수 없습니다."),
 
     // 6. OpenVidu 에러
     OPENVIDU_SESSION_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "O001", "세션 생성 중 오류가 발생했습니다."),

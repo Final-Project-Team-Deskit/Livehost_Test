@@ -1,5 +1,6 @@
 package com.example.LiveHost.service;
 
+import com.example.LiveHost.common.enums.BroadcastProductStatus;
 import com.example.LiveHost.common.enums.BroadcastStatus;
 import com.example.LiveHost.common.exception.BusinessException;
 import com.example.LiveHost.common.exception.ErrorCode;
@@ -10,6 +11,8 @@ import com.example.LiveHost.dto.QcardRequest;
 import com.example.LiveHost.entity.Broadcast;
 import com.example.LiveHost.entity.BroadcastProduct;
 import com.example.LiveHost.entity.Qcard;
+import com.example.LiveHost.others.entity.Product;
+import com.example.LiveHost.others.repository.ProductRepository;
 import com.example.LiveHost.repository.BroadcastProductRepository;
 import com.example.LiveHost.repository.BroadcastRepository;
 import com.example.LiveHost.repository.QcardRepository;
@@ -28,6 +31,7 @@ public class BroadcastService {
     private final BroadcastRepository broadcastRepository;
     private final BroadcastProductRepository broadcastProductRepository;
     private final QcardRepository qcardRepository;
+    private final ProductRepository productRepository;
 
     // 방송 생성 (POST)
       // 기능: 방송 정보 저장 + 상품 매핑 + 큐카드 저장
@@ -42,19 +46,7 @@ public class BroadcastService {
         }
 
         // 2. Broadcast Entity 생성 및 저장
-        // (주의: DTO에 toEntity 메서드가 없다면 Builder로 직접 생성)
-        Broadcast broadcast = Broadcast.builder()
-                .sellerId(sellerId)
-                .tagCategoryId(request.getCategoryId())
-                .broadcastTitle(request.getTitle())
-                .broadcastNotice(request.getNotice())
-                .scheduledAt(request.getScheduledAt())
-                .broadcastThumbUrl(request.getThumbnailUrl())
-                .broadcastWaitUrl(request.getWaitScreenUrl())
-                .broadcastLayout(request.getBroadcastLayout())
-                .status(BroadcastStatus.RESERVED) // 초기 상태는 예약
-                .build();
-
+        Broadcast broadcast = request.toEntity(sellerId);
         Broadcast savedBroadcast = broadcastRepository.save(broadcast);
 
         // 3. 방송-상품 매핑 저장
@@ -97,7 +89,7 @@ public class BroadcastService {
         );
 
         // 5. 상품/큐카드 수정 (전체 삭제 후 재등록 전략)
-        updateBroadcastProducts(broadcast, request.getProducts());
+        updateBroadcastProducts(sellerId, broadcast, request.getProducts());
         updateQcards(broadcast, request.getQcards());
 
         return broadcast.getBroadcastId();
@@ -134,14 +126,16 @@ public class BroadcastService {
     private void saveBroadcastProducts(Broadcast broadcast, List<BroadcastProductRequest> products) {
         if (products == null || products.isEmpty()) return;
 
-        // 한 번에 저장하는 것이 성능상 좋지만, 로직이 단순하므로 반복문 save 사용 (JPA Batch Insert는 별도 설정 필요)
+        int displayOrder = 1;
         for (BroadcastProductRequest dto : products) {
             BroadcastProduct product = BroadcastProduct.builder()
-                    .broadcast(broadcast) // 연관관계 설정
+                    .broadcast(broadcast)
                     .productId(dto.getProductId())
-                    .bpPrice(dto.getLivePrice())        // 방송 특가
-                    .bpQuantity(dto.getSaleQuantity())  // 방송 재고
-                    .isPinned(false) // 초기엔 핀 없음
+                    .bpPrice(dto.getLivePrice())       // DTO: livePrice -> Entity: bpPrice
+                    .bpQuantity(dto.getSaleQuantity()) // DTO: saleQuantity -> Entity: bpQuantity
+                    .displayOrder(displayOrder++)      // 1부터 순차 증가
+                    .isPinned(false)                   // 초기 고정 상태 false
+                    .status(BroadcastProductStatus.SELLING)
                     .build();
 
             broadcastProductRepository.save(product);
@@ -151,33 +145,44 @@ public class BroadcastService {
     private void saveQcards(Broadcast broadcast, List<QcardRequest> qcards) {
         if (qcards == null || qcards.isEmpty()) return;
 
-        int order = 1; // 1번부터 순서 부여
+        int sortOrder = 1;
         for (QcardRequest dto : qcards) {
             Qcard qcard = Qcard.builder()
                     .broadcast(broadcast)
-                    .sortOrder(order++)       // 1, 2, 3...
                     .qcardQuestion(dto.getQuestion())
+                    .sortOrder(sortOrder++) // 1부터 순차 증가
                     .build();
 
             qcardRepository.save(qcard);
         }
     }
 
-    private void updateBroadcastProducts(Broadcast broadcast, List<BroadcastProductRequest> products) {
+    private void updateBroadcastProducts(Long sellerId, Broadcast broadcast, List<BroadcastProductRequest> products) {
         // 1. 기존 상품 싹 지우기
         broadcastProductRepository.deleteByBroadcast(broadcast);
 
         // 2. 새 상품 등록 (create 때와 동일 로직)
         if (products != null && !products.isEmpty()) {
             for (BroadcastProductRequest dto : products) {
-                BroadcastProduct product = BroadcastProduct.builder()
+                // [검증 1] 상품 존재 여부
+                Product product = productRepository.findById(dto.getProductId())
+                        .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
+
+                // [검증 2] 내 상품인지 확인 (SellerId 비교)
+                // Product 엔티티에 getSellerId() 편의 메서드가 없으면 product.getSeller().getSellerId() 사용
+                if (!product.getSeller().getSellerId().equals(sellerId)) {
+                    throw new BusinessException(ErrorCode.FORBIDDEN_ACCESS); // 본인 상품만 등록 가능
+                }
+
+                BroadcastProduct bp = BroadcastProduct.builder()
                         .broadcast(broadcast)
                         .productId(dto.getProductId())
                         .bpPrice(dto.getLivePrice())
                         .bpQuantity(dto.getSaleQuantity())
                         .isPinned(false)
+                        .status(BroadcastProductStatus.SELLING)
                         .build();
-                broadcastProductRepository.save(product);
+                broadcastProductRepository.save(bp);
             }
         }
     }
