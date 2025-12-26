@@ -1,5 +1,7 @@
 package com.example.LiveHost.dto;
 
+import com.example.LiveHost.common.enums.BroadcastProductStatus;
+import com.example.LiveHost.common.enums.BroadcastStatus;
 import com.example.LiveHost.entity.BroadcastProduct;
 import lombok.Builder;
 import lombok.Getter;
@@ -13,11 +15,11 @@ public class BroadcastProductResponse {
     private String imageUrl;      // 상품 이미지 (Product API 연동 필요)
     private int originalPrice;    // 원가
 
-    private int livePrice;        // 라이브 특가 (bp_price)
-    private int saleQuantity;     // 판매 수량 (bp_quantity)
+    private int bpPrice;        // 라이브 특가 (bp_price)
+    private int bpQuantity;     // 판매 수량 (bp_quantity)
     private int displayOrder;     // 노출 순서
     private boolean isPinned;     // 핀 고정 여부 (Y/N)
-    private String status;        // 상품 상태 (SELLING, SOLDOUT, DELETED)
+    private BroadcastProductStatus status;        // 상품 상태 (SELLING, SOLDOUT, DELETED)
 
     public static BroadcastProductResponse fromEntity(BroadcastProduct bp, String name, String imageUrl, int originalPrice) {
         return BroadcastProductResponse.builder()
@@ -26,11 +28,11 @@ public class BroadcastProductResponse {
                 .name(name)
                 .imageUrl(imageUrl)
                 .originalPrice(originalPrice)
-                .livePrice(bp.getBpPrice())
-                .saleQuantity(bp.getBpQuantity())
+                .bpPrice(bp.getBpPrice())
+                .bpQuantity(bp.getBpQuantity())
                 .displayOrder(bp.getDisplayOrder())
                 .isPinned(bp.isPinned()) // DB는 Char(1) Y/N -> Java boolean
-                .status(bp.getStatus().name())
+                .status(bp.getStatus())
                 .build();
     }
 }

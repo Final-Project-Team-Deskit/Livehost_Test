@@ -45,4 +45,34 @@ public class RedisService {
     public void publish(String channelTopic, Object message) {
         redisTemplate.convertAndSend(channelTopic, message);
     }
+
+    // 숫자형 데이터 조회 (없으면 0 반환)
+      // 조회수, 좋아요, 제재 건수 조회용
+    public Integer getStatOrZero(String key) {
+        Object value = redisTemplate.opsForValue().get(key);
+        if (value == null) {
+            return 0;
+        }
+        try {
+            return Integer.parseInt(value.toString());
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    // --- [추가] Key 생성 규칙 통일 (실수 방지) ---
+    private static final String KEY_PREFIX = "broadcast:";
+
+    public String getViewKey(Long broadcastId) {
+        return KEY_PREFIX + broadcastId + ":views";
+    }
+
+    public String getLikeKey(Long broadcastId) {
+        return KEY_PREFIX + broadcastId + ":likes";
+    }
+
+    // [신규] 제재 건수 키
+    public String getSanctionKey(Long broadcastId) {
+        return KEY_PREFIX + broadcastId + ":sanctions";
+    }
 }

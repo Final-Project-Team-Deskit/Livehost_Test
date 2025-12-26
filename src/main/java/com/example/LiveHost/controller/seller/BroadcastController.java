@@ -2,6 +2,7 @@ package com.example.LiveHost.controller.seller;
 
 import com.example.LiveHost.common.exception.ApiResult;
 import com.example.LiveHost.dto.BroadcastCreateRequest;
+import com.example.LiveHost.dto.BroadcastResponse;
 import com.example.LiveHost.dto.BroadcastUpdateRequest;
 import com.example.LiveHost.service.BroadcastService;
 import jakarta.validation.Valid;
@@ -37,6 +38,16 @@ public class BroadcastController {
 
         Long updatedId = broadcastService.updateBroadcast(sellerId, broadcastId, request);
         return ResponseEntity.ok(ApiResult.success(updatedId));
+    }
+
+    // 방송 상세 조회 (수정 화면 진입용)
+        // GET /seller/api/broadcasts/{broadcastId}
+    @GetMapping("/{broadcastId}")
+    public ResponseEntity<ApiResult<BroadcastResponse>> getBroadcastDetail(
+            @RequestHeader("X-Seller-Id") Long sellerId,
+            @PathVariable Long broadcastId) {
+        BroadcastResponse response = broadcastService.getBroadcastDetail(sellerId, broadcastId);
+        return ResponseEntity.ok(ApiResult.success(response));
     }
 
     // [방송 취소]

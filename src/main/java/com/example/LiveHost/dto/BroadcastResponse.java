@@ -37,6 +37,7 @@ public class BroadcastResponse {
     // 통계 (조회 시점 기준)
     private Integer totalViews;
     private Integer totalLikes;
+    private Integer totalSanctions;
 
     // 연관 데이터 리스트
     private List<BroadcastProductResponse> products;
@@ -46,6 +47,7 @@ public class BroadcastResponse {
                                                String categoryName,
                                                Integer totalViews,
                                                Integer totalLikes,
+                                               Integer totalSanctions,
                                                List<BroadcastProductResponse> products,
                                                List<QcardResponse> qcards) {
         return BroadcastResponse.builder()
@@ -64,6 +66,7 @@ public class BroadcastResponse {
                 // 통계는 Entity에 없으면 0으로 처리 or 별도 조회
                 .totalViews(totalViews != null ? totalViews : 0)
                 .totalLikes(totalLikes != null ? totalLikes : 0)
+                .totalSanctions(totalSanctions != null ? totalSanctions : 0)
                 .products(products)
                 .qcards(qcards)
                 .build();
