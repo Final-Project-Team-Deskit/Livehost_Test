@@ -17,6 +17,8 @@ import com.example.LiveHost.repository.BroadcastRepository;
 import com.example.LiveHost.repository.QcardRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -155,12 +157,7 @@ public class BroadcastService {
         }
 
         // 3. 카테고리 이름 조회
-        String categoryName = "카테고리 없음";
-        if (broadcast.getTagCategoryId() != null) {
-            categoryName = tagCategoryRepository.findById(broadcast.getTagCategoryId())
-                    .map(TagCategory::getTagCategoryName)
-                    .orElse("삭제된 카테고리");
-        }
+        String categoryName = getCategoryName(broadcast.getTagCategoryId());
 
         // 4. 상품 리스트 변환 (상태값 포함)
         List<BroadcastProductResponse> productList = getProductListResponse(broadcast);
@@ -186,50 +183,55 @@ public class BroadcastService {
      */
     @Transactional(readOnly = true)
     public BroadcastResponse getLiveBroadcastDetail(Long broadcastId) {
-
-        // 1. 방송 조회
         Broadcast broadcast = broadcastRepository.findById(broadcastId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.BROADCAST_NOT_FOUND));
 
-        // 2. 카테고리 이름 조회
-        String categoryName = "카테고리 없음";
-        if (broadcast.getTagCategoryId() != null) {
-            categoryName = tagCategoryRepository.findById(broadcast.getTagCategoryId())
-                    .map(TagCategory::getTagCategoryName).orElse("삭제된 카테고리");
-        }
-
-        // 3. [핵심] 상태별 통계 데이터 조회 (Redis 연동)
-        Integer totalViews = 0;
-        Integer totalLikes = 0;
-        Integer totalSanctions = 0; // 제재 건수 초기화
-
-        if (broadcast.getStatus() == BroadcastStatus.ON_AIR) {
-            // [방송 중] Redis에서 실시간 데이터 조회
-            totalViews = redisService.getStatOrZero(redisService.getViewKey(broadcastId));
-            totalLikes = redisService.getStatOrZero(redisService.getLikeKey(broadcastId));
-            totalSanctions = redisService.getStatOrZero(redisService.getSanctionKey(broadcastId)); // 제재 건수
-        }
-        else if (broadcast.getStatus() == BroadcastStatus.ENDED) {
-            // [방송 종료] DB 결과 테이블(BroadcastResult)에서 조회 (Entity 있다면)
-            // BroadcastResult result = broadcastResultRepository.findById(broadcastId).orElse(null);
-            // if (result != null) { ... 값 세팅 ... }
-        }
-        // RESERVED(예약) 상태는 모두 0으로 유지
-
-        // 4. 상품 및 큐카드 리스트 변환 (Helper 메서드 활용 추천)
+        String categoryName = getCategoryName(broadcast.getTagCategoryId());
         List<BroadcastProductResponse> productList = getProductListResponse(broadcast);
         List<QcardResponse> qcardList = getQcardListResponse(broadcast);
 
-        // 5. 응답 반환
-        return BroadcastResponse.fromEntity(
-                broadcast,
-                categoryName,
-                totalViews,
-                totalLikes,
-                totalSanctions, // 제재 건수 포함
-                productList,
-                qcardList
-        );
+        Integer views = 0, likes = 0, sanctions = 0;
+
+        // [수정 완료] LIVE 그룹 (READY, ON_AIR, ENDED)인 경우 Redis 통계 조회
+        if (isLiveGroup(broadcast.getStatus())) {
+            views = redisService.getStatOrZero(redisService.getViewKey(broadcastId));
+            likes = redisService.getStatOrZero(redisService.getLikeKey(broadcastId));
+            sanctions = redisService.getStatOrZero(redisService.getSanctionKey(broadcastId));
+        }
+
+        return BroadcastResponse.fromEntity(broadcast, categoryName, views, likes, sanctions, productList, qcardList);
+    }
+
+    // [Day 5] 방송 목록 조회
+    @Transactional(readOnly = true)
+    public Object getBroadcastList(Long sellerId, BroadcastSearch condition, Pageable pageable) {
+
+        // 1. 전체(ALL) 탭: 대시보드 형태
+        if ("ALL".equalsIgnoreCase(condition.getTab()) || condition.getTab() == null) {
+            List<BroadcastListResponse> live = broadcastRepository.findRecentByStatusGroup(sellerId, "LIVE", 1);
+            List<BroadcastListResponse> reserved = broadcastRepository.findRecentByStatusGroup(sellerId, "RESERVED", 5);
+            List<BroadcastListResponse> vod = broadcastRepository.findRecentByStatusGroup(sellerId, "VOD", 5);
+
+            // 라이브 방송이 있다면 실시간 통계 주입
+            if (!live.isEmpty()) fillRealtimeStats(live.get(0));
+
+            return BroadcastAllResponse.builder()
+                    .liveBroadcast(live.isEmpty() ? null : live.get(0))
+                    .reservedBroadcasts(reserved)
+                    .vodBroadcasts(vod)
+                    .build();
+        }
+
+        // 2. 개별 탭: 리스트 형태 (Slice)
+        else {
+            Slice<BroadcastListResponse> slice = broadcastRepository.searchBroadcasts(sellerId, condition, pageable);
+
+            // "LIVE" 탭 목록 조회 시에는 각 아이템마다 통계 주입
+            if ("LIVE".equalsIgnoreCase(condition.getTab())) {
+                slice.getContent().forEach(this::fillRealtimeStats);
+            }
+            return slice;
+        }
     }
 
 
@@ -312,5 +314,23 @@ public class BroadcastService {
                         .sortOrder(q.getSortOrder())
                         .build())
                 .collect(Collectors.toList());
+    }
+    // [핵심] 라이브 그룹인지 판단 (READY, ON_AIR, ENDED)
+    private boolean isLiveGroup(BroadcastStatus status) {
+        return status == BroadcastStatus.ON_AIR || status == BroadcastStatus.READY || status == BroadcastStatus.ENDED;
+    }
+
+    private String getCategoryName(Long categoryId) {
+        if (categoryId == null) return "카테고리 없음";
+        return tagCategoryRepository.findById(categoryId)
+                .map(TagCategory::getTagCategoryName).orElse("삭제된 카테고리");
+    }
+
+    // 리스트 응답(DTO)에 실시간 통계 채워넣기 (Call by Reference)
+    private void fillRealtimeStats(BroadcastListResponse response) {
+        String viewKey = redisService.getViewKey(response.getBroadcastId());
+        String likeKey = redisService.getLikeKey(response.getBroadcastId());
+        // BroadcastListResponse DTO에 setter나 builder로 값을 넣을 수 있어야 함
+        // response.setTotalViews(redisService.getStatOrZero(viewKey)); // 예시
     }
 }

@@ -1,14 +1,15 @@
 package com.example.LiveHost.controller.seller;
 
 import com.example.LiveHost.common.exception.ApiResult;
-import com.example.LiveHost.dto.BroadcastCreateRequest;
-import com.example.LiveHost.dto.BroadcastResponse;
-import com.example.LiveHost.dto.BroadcastUpdateRequest;
+import com.example.LiveHost.dto.*;
 import com.example.LiveHost.service.BroadcastService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("seller/api/broadcasts")
@@ -40,16 +41,6 @@ public class BroadcastController {
         return ResponseEntity.ok(ApiResult.success(updatedId));
     }
 
-    // 방송 상세 조회 (수정 화면 진입용)
-        // GET /seller/api/broadcasts/{broadcastId}
-    @GetMapping("/{broadcastId}")
-    public ResponseEntity<ApiResult<BroadcastResponse>> getBroadcastDetail(
-            @RequestHeader("X-Seller-Id") Long sellerId,
-            @PathVariable Long broadcastId) {
-        BroadcastResponse response = broadcastService.getBroadcastDetail(sellerId, broadcastId);
-        return ResponseEntity.ok(ApiResult.success(response));
-    }
-
     // [방송 취소]
     // @HostCheck 적용
     // @HostCheck
@@ -60,5 +51,32 @@ public class BroadcastController {
 
         broadcastService.cancelBroadcast(sellerId, broadcastId);
         return ResponseEntity.ok(ApiResult.success("방송 예약이 취소되었습니다."));
+    }
+
+    // 내 상품 목록 조회
+    @GetMapping("/my-products")
+    public ResponseEntity<ApiResult<List<ProductSelectResponse>>> getMyProducts(
+            @RequestHeader("X-Seller-Id") Long sellerId,
+            @RequestParam(required = false) String keyword) {
+        return ResponseEntity.ok(ApiResult.success(broadcastService.getSellerProducts(sellerId, keyword)));
+    }
+
+    // 방송 상세 조회 (수정 화면 진입용)
+        // GET /seller/api/broadcasts/{broadcastId}
+    @GetMapping("/{broadcastId}")
+    public ResponseEntity<ApiResult<BroadcastResponse>> getBroadcastDetail(
+            @RequestHeader("X-Seller-Id") Long sellerId,
+            @PathVariable Long broadcastId) {
+        BroadcastResponse response = broadcastService.getBroadcastDetail(sellerId, broadcastId);
+        return ResponseEntity.ok(ApiResult.success(response));
+    }
+
+    // [Day 5] 방송 목록 조회 API
+    @GetMapping
+    public ResponseEntity<ApiResult<Object>> getBroadcasts(
+            @RequestHeader("X-Seller-Id") Long sellerId,
+            @ModelAttribute BroadcastSearch condition,
+            Pageable pageable) {
+        return ResponseEntity.ok(ApiResult.success(broadcastService.getBroadcastList(sellerId, condition, pageable)));
     }
 }
