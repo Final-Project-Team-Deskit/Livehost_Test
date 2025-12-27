@@ -3,6 +3,8 @@ package com.example.LiveHost.entity;
 import com.example.LiveHost.common.enums.ActorType;
 import com.example.LiveHost.common.enums.SanctionType;
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
@@ -12,6 +14,8 @@ import java.time.LocalDateTime;
 
 @Getter
 @Entity
+@Builder
+@AllArgsConstructor
 @NoArgsConstructor
 @Table(name = "sanction")
 public class Sanction {

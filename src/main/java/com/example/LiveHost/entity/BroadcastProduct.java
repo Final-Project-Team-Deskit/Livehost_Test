@@ -14,6 +14,7 @@ import java.time.LocalDateTime;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
+@Setter
 @Table(name = "broadcast_product")
 public class BroadcastProduct {
 

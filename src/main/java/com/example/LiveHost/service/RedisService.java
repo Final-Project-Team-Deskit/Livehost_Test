@@ -40,6 +40,10 @@ public class RedisService {
         redisTemplate.opsForValue().increment(key);
     }
 
+    public void decrement(String key) {
+        redisTemplate.opsForValue().decrement(key);
+    }
+
     // 6. 메시지 방송 (확성기)
     // 예: redisService.publish("room:100", messageDto);
     public void publish(String channelTopic, Object message) {

@@ -2,12 +2,14 @@ package com.example.LiveHost.service;
 
 import com.example.LiveHost.common.enums.BroadcastProductStatus;
 import com.example.LiveHost.common.enums.BroadcastStatus;
+import com.example.LiveHost.common.enums.VodStatus;
 import com.example.LiveHost.common.exception.BusinessException;
 import com.example.LiveHost.common.exception.ErrorCode;
 import com.example.LiveHost.dto.*;
 import com.example.LiveHost.entity.Broadcast;
 import com.example.LiveHost.entity.BroadcastProduct;
 import com.example.LiveHost.entity.Qcard;
+import com.example.LiveHost.entity.Vod;
 import com.example.LiveHost.others.entity.Product;
 import com.example.LiveHost.others.entity.TagCategory;
 import com.example.LiveHost.others.repository.ProductRepository;
@@ -15,14 +17,22 @@ import com.example.LiveHost.others.repository.TagCategoryRepository;
 import com.example.LiveHost.repository.BroadcastProductRepository;
 import com.example.LiveHost.repository.BroadcastRepository;
 import com.example.LiveHost.repository.QcardRepository;
+import com.example.LiveHost.repository.VodRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.event.EventListener;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.socket.messaging.SessionConnectEvent;
+import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -37,6 +47,10 @@ public class BroadcastService {
     private final ProductRepository productRepository;
     private final RedisService redisService;
     private final SseService sseService;
+    private final OpenViduService openViduService;
+    private final SimpMessagingTemplate messagingTemplate;
+    private final VodRepository vodRepository;
+    private final AwsS3Service s3Service;
 
     // 방송 생성 (POST)
       // 기능: 방송 정보 저장 + 상품 매핑 + 큐카드 저장
@@ -236,6 +250,162 @@ public class BroadcastService {
             }
             return slice;
         }
+    }
+
+    // [Day 6] 방송 시작 (ON_AIR 전환 + 세션 토큰 발급)
+    @Transactional
+    public String startBroadcast(Long sellerId, Long broadcastId) {
+        Broadcast broadcast = broadcastRepository.findById(broadcastId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.BROADCAST_NOT_FOUND));
+
+        if (!broadcast.getSellerId().equals(sellerId)) throw new BusinessException(ErrorCode.FORBIDDEN_ACCESS);
+
+        // 상태 변경 (RESERVED/READY -> ON_AIR)
+        broadcast.changeStatus(BroadcastStatus.ON_AIR);
+        broadcast.setStartedAt(LocalDateTime.now());
+
+        // OpenVidu 세션 생성 및 호스트 토큰 발급
+        try {
+            // 호스트용 메타데이터
+            Map<String, Object> params = Map.of("role", "HOST", "sellerId", sellerId);
+            return openViduService.createToken(broadcastId, params);
+        } catch (Exception e) {
+            throw new BusinessException(ErrorCode.OPENVIDU_ERROR); // 에러코드 정의 필요
+        }
+    }
+
+    // [Day 6] 방송 종료 (ENDED 전환 + 세션 닫기)
+    @Transactional
+    public void endBroadcast(Long sellerId, Long broadcastId) {
+        Broadcast broadcast = broadcastRepository.findById(broadcastId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.BROADCAST_NOT_FOUND));
+
+        if (!broadcast.getSellerId().equals(sellerId)) throw new BusinessException(ErrorCode.FORBIDDEN_ACCESS);
+
+        // 상태 변경
+        broadcast.changeStatus(BroadcastStatus.ENDED);
+        broadcast.setEndedAt(LocalDateTime.now());
+
+        // OpenVidu 세션 종료
+        openViduService.closeSession(broadcastId);
+
+        // SSE로 종료 알림 전송
+        sseService.notifyBroadcastUpdate(broadcastId, "BROADCAST_ENDED", "ended");
+    }
+
+    // [Day 7] 상품 핀 설정
+    @Transactional
+    public void pinProduct(Long sellerId, Long broadcastId, Long bpId) {
+        // 본인 방송 확인
+        Broadcast broadcast = broadcastRepository.findById(broadcastId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.BROADCAST_NOT_FOUND));
+        if (!broadcast.getSellerId().equals(sellerId)) throw new BusinessException(ErrorCode.FORBIDDEN_ACCESS);
+
+        // 1. 기존 핀 해제
+        broadcastProductRepository.resetPinByBroadcastId(broadcastId);
+
+        // 2. 새 핀 설정
+        BroadcastProduct bp = broadcastProductRepository.findById(bpId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
+
+        // 해당 방송의 상품이 맞는지 더블 체크 (안전장치)
+        if (!bp.getBroadcast().getBroadcastId().equals(broadcastId)) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+        bp.setPinned(true);
+
+        // 3. 알림 전송
+        sseService.notifyBroadcastUpdate(broadcastId, "PRODUCT_PINNED", bp.getProductId());
+    }
+
+    // [Day 7] 시청자 입장 (Connect)
+    @EventListener
+    public void handleConnectListener(SessionConnectEvent event) {
+        StompHeaderAccessor accessor = StompHeaderAccessor.wrap(event.getMessage());
+
+        // 1. 프론트엔드에서 보낸 헤더 값 추출
+        String broadcastIdStr = accessor.getFirstNativeHeader("broadcastId");
+
+        if (broadcastIdStr != null) {
+            Long broadcastId = Long.parseLong(broadcastIdStr);
+
+            // 2. Redis 시청자 수 증가
+            redisService.increment(redisService.getViewKey(broadcastId));
+
+            // 3. [핵심] 세션 속성에 broadcastId 저장 (퇴장 시 사용하기 위해)
+            // SimpMessageHeaderAccessor를 통해 세션 속성 맵에 접근
+            Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
+            if (sessionAttributes != null) {
+                sessionAttributes.put("broadcastId", broadcastId);
+            }
+
+            log.info("User Connected: broadcastId={}", broadcastId);
+        }
+    }
+
+    // [Day 7] 시청자 퇴장 (Disconnect)
+    @EventListener
+    public void handleDisconnectListener(SessionDisconnectEvent event) {
+        StompHeaderAccessor accessor = StompHeaderAccessor.wrap(event.getMessage());
+
+        // 1. 세션 속성에서 broadcastId 꺼내기
+        Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
+        if (sessionAttributes != null && sessionAttributes.containsKey("broadcastId")) {
+            Long broadcastId = (Long) sessionAttributes.get("broadcastId");
+
+            // 2. Redis 시청자 수 감소
+            redisService.decrement(redisService.getViewKey(broadcastId));
+
+            log.info("User Disconnected: broadcastId={}", broadcastId);
+        }
+    }
+
+    // [Day 7] 좋아요 처리
+    public void likeBroadcast(Long broadcastId) {
+        redisService.increment(redisService.getLikeKey(broadcastId));
+    }
+
+    // OpenVidu Webhook 수신 시 실행
+    @Transactional
+    public void processVod(OpenViduRecordingWebhook payload) {
+        log.info("VOD Processing: {}", payload.getId());
+
+        // 1. 방송 엔티티 조회 (Entity 매핑을 위해 필수)
+        Long broadcastId = Long.parseLong(payload.getSessionId());
+        Broadcast broadcast = broadcastRepository.findById(broadcastId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.BROADCAST_NOT_FOUND));
+
+        // 2. S3 업로드 (로컬 파일 -> S3)
+        // 실제 운영 시엔 파일 경로 로직 구체화 필요 (여기선 예시 URL 사용)
+        // String s3Url = s3Service.uploadFile(...);
+        String s3Url = "https://your-bucket.s3.ap-northeast-2.amazonaws.com/vods/" + payload.getName() + ".mp4";
+
+        // 3. VOD 엔티티 생성 및 저장
+        Vod vod = Vod.builder()
+                .broadcast(broadcast) // [수정] broadcastId 대신 broadcast 엔티티 주입
+                .vodUrl(s3Url)
+                .vodSize(payload.getSize())
+                .vodDuration(payload.getDuration().intValue()) // Double -> Integer 형변환 필요 시
+                .status(VodStatus.PUBLIC) // 초기값 (공개/비공개 정책에 따름)
+                .vodReportCount(0)
+                .vodAdminLock(false) // boolean -> DB 'N'
+                .build();
+
+        vodRepository.save(vod);
+        log.info("VOD Saved: {}", vod.getVodId());
+    }
+
+    // [Day 7] 실시간 재고 조회 (방송용 할당 수량)
+    @Transactional(readOnly = true)
+    public Integer getProductStock(Long broadcastId, Long productId) {
+        // BroadcastProductRepository에 findStock 메서드가 있다고 가정
+        // (SELECT bp.bpQuantity FROM ...)
+        Integer stock = broadcastProductRepository.findStock(broadcastId, productId);
+
+        if (stock == null) {
+            throw new BusinessException(ErrorCode.PRODUCT_NOT_FOUND);
+        }
+        return stock;
     }
 
 

@@ -26,6 +26,7 @@ public enum ErrorCode { // 에러 코드 모음
     // 5. 상품(Product) 에러
     PRODUCT_SOLD_OUT(HttpStatus.BAD_REQUEST, "P001", "품절된 상품은 핀 설정이 불가능합니다."),
     PRODUCT_NOT_FOUND(HttpStatus.NOT_FOUND, "P002", "상품을 찾을 수 없습니다."),
+    PRODUCT_SOLD_OUT2(HttpStatus.BAD_REQUEST, "P003", "상품 재고가 부족합니다."),
 
     // 6. OpenVidu 에러
     OPENVIDU_SESSION_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "O001", "세션 생성 중 오류가 발생했습니다."),
@@ -35,7 +36,13 @@ public enum ErrorCode { // 에러 코드 모음
     INVALID_FILE_EXTENSION(HttpStatus.BAD_REQUEST, "S002", "지원하지 않는 파일 형식입니다. (jpg, png, gif만 가능)"),
     FILE_DELETE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "S003", "파일 삭제에 실패했습니다."),
     FILE_SIZE_EXCEEDED(HttpStatus.BAD_REQUEST, "S004", "파일 크기가 제한을 초과했습니다."),
-    INVALID_IMAGE_RATIO(HttpStatus.BAD_REQUEST, "S005", "이미지 비율이 올바르지 않습니다.");
+    INVALID_IMAGE_RATIO(HttpStatus.BAD_REQUEST, "S005", "이미지 비율이 올바르지 않습니다."),
+
+    // 8. Live, OpenVidu
+    MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "M001", "회원을 찾을 수 없습니다."),
+    RESULT_NOT_FOUND(HttpStatus.NOT_FOUND, "R001", "방송 결과 리포트가 존재하지 않습니다."),
+    VOD_NOT_FOUND(HttpStatus.NOT_FOUND, "V001", "VOD를 찾을 수 없습니다."),
+    OPENVIDU_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "O001", "OpenVidu 세션 처리 중 오류가 발생했습니다.");
 
     private final HttpStatus status;
     private final String code;

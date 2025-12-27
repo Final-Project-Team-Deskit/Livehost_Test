@@ -4,6 +4,7 @@ import com.example.LiveHost.common.exception.ApiResult;
 import com.example.LiveHost.dto.*;
 import com.example.LiveHost.service.BroadcastService;
 import com.example.LiveHost.service.RedisService;
+import com.example.LiveHost.service.SanctionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
@@ -20,6 +21,7 @@ public class BroadcastController {
 
     private final BroadcastService broadcastService;
     private final RedisService redisService;
+    private final SanctionService sanctionService;
 
     // 방송 생성 API
     // POST /api/v1/broadcasts
@@ -97,4 +99,63 @@ public class BroadcastController {
                 "totalSanctions", sanctions
         )));
     }
+
+    // [Day 6] 방송 시작 API
+    // PUT /seller/api/broadcasts/{broadcastId}/start
+    @PutMapping("/{broadcastId}/start")
+    public ResponseEntity<ApiResult<String>> startBroadcast(
+            @RequestHeader("X-Seller-Id") Long sellerId,
+            @PathVariable Long broadcastId) {
+        // 호스트 토큰 반환
+        String token = broadcastService.startBroadcast(sellerId, broadcastId);
+        return ResponseEntity.ok(ApiResult.success(token));
+    }
+
+    // [Day 6] 방송 종료 API
+    // PUT /seller/api/broadcasts/{broadcastId}/end
+    @PutMapping("/{broadcastId}/end")
+    public ResponseEntity<ApiResult<Void>> endBroadcast(
+            @RequestHeader("X-Seller-Id") Long sellerId,
+            @PathVariable Long broadcastId) {
+        broadcastService.endBroadcast(sellerId, broadcastId);
+        return ResponseEntity.ok(ApiResult.success(null));
+    }
+
+    // [Day 6] 시청자 제재
+    @PostMapping("/{broadcastId}/sanctions")
+    public ResponseEntity<ApiResult<Void>> sanctionUser(
+            @RequestHeader("X-Seller-Id") Long sellerId,
+            @PathVariable Long broadcastId,
+            @RequestBody SanctionRequest request) {
+        sanctionService.sanctionUser(sellerId, broadcastId, request);
+        return ResponseEntity.ok(ApiResult.success(null));
+    }
+
+    // [Day 7] 상품 핀 설정
+    @PutMapping("/{broadcastId}/products/{productId}/pin")
+    public ResponseEntity<ApiResult<Void>> pinProduct(
+            @RequestHeader("X-Seller-Id") Long sellerId,
+            @PathVariable Long broadcastId,
+            @PathVariable Long productId) {
+        broadcastService.pinProduct(sellerId, broadcastId, productId);
+        return ResponseEntity.ok(ApiResult.success(null));
+    }
+
+//    // [Day 7] 방송 결과 조회
+//    @GetMapping("/{broadcastId}/result")
+//    public ResponseEntity<ApiResult<BroadcastResultResponse>> getBroadcastResult(
+//            @RequestHeader("X-Seller-Id") Long sellerId,
+//            @PathVariable Long broadcastId) {
+//        return ResponseEntity.ok(ApiResult.success(broadcastResultService.getBroadcastResult(sellerId, broadcastId)));
+//    }
+//
+//    // [Day 7] VOD 상태 변경
+//    @PatchMapping("/{broadcastId}/vod/status")
+//    public ResponseEntity<ApiResult<Void>> updateVodStatus(
+//            @RequestHeader("X-Seller-Id") Long sellerId,
+//            @PathVariable Long broadcastId,
+//            @RequestBody VodStatusUpdateRequest request) {
+//        vodService.updateVodStatus(sellerId, broadcastId, request);
+//        return ResponseEntity.ok(ApiResult.success(null));
+//    }
 }

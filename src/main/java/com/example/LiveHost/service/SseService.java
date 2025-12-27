@@ -33,15 +33,49 @@ public class SseService {
         return emitter;
     }
 
-    // [핵심] 방송 정보가 수정되었을 때 알림 전송
-    public void notifyBroadcastUpdate(Long broadcastId) {
-        String eventName = "BROADCAST_UPDATED"; // 프론트에서 이 이벤트를 리스닝
-
+    /**
+     * [1] 범용 알림 전송 (가장 기본이 되는 메서드)
+     * @param broadcastId 방송 ID
+     * @param eventName   이벤트 이름 (예: "BROADCAST_UPDATED", "SANCTION_UPDATED")
+     * @param data        전송할 데이터
+     */
+    public void notifyBroadcastUpdate(Long broadcastId, String eventName, Object data) {
         emitters.forEach((key, emitter) -> {
             if (key.startsWith(broadcastId + "_")) { // 해당 방송 시청자에게만 전송
-                sendToClient(emitter, key, eventName, "update");
+                sendToClient(emitter, key, eventName, data);
             }
         });
+    }
+
+    /**
+     * [2] 편의 메서드: 이벤트 이름만 지정 (데이터는 기본값 "update")
+     * 예: notifyBroadcastUpdate(1L, "BROADCAST_ENDED");
+     */
+    public void notifyBroadcastUpdate(Long broadcastId, String eventName) {
+        notifyBroadcastUpdate(broadcastId, eventName, "update");
+    }
+
+    /**
+     * [3] 편의 메서드: 방송 정보 변경 알림 (기본값 사용)
+     * 예: notifyBroadcastUpdate(1L); -> "BROADCAST_UPDATED", "info_changed" 전송
+     */
+    public void notifyBroadcastUpdate(Long broadcastId) {
+        notifyBroadcastUpdate(broadcastId, "BROADCAST_UPDATED", "info_changed");
+    }
+
+    /**
+     * [신규] 특정 유저 1명에게만 알림 전송 (제재 알림용)
+     * Key 생성 규칙(broadcastId_userId)을 이용하여 Map에서 바로 조회
+     */
+    public void notifyTargetUser(Long broadcastId, Long userId, String eventName, Object data) {
+        String key = broadcastId + "_" + userId; // Key 조합
+        SseEmitter emitter = emitters.get(key);
+
+        if (emitter != null) {
+            sendToClient(emitter, key, eventName, data);
+        } else {
+            log.warn("Target user not found or disconnected: key={}", key);
+        }
     }
 
     private void sendToClient(SseEmitter emitter, String id, String name, Object data) {

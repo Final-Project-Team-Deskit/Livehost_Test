@@ -3,10 +3,7 @@ package com.example.LiveHost.entity;
 import com.example.LiveHost.common.enums.BroadcastLayout;
 import com.example.LiveHost.common.enums.BroadcastStatus;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
@@ -19,6 +16,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@Setter
 @Table(name = "broadcast")
 public class Broadcast {
     @Id
@@ -45,9 +43,11 @@ public class Broadcast {
     @Column(name = "scheduled_at", nullable = false)
     private LocalDateTime scheduledAt;
 
+    @Setter
     @Column(name = "started_at")
     private LocalDateTime startedAt;
 
+    @Setter
     @Column(name = "ended_at")
     private LocalDateTime endedAt;
 
@@ -109,5 +109,10 @@ public class Broadcast {
 
     public void delete() {
         this.status = BroadcastStatus.DELETED;
+    }
+
+    // [수정] 상태 변경 비즈니스 메서드 추가
+    public void changeStatus(BroadcastStatus newStatus) {
+        this.status = newStatus;
     }
 }
