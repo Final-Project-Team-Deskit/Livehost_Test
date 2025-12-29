@@ -16,6 +16,7 @@ import org.springframework.data.domain.SliceImpl;
 import java.util.List;
 
 import static com.example.LiveHost.entity.QBroadcast.broadcast;
+import static com.example.LiveHost.entity.QBroadcastResult.broadcastResult;
 
 @RequiredArgsConstructor
 public class BroadcastRepositoryImpl implements BroadcastRepositoryCustom {
@@ -30,8 +31,17 @@ public class BroadcastRepositoryImpl implements BroadcastRepositoryCustom {
                         broadcast.broadcastTitle,
                         broadcast.broadcastThumbUrl,
                         broadcast.status,
-                        broadcast.scheduledAt))
+                        broadcast.scheduledAt,
+                        // [추가] 시작/종료 시간
+                        broadcast.startedAt,
+                        broadcast.endedAt,
+                        // [추가] 결과 테이블의 총 조회수 (없으면 0 처리)
+                        broadcastResult.totalViews.coalesce(0),
+                        // [추가] 현재 시청자 (목록 조회 시점엔 0으로 두고 필요 시 Redis 값 채움)
+                        com.querydsl.core.types.dsl.Expressions.constant(0)))
                 .from(broadcast)
+                // [핵심] 방송 결과 테이블 Left Join (예약 방송은 결과가 없으므로 Left Join 필수)
+                .leftJoin(broadcastResult).on(broadcast.broadcastId.eq(broadcastResult.broadcastId))
                 .where(
                         broadcast.sellerId.eq(sellerId),
                         tabCondition(condition.getTab()),        // [핵심] 탭별 상태 그룹 적용
@@ -61,8 +71,14 @@ public class BroadcastRepositoryImpl implements BroadcastRepositoryCustom {
                         broadcast.broadcastTitle,
                         broadcast.broadcastThumbUrl,
                         broadcast.status,
-                        broadcast.scheduledAt))
+                        broadcast.scheduledAt,
+                        broadcast.startedAt,  // [추가]
+                        broadcast.endedAt,    // [추가]
+                        broadcastResult.totalViews.coalesce(0), // [추가]
+                        com.querydsl.core.types.dsl.Expressions.constant(0)
+                ))
                 .from(broadcast)
+                .leftJoin(broadcastResult).on(broadcast.broadcastId.eq(broadcastResult.broadcastId)) // [추가] Join
                 .where(
                         broadcast.sellerId.eq(sellerId),
                         tabCondition(tabGroup), // 여기도 동일한 그룹핑 로직 사용

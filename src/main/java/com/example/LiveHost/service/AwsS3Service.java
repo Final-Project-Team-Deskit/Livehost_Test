@@ -87,6 +87,25 @@ public class AwsS3Service {
         }
     }
 
+    // [파일 삭제] - 취소 요청 시 S3에서 파일 제거
+    public void deleteFile(Long sellerId, String storedFileName) {
+        String expectedPrefix = "seller_" + sellerId + "/";
+        if (!storedFileName.startsWith(expectedPrefix)) {
+            log.warn("이미지 삭제 권한 없음: 요청자={}, 파일={}", sellerId, storedFileName);
+            throw new BusinessException(ErrorCode.FORBIDDEN_ACCESS);
+        }
+
+        try {
+            if (amazonS3.doesObjectExist(bucket, storedFileName)) {
+                amazonS3.deleteObject(bucket, storedFileName);
+            }
+        } catch (Exception e) {
+            log.error("S3 파일 삭제 실패: {}", storedFileName, e);
+            throw new BusinessException(ErrorCode.FILE_DELETE_FAILED);
+        }
+    }
+
+
     // [비율 검증 로직] - ImageIO로 이미지를 읽어 가로/세로 비율을 계산 (오차범위 0.05 허용)
     private void validateImageRatio(MultipartFile file, UploadType type) {
         try {
@@ -110,24 +129,6 @@ public class AwsS3Service {
         } catch (IOException e) {
             log.error("이미지 읽기 및 검증 실패", e);
             throw new BusinessException(ErrorCode.FILE_UPLOAD_FAILED);
-        }
-    }
-
-    // [파일 삭제] - 취소 요청 시 S3에서 파일 제거
-    public void deleteFile(Long sellerId, String storedFileName) {
-        String expectedPrefix = "seller_" + sellerId + "/";
-        if (!storedFileName.startsWith(expectedPrefix)) {
-            log.warn("이미지 삭제 권한 없음: 요청자={}, 파일={}", sellerId, storedFileName);
-            throw new BusinessException(ErrorCode.FORBIDDEN_ACCESS);
-        }
-
-        try {
-            if (amazonS3.doesObjectExist(bucket, storedFileName)) {
-                amazonS3.deleteObject(bucket, storedFileName);
-            }
-        } catch (Exception e) {
-            log.error("S3 파일 삭제 실패: {}", storedFileName, e);
-            throw new BusinessException(ErrorCode.FILE_DELETE_FAILED);
         }
     }
 

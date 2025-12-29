@@ -39,7 +39,7 @@ public class Member {
     private String phone;
 
     // SQL: TINYINT -> Java: boolean
-    @Column(name = "is_agreed", nullable = false)
+    @Column(name = "is_agreed", nullable = false, columnDefinition = "TINYINT")
     private boolean isAgreed;
 
     @Enumerated(EnumType.STRING)
@@ -58,7 +58,7 @@ public class Member {
     private String role = "ROLE_MEMBER";
 
     // [수정] SQL ENUM('사무/기획형'...) 한글 처리를 위해 String 사용 권장
-    @Column(name = "job_category", length = 50)
+    @Column(name = "job_category", columnDefinition = "ENUM('사무/기획형', '창의/디자인형', '교육/연구형', '의료/전문서비스형', '자유/유연형', 'NONE')")
     @Builder.Default
     private String jobCategory = "NONE";
 

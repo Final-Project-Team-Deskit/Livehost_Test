@@ -34,9 +34,10 @@ spring:
         default_batch_fetch_size: 100
         format_sql: true
         show_sql: true
-#  data:
-#    redis:
-#      host: 10.0.1.8
+  data:
+    redis:
+      host: redis-11674.c340.ap-northeast-2-1.ec2.cloud.redislabs.com
+      port: 11674
 #      port: 6379
 #      password: redis1234
   servlet:

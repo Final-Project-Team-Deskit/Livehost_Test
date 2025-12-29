@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("member/api")
 @RequiredArgsConstructor
-public class BroadcastController {
+public class BroadcastMemberController {
 
     private final BroadcastService broadcastService;
 

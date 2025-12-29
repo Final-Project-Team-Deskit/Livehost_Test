@@ -17,7 +17,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("seller/api/broadcasts")
 @RequiredArgsConstructor
-public class BroadcastController {
+public class BroadcastSellerController {
 
     private final BroadcastService broadcastService;
     private final RedisService redisService;

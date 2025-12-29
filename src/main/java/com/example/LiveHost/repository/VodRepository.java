@@ -6,5 +6,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.Optional;
 
 public interface VodRepository extends JpaRepository<Vod, Long> {
-    Optional<Vod> findByBroadcastId(Long broadcastId);
+    Optional<Vod> findByBroadcast_BroadcastId(Long broadcastId);
 }

@@ -91,28 +91,34 @@ public class BroadcastService {
             throw new BusinessException(ErrorCode.FORBIDDEN_ACCESS);
         }
 
-        // 3. 상태 검증 (예약 상태일 때만 수정 가능)
+        // 3. 상태 검증 분기
         if (broadcast.getStatus() != BroadcastStatus.RESERVED) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE); // "이미 시작된 방송은 수정 불가" 등의 메시지 필요
+            // 4. 방송 기본 정보 수정
+            broadcast.updateBroadcastInfo(
+                    request.getCategoryId(),
+                    request.getTitle(),
+                    request.getNotice(),
+                    request.getScheduledAt(),
+                    request.getThumbnailUrl(),
+                    request.getWaitScreenUrl(),
+                    request.getBroadcastLayout()
+            );
+
+            // 5. 상품/큐카드 수정 (전체 삭제 후 재등록 전략)
+            updateBroadcastProducts(sellerId, broadcast, request.getProducts());
+            updateQcards(broadcast, request.getQcards());
+        } else {
+            broadcast.updateLiveBroadcastInfo(
+                    request.getCategoryId(),
+                    request.getTitle(),
+                    request.getNotice(),
+                    request.getThumbnailUrl(),
+                    request.getWaitScreenUrl()
+            );
+
+            // ★ [핵심 추가] 정보가 변경되었음을 시청자들에게 알림 (SSE)
+            sseService.notifyBroadcastUpdate(broadcastId);
         }
-
-        // 4. 방송 기본 정보 수정
-        broadcast.updateBroadcastInfo(
-                request.getCategoryId(),
-                request.getTitle(),
-                request.getNotice(),
-                request.getScheduledAt(),
-                request.getThumbnailUrl(),
-                request.getWaitScreenUrl(),
-                request.getBroadcastLayout()
-        );
-
-        // 5. 상품/큐카드 수정 (전체 삭제 후 재등록 전략)
-        updateBroadcastProducts(sellerId, broadcast, request.getProducts());
-        updateQcards(broadcast, request.getQcards());
-
-        // ★ [핵심 추가] 정보가 변경되었음을 시청자들에게 알림 (SSE)
-        sseService.notifyBroadcastUpdate(broadcastId);
 
         return broadcast.getBroadcastId();
 

@@ -35,7 +35,7 @@ public class ProductImage {
     @Column(name = "image_type", nullable = false)
     private ImageType imageType;
 
-    @Column(name = "slot_index", nullable = false)
+    @Column(name = "slot_index", nullable = false, columnDefinition = "TINYINT UNSIGNED")
     private Integer slotIndex;
 
     @CreationTimestamp

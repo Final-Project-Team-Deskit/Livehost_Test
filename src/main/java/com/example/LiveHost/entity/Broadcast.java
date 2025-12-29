@@ -107,6 +107,14 @@ public class Broadcast {
         this.broadcastLayout = layout;
     }
 
+    public void updateLiveBroadcastInfo(Long categoryId, String title, String notice, String thumbUrl, String waitUrl) {
+        this.tagCategoryId = categoryId;
+        this.broadcastTitle = title;
+        this.broadcastNotice = notice;
+        this.broadcastThumbUrl = thumbUrl;
+        this.broadcastWaitUrl = waitUrl;
+    }
+
     public void delete() {
         this.status = BroadcastStatus.DELETED;
     }
