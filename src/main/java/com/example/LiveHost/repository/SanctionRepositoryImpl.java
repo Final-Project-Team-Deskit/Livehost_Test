@@ -1,13 +1,18 @@
 package com.example.LiveHost.repository;
 
 import com.example.LiveHost.common.enums.BroadcastStatus;
+import com.example.LiveHost.common.enums.SanctionType;
 import com.example.LiveHost.dto.SanctionStatisticsResponse;
 import com.querydsl.core.types.Projections;
+import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.core.types.dsl.StringTemplate;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
 
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.temporal.TemporalAdjusters;
 import java.util.List;
 
 // [필수] QClass Import (패키지 경로 확인 필요)
@@ -34,7 +39,10 @@ public class SanctionRepositoryImpl implements SanctionRepositoryCustom {
                         dateExpr,
                         broadcast.count())) // 강제 종료 건수
                 .from(broadcast)
-                .where(broadcast.status.eq(BroadcastStatus.STOPPED)) // [조건] 상태가 STOPPED 인 것만
+                .where(
+                        broadcast.status.eq(BroadcastStatus.STOPPED), // [조건] 상태가 STOPPED 인 것만
+                        getChartPeriodCondition(periodType, broadcast.endedAt) // 날짜 범위 필터링
+                )
                 .groupBy(dateExpr)
                 .orderBy(dateExpr.asc())
                 .fetch();
@@ -50,8 +58,10 @@ public class SanctionRepositoryImpl implements SanctionRepositoryCustom {
                         dateExpr,
                         sanction.count())) // 제재 건수
                 .from(sanction)
-                // 조건: Sanction 테이블에 들어있는 것 자체가 제재이므로 전체 카운트 (혹은 특정 상태 필터링)
-                // .where(sanction.status.in(SanctionType.MUTE, SanctionType.OUT)) // 필요 시 주석 해제
+                .where(
+                        sanction.status.in(SanctionType.MUTE, SanctionType.OUT),
+                        getChartPeriodCondition(periodType, sanction.createdAt) // 날짜 범위 필터링
+                )
                 .groupBy(dateExpr)
                 .orderBy(dateExpr.asc())
                 .fetch();
@@ -63,16 +73,19 @@ public class SanctionRepositoryImpl implements SanctionRepositoryCustom {
 
     // 2-1. 판매자 강제 종료 순위 (Broadcast 테이블 -> Seller 조인)
     @Override
-    public List<SanctionStatisticsResponse.SellerRank> getSellerForceStopRanking(int limit) {
+    public List<SanctionStatisticsResponse.SellerRank> getSellerForceStopRanking(String periodType, int limit) {
         return queryFactory
                 .select(Projections.constructor(SanctionStatisticsResponse.SellerRank.class,
-                        seller.sellerId,   // [Check] Seller 엔티티의 ID 필드명
-                        seller.name,  // [Check] 상호명 필드명 (brandName 혹은 storeName)
-                        seller.phone,
-                        broadcast.count())) // 강제 종료 횟수
+                        seller.sellerId,
+                        seller.name,
+                        seller.loginId,
+                        broadcast.count()))
                 .from(broadcast)
                 .join(broadcast.seller, seller)
-                .where(broadcast.status.eq(BroadcastStatus.STOPPED))
+                .where(
+                        broadcast.status.eq(BroadcastStatus.STOPPED),
+                        getRankingPeriodCondition(periodType, broadcast.endedAt) // [추가] 기간 필터링
+                )
                 .groupBy(seller.sellerId)
                 .orderBy(broadcast.count().desc())
                 .limit(limit)
@@ -81,24 +94,63 @@ public class SanctionRepositoryImpl implements SanctionRepositoryCustom {
 
     // 2-2. 시청자 제재 순위 (Sanction 테이블 -> MemberId 기준)
     @Override
-    public List<SanctionStatisticsResponse.ViewerRank> getViewerSanctionRanking(int limit) {
-        // Sanction 엔티티에 'memberId' (Long)가 있으므로 이를 기준으로 집계
+    public List<SanctionStatisticsResponse.ViewerRank> getViewerSanctionRanking(String periodType, int limit) {
         return queryFactory
                 .select(Projections.constructor(SanctionStatisticsResponse.ViewerRank.class,
-                        sanction.memberId.stringValue(), // Long -> String 변환 (DTO가 String일 경우)
-                        Expressions.asString("Member"),  // 닉네임은 별도 조인 없이 고정값 or 프론트 처리
+                        sanction.memberId.stringValue(),
+                        Expressions.asString("Member"),
                         sanction.count()))
                 .from(sanction)
+                .where(
+                        getRankingPeriodCondition(periodType, sanction.createdAt) // [추가] 기간 필터링
+                )
                 .groupBy(sanction.memberId)
                 .orderBy(sanction.count().desc())
                 .limit(limit)
                 .fetch();
     }
 
-    // --- Helper Method ---
+    // Helper Method
+    // [Helper 1] 날짜 포맷 변환 (Group By용)
     private StringTemplate getDateExpression(String periodType, com.querydsl.core.types.dsl.DateTimePath<java.time.LocalDateTime> datePath) {
         String format = "DAILY".equalsIgnoreCase(periodType) ? "%Y-%m-%d" :
                 "MONTHLY".equalsIgnoreCase(periodType) ? "%Y-%m" : "%Y";
         return Expressions.stringTemplate("DATE_FORMAT({0}, {1})", datePath, format);
+    }
+
+    // [Helper 2] 차트용 기간 (Trend): 최근 1달, 최근 1년, 최근 10년
+    private BooleanExpression getChartPeriodCondition(String type, com.querydsl.core.types.dsl.DateTimePath<LocalDateTime> path) {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime startDate;
+
+        if ("DAILY".equalsIgnoreCase(type)) {
+            // 일별 차트: 최근 30일 (2주)
+            startDate = now.minusDays(29).with(LocalTime.MIN);
+        } else if ("MONTHLY".equalsIgnoreCase(type)) {
+            // 월별 차트: 최근 12개월 (1년)
+            startDate = now.minusMonths(11).withDayOfMonth(1).with(LocalTime.MIN);
+        } else {
+            // 연도별 차트: 최근 10년
+            startDate = now.minusYears(9).withDayOfYear(1).with(LocalTime.MIN);
+        }
+        return path.goe(startDate);
+    }
+
+    // [Helper 3] 랭킹용 기간 (Snapshot): 오늘 하루, 이번 달, 올해
+    private BooleanExpression getRankingPeriodCondition(String type, com.querydsl.core.types.dsl.DateTimePath<LocalDateTime> path) {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime startDate;
+
+        if ("DAILY".equalsIgnoreCase(type)) {
+            // 일별 랭킹: 오늘 00:00:00 ~ 현재
+            startDate = now.with(LocalTime.MIN);
+        } else if ("MONTHLY".equalsIgnoreCase(type)) {
+            // 월별 랭킹: 이번 달 1일 00:00:00 ~ 현재
+            startDate = now.withDayOfMonth(1).with(LocalTime.MIN);
+        } else {
+            // 연도별 랭킹: 올해 1월 1일 00:00:00 ~ 현재
+            startDate = now.with(TemporalAdjusters.firstDayOfYear()).with(LocalTime.MIN);
+        }
+        return path.goe(startDate);
     }
 }

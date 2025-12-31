@@ -599,12 +599,12 @@ public class BroadcastService {
         List<StatisticsResponse.BroadcastRank> best, worst, topView;
 
         if (sellerId != null) { // 판매자
-            best = broadcastResultRepository.getRanking(sellerId, "SALES", true, 5);
-            worst = broadcastResultRepository.getRanking(sellerId, "SALES", false, 5);
-            topView = broadcastResultRepository.getRanking(sellerId, "VIEWS", true, 5);
+            best = broadcastResultRepository.getRanking(sellerId, period,"SALES", true, 5);
+            worst = broadcastResultRepository.getRanking(sellerId, period,"SALES", false, 5);
+            topView = broadcastResultRepository.getRanking(sellerId, period,"VIEWS", true, 5);
         } else { // 관리자
-            best = broadcastResultRepository.getRanking(null, "SALES", true, 10);
-            worst = broadcastResultRepository.getRanking(null, "SALES", false, 10);
+            best = broadcastResultRepository.getRanking(null, period,"SALES", true, 10);
+            worst = broadcastResultRepository.getRanking(null, period,"SALES", false, 10);
             topView = List.of();
         }
         // ARPU 단일값 계산 (여기선 생략, 차트만 반환)

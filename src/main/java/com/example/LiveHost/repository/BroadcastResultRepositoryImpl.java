@@ -11,6 +11,9 @@ import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.temporal.TemporalAdjusters;
 import java.util.List;
 
 import static com.example.LiveHost.entity.QBroadcast.broadcast;
@@ -35,7 +38,8 @@ public class BroadcastResultRepositoryImpl implements BroadcastResultRepositoryC
                 .join(broadcastResult.broadcast, broadcast)
                 .where(
                         sellerIdEq(sellerId),
-                        broadcast.endedAt.isNotNull()
+                        broadcast.endedAt.isNotNull(),
+                        getChartPeriodCondition(periodType, broadcast.startedAt)
                 )
                 .groupBy(dateExpr)
                 .orderBy(dateExpr.asc())
@@ -60,7 +64,8 @@ public class BroadcastResultRepositoryImpl implements BroadcastResultRepositoryC
                 .join(broadcastResult.broadcast, broadcast)
                 .where(
                         sellerIdEq(sellerId),
-                        broadcast.endedAt.isNotNull()
+                        broadcast.endedAt.isNotNull(),
+                        getChartPeriodCondition(periodType, broadcast.startedAt)
                 )
                 .groupBy(dateExpr)
                 .orderBy(dateExpr.asc())
@@ -69,7 +74,7 @@ public class BroadcastResultRepositoryImpl implements BroadcastResultRepositoryC
 
     // 3. 방송 랭킹 조회 (메서드명 getRanking으로 통일)
     @Override
-    public List<StatisticsResponse.BroadcastRank> getRanking(Long sellerId, String sortField, boolean isDesc, int limit) {
+    public List<StatisticsResponse.BroadcastRank> getRanking(Long sellerId, String periodType, String sortField, boolean isDesc, int limit) {
         return queryFactory
                 .select(Projections.constructor(StatisticsResponse.BroadcastRank.class,
                         broadcast.broadcastId,
@@ -81,7 +86,8 @@ public class BroadcastResultRepositoryImpl implements BroadcastResultRepositoryC
                 .join(broadcastResult.broadcast, broadcast)
                 .where(
                         sellerIdEq(sellerId),
-                        broadcast.endedAt.isNotNull()
+                        broadcast.endedAt.isNotNull(),
+                        getChartPeriodCondition(periodType, broadcast.startedAt) // [핵심] "이번 달 랭킹", "올해 랭킹" 등을 위해 필요
                 )
                 .orderBy(getOrderSpecifier(sortField, isDesc))
                 .limit(limit)
@@ -89,7 +95,6 @@ public class BroadcastResultRepositoryImpl implements BroadcastResultRepositoryC
     }
 
     // --- Helper Methods ---
-
     private BooleanExpression sellerIdEq(Long sellerId) {
         return sellerId != null ? broadcast.seller.sellerId.eq(sellerId) : null;
     }
@@ -106,5 +111,41 @@ public class BroadcastResultRepositoryImpl implements BroadcastResultRepositoryC
         } else {
             return isDesc ? broadcastResult.totalViews.desc() : broadcastResult.totalViews.asc();
         }
+    }
+
+    // [New Helper 1] 차트용 기간 (Trend): 최근 30일, 최근 1년, 최근 10년
+    private BooleanExpression getChartPeriodCondition(String type, com.querydsl.core.types.dsl.DateTimePath<LocalDateTime> path) {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime startDate;
+
+        if ("DAILY".equalsIgnoreCase(type)) {
+            // 일별 차트: 최근 30일
+            startDate = now.minusDays(29).with(LocalTime.MIN);
+        } else if ("MONTHLY".equalsIgnoreCase(type)) {
+            // 월별 차트: 최근 12개월 (1년)
+            startDate = now.minusMonths(11).withDayOfMonth(1).with(LocalTime.MIN);
+        } else {
+            // 연도별 차트: 최근 10년
+            startDate = now.minusYears(9).withDayOfYear(1).with(LocalTime.MIN);
+        }
+        return path.goe(startDate);
+    }
+
+    // [New Helper 2] 랭킹용 기간 (Snapshot): 오늘, 이번 달, 올해
+    private BooleanExpression getRankingPeriodCondition(String type, com.querydsl.core.types.dsl.DateTimePath<LocalDateTime> path) {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime startDate;
+
+        if ("DAILY".equalsIgnoreCase(type)) {
+            // 일별 랭킹: 오늘 00:00:00 ~ 현재
+            startDate = now.with(LocalTime.MIN);
+        } else if ("MONTHLY".equalsIgnoreCase(type)) {
+            // 월별 랭킹: 이번 달 1일 00:00:00 ~ 현재
+            startDate = now.withDayOfMonth(1).with(LocalTime.MIN);
+        } else {
+            // 연도별 랭킹: 올해 1월 1일 00:00:00 ~ 현재
+            startDate = now.with(TemporalAdjusters.firstDayOfYear()).with(LocalTime.MIN);
+        }
+        return path.goe(startDate);
     }
 }

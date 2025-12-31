@@ -13,8 +13,8 @@ public interface SanctionRepositoryCustom {
     List<SanctionStatisticsResponse.ChartData> getViewerSanctionChart(String periodType);
 
     // 3. 판매자 강제 종료 랭킹 (Broadcast 테이블 기준)
-    List<SanctionStatisticsResponse.SellerRank> getSellerForceStopRanking(int limit);
+    List<SanctionStatisticsResponse.SellerRank> getSellerForceStopRanking(String periodType, int limit);
 
     // 4. 시청자 제재 랭킹 (Sanction 테이블 기준)
-    List<SanctionStatisticsResponse.ViewerRank> getViewerSanctionRanking(int limit);
+    List<SanctionStatisticsResponse.ViewerRank> getViewerSanctionRanking(String periodType, int limit);
 }

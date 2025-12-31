@@ -25,8 +25,8 @@ public class AdminService {
         return SanctionStatisticsResponse.builder()
                 .forceStopChart(sanctionRepository.getSellerForceStopChart(period)) // 방송 테이블
                 .viewerBanChart(sanctionRepository.getViewerSanctionChart(period)) // 제재 테이블
-                .worstSellers(sanctionRepository.getSellerForceStopRanking(10))
-                .worstViewers(sanctionRepository.getViewerSanctionRanking(10))
+                .worstSellers(sanctionRepository.getSellerForceStopRanking(period, 5))
+                .worstViewers(sanctionRepository.getViewerSanctionRanking(period,5))
                 .build();
     }
 
