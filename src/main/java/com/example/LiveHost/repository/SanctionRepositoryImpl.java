@@ -18,6 +18,7 @@ import java.util.List;
 // [필수] QClass Import (패키지 경로 확인 필요)
 import static com.example.LiveHost.entity.QBroadcast.broadcast;
 import static com.example.LiveHost.entity.QSanction.sanction;
+import static com.example.LiveHost.others.entity.QMember.member;
 import static com.example.LiveHost.others.entity.QSeller.seller;
 
 @RequiredArgsConstructor
@@ -97,14 +98,15 @@ public class SanctionRepositoryImpl implements SanctionRepositoryCustom {
     public List<SanctionStatisticsResponse.ViewerRank> getViewerSanctionRanking(String periodType, int limit) {
         return queryFactory
                 .select(Projections.constructor(SanctionStatisticsResponse.ViewerRank.class,
-                        sanction.memberId.stringValue(),
+                        sanction.member.memberId.stringValue(),
                         Expressions.asString("Member"),
                         sanction.count()))
                 .from(sanction)
+                .leftJoin(sanction.member, member)
                 .where(
                         getRankingPeriodCondition(periodType, sanction.createdAt) // [추가] 기간 필터링
                 )
-                .groupBy(sanction.memberId)
+                .groupBy(sanction.member.memberId)
                 .orderBy(sanction.count().desc())
                 .limit(limit)
                 .fetch();

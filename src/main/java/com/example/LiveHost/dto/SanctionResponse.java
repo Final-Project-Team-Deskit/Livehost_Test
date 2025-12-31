@@ -27,7 +27,7 @@ public class SanctionResponse {
         return SanctionResponse.builder()
                 .sanctionId(sanction.getSanctionId())
                 .broadcastId(sanction.getBroadcast().getBroadcastId())
-                .targetMemberId(sanction.getMemberId())
+                .targetMemberId(sanction.getMember().getMemberId())
                 .targetNickname(nickname) // 엔티티엔 없고 외부에서 주입
                 .type(sanction.getStatus()) // Enum 이름 확인 필요 (SanctionStatus or SanctionType)
                 .reason(sanction.getSanctionReason())

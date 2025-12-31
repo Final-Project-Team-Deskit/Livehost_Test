@@ -41,7 +41,7 @@ public class SanctionService {
 
         Sanction sanction = Sanction.builder()
                 .broadcast(broadcast)
-                .memberId(request.getMemberId())
+                .member(member)
                 .actorType(request.getActorType())
                 .sellerId(sellerId)
                 .status(request.getStatus()) // MUTE or OUT

@@ -2,6 +2,7 @@ package com.example.LiveHost.entity;
 
 import com.example.LiveHost.common.enums.BroadcastProductStatus;
 import com.example.LiveHost.common.utils.BooleanToYNConverter;
+import com.example.LiveHost.others.entity.Product;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -27,8 +28,9 @@ public class BroadcastProduct {
     @JoinColumn(name = "broadcast_id", nullable = false)
     private Broadcast broadcast;
 
-    @Column(name = "product_id", nullable = false)
-    private Long productId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "product_id", nullable = false)
+    private Product product;
 
     @Column(name = "display_order", nullable = false)
     private int displayOrder;

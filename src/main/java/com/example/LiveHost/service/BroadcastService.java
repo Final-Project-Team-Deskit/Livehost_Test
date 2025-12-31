@@ -243,44 +243,6 @@ public class BroadcastService {
         return createBroadcastResponse(broadcast);
     }
 
-    // 5-3. 실시간 통계 조회 (Polling용 - 가벼운 API)
-    @Transactional(readOnly = true)
-    public BroadcastStatsResponse getBroadcastStats(Long broadcastId) {
-        // 방송 존재 여부 체크
-        Broadcast broadcast = broadcastRepository.findById(broadcastId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.BROADCAST_NOT_FOUND));
-
-        // [보안] 취소되거나 삭제된 방송은 조회 불가
-        if (broadcast.getStatus() == BroadcastStatus.DELETED || broadcast.getStatus() == BroadcastStatus.CANCELED) {
-            throw new BusinessException(ErrorCode.BROADCAST_NOT_FOUND);
-        }
-
-        int views = 0;
-        int likes = 0;
-        int reports = 0;
-
-        if (isLiveGroup(broadcast.getStatus())) {
-            // 라이브 중: Redis 조회 (빠름)
-            views = redisService.getRealtimeViewerCount(broadcastId);
-            likes = redisService.getLikeCount(broadcastId);
-            reports = redisService.getReportCount(broadcastId);
-        } else {
-            // 종료됨: DB 결과 조회
-            BroadcastResult result = broadcastResultRepository.findById(broadcastId).orElse(null);
-            if (result != null) {
-                views = result.getTotalViews();
-                likes = result.getTotalLikes();
-                reports = sanctionRepository.countByBroadcast(broadcast);
-            }
-        }
-
-        return BroadcastStatsResponse.builder()
-                .viewerCount(views)
-                .likeCount(likes)
-                .reportCount(reports)
-                .build();
-    }
-
 
     // =====================================================================
     // 6. [조회] 방송 목록 (List/Overview)
@@ -300,6 +262,13 @@ public class BroadcastService {
         Slice<BroadcastListResponse> list = broadcastRepository.searchBroadcasts(sellerId, condition, pageable, true);
         injectLiveStats(list.getContent());
         return list;
+    }
+
+    // 6-3. 관리자용 목록 조회 (전체 조회)
+    @Transactional(readOnly = true)
+    public Object getAdminBroadcasts(BroadcastSearch condition, Pageable pageable) {
+        // isAdmin=true로 호출하여 상태 필터링 없이 모두 조회
+        return broadcastRepository.searchBroadcasts(null, condition, pageable, true);
     }
 
     // =====================================================================
@@ -391,7 +360,7 @@ public class BroadcastService {
         bp.setPinned(true);
 
         // 3. 알림 전송
-        sseService.notifyBroadcastUpdate(broadcastId, "PRODUCT_PINNED", bp.getProductId());
+        sseService.notifyBroadcastUpdate(broadcastId, "PRODUCT_PINNED", bp.getProduct().getProductId());
     }
 
     // WebSocket Event 시청자 집계  (Connect)
@@ -417,13 +386,13 @@ public class BroadcastService {
         }
     }
 
-    // [Day 7] 좋아요 처리
+    // 좋아요 처리
     public void likeBroadcast(Long broadcastId, Long memberId) {
         redisService.toggleLike(broadcastId, memberId);
     }
 
     // =====================================================================
-    // [Webhook] VOD 스트리밍 업로드 & 결과 확정 (비동기 처리)
+    // 8. [Webhook] VOD 스트리밍 업로드 & 결과 확정 (비동기 처리)
     // =====================================================================
     @Transactional
     public void processVod(OpenViduRecordingWebhook payload) {
@@ -512,15 +481,53 @@ public class BroadcastService {
         }
     }
 
-    // [Day 7] 실시간 재고 조회 (방송용 할당 수량)
-    @Transactional(readOnly = true)
-    public Integer getProductStock(Long broadcastId, Long productId) {
-        Integer stock = broadcastProductRepository.findStock(broadcastId, productId);
 
-        if (stock == null) {
-            throw new BusinessException(ErrorCode.PRODUCT_NOT_FOUND);
+    // =====================================================================
+    // 9. [Polling: 시청자/재고 분리]
+    // =====================================================================
+    // 9-1. 실시간 통계 조회 (Polling용 - 가벼운 API)
+    @Transactional(readOnly = true)
+    public BroadcastStatsResponse getBroadcastStats(Long broadcastId) {
+        // 방송 존재 여부 체크
+        Broadcast broadcast = broadcastRepository.findById(broadcastId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.BROADCAST_NOT_FOUND));
+
+        // [보안] 취소되거나 삭제된 방송은 조회 불가
+        if (broadcast.getStatus() == BroadcastStatus.DELETED || broadcast.getStatus() == BroadcastStatus.CANCELED) {
+            throw new BusinessException(ErrorCode.BROADCAST_NOT_FOUND);
         }
-        return stock;
+
+        int views = 0;
+        int likes = 0;
+        int reports = 0;
+
+        if (isLiveGroup(broadcast.getStatus())) {
+            // 라이브 중: Redis 조회 (빠름)
+            views = redisService.getRealtimeViewerCount(broadcastId);
+            likes = redisService.getLikeCount(broadcastId);
+            reports = redisService.getReportCount(broadcastId);
+        } else {
+            // 종료됨: DB 결과 조회
+            BroadcastResult result = broadcastResultRepository.findById(broadcastId).orElse(null);
+            if (result != null) {
+                views = result.getTotalViews();
+                likes = result.getTotalLikes();
+                reports = sanctionRepository.countByBroadcast(broadcast);
+            }
+        }
+
+        return BroadcastStatsResponse.builder()
+                .viewerCount(views)
+                .likeCount(likes)
+                .reportCount(reports)
+                .build();
+    }
+
+    // 1-2. 실시간 재고 (DB Access, 3~5초 간격) - 재고, 품절여부, 핀 상태
+    @Transactional(readOnly = true)
+    public List<BroadcastProductResponse> getBroadcastProducts(Long broadcastId) {
+        return broadcastProductRepository.findAllWithProductByBroadcastId(broadcastId).stream()
+                .map(BroadcastProductResponse::fromEntity).collect(Collectors.toList());
     }
 
     //  신고 (1인 1회)
@@ -558,9 +565,9 @@ public class BroadcastService {
         // 상품 성과 리스트
         List<BroadcastResultResponse.ProductSalesStat> productStats = broadcast.getProducts().stream()
                 .map(bp -> {
-                    Product p = productRepository.findById(bp.getProductId()).orElse(null);
+                    Product p = productRepository.findById(bp.getProduct().getProductId()).orElse(null);
                     return BroadcastResultResponse.ProductSalesStat.builder()
-                            .productId(bp.getProductId())
+                            .productId(bp.getProduct().getProductId())
                             .productName(p != null ? p.getProductName() : "")
                             .imageUrl(p != null ? p.getProductThumbUrl() : "")
                             .salesAmount(BigDecimal.ZERO) // TODO: OrderService 연동
@@ -634,7 +641,7 @@ public class BroadcastService {
 
             BroadcastProduct bp = BroadcastProduct.builder()
                     .broadcast(broadcast)
-                    .productId(dto.getProductId())
+                    .product(product)
                     .bpPrice(dto.getBpPrice())
                     .bpQuantity(dto.getBpQuantity())
                     .displayOrder(order++) // 순서 자동 증가
@@ -678,13 +685,8 @@ public class BroadcastService {
     private List<BroadcastProductResponse> getProductListResponse(Broadcast broadcast) {
         return broadcast.getProducts().stream()
                 .map(bp -> {
-                    Product p = productRepository.findById(bp.getProductId()).orElse(null);
-                    return BroadcastProductResponse.fromEntity(
-                            bp,
-                            p != null ? p.getProductName() : "삭제된 상품",
-                            p != null ? p.getProductThumbUrl() : "",
-                            p != null ? p.getPrice() : 0
-                    );
+                    Product p =bp.getProduct();
+                    return BroadcastProductResponse.fromEntity(bp);
                 }).collect(Collectors.toList());
     }
 
@@ -742,17 +744,16 @@ public class BroadcastService {
                 item.setTotalLikes(redisService.getLikeCount(item.getBroadcastId()));
                 item.setReportCount(redisService.getReportCount(item.getBroadcastId()));
 
-                // [추가] 상품 재고 리스트 주입
-                Broadcast b = broadcastRepository.findById(item.getBroadcastId()).orElse(null);
-                if (b != null) {
-                    item.setProducts(b.getProducts().stream().map(bp -> {
-                        Product p = productRepository.findById(bp.getProductId()).orElse(null);
-                        return BroadcastListResponse.SimpleProductInfo.builder()
-                                .name(p!=null ? p.getProductName() : "")
-                                .stock(p!=null ? p.getStockQty() : 0)
-                                .isSoldOut(p!=null && p.getStockQty()<=0).build();
-                    }).collect(Collectors.toList()));
-                }
+                // [수정] Fetch Join 메서드 사용
+                List<BroadcastProduct> products = broadcastProductRepository.findAllWithProductByBroadcastId(item.getBroadcastId());
+
+                item.setProducts(products.stream().map(bp -> {
+                    Product p = bp.getProduct();
+                    return BroadcastListResponse.SimpleProductInfo.builder()
+                            .name(p.getProductName())
+                            .stock(bp.getBpQuantity())
+                            .isSoldOut(bp.getBpQuantity() <= 0).build();
+                }).collect(Collectors.toList()));
             }
         });
     }

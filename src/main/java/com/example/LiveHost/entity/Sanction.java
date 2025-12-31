@@ -2,6 +2,7 @@ package com.example.LiveHost.entity;
 
 import com.example.LiveHost.common.enums.ActorType;
 import com.example.LiveHost.common.enums.SanctionType;
+import com.example.LiveHost.others.entity.Member;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -29,8 +30,9 @@ public class Sanction {
     @JoinColumn(name = "broadcast_id", nullable = false)
     private Broadcast broadcast;
 
-    @Column(name = "member_id", nullable = false)
-    private Long memberId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "member_id", nullable = false)
+    private Member member;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "actor_type", nullable = false)

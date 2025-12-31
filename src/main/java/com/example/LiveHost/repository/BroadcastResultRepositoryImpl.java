@@ -87,7 +87,7 @@ public class BroadcastResultRepositoryImpl implements BroadcastResultRepositoryC
                 .where(
                         sellerIdEq(sellerId),
                         broadcast.endedAt.isNotNull(),
-                        getChartPeriodCondition(periodType, broadcast.startedAt) // [핵심] "이번 달 랭킹", "올해 랭킹" 등을 위해 필요
+                        getRankingPeriodCondition(periodType, broadcast.startedAt) // [핵심] "이번 달 랭킹", "올해 랭킹" 등을 위해 필요
                 )
                 .orderBy(getOrderSpecifier(sortField, isDesc))
                 .limit(limit)
@@ -102,7 +102,7 @@ public class BroadcastResultRepositoryImpl implements BroadcastResultRepositoryC
     private StringTemplate getDateExpression(String periodType) {
         String format = "DAILY".equalsIgnoreCase(periodType) ? "%Y-%m-%d" :
                 "MONTHLY".equalsIgnoreCase(periodType) ? "%Y-%m" : "%Y";
-        return Expressions.stringTemplate("DATE_FORMAT({0}, {1})", broadcast.endedAt, format);
+        return Expressions.stringTemplate("DATE_FORMAT({0}, {1})", broadcast.startedAt, format);
     }
 
     private OrderSpecifier<?> getOrderSpecifier(String sortField, boolean isDesc) {

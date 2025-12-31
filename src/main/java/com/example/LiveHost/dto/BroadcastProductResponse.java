@@ -3,6 +3,7 @@ package com.example.LiveHost.dto;
 import com.example.LiveHost.common.enums.BroadcastProductStatus;
 import com.example.LiveHost.common.enums.BroadcastStatus;
 import com.example.LiveHost.entity.BroadcastProduct;
+import com.example.LiveHost.others.entity.Product;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -21,17 +22,19 @@ public class BroadcastProductResponse {
     private boolean isPinned;     // 핀 고정 여부 (Y/N)
     private BroadcastProductStatus status;        // 상품 상태 (SELLING, SOLDOUT, DELETED)
 
-    public static BroadcastProductResponse fromEntity(BroadcastProduct bp, String name, String imageUrl, int originalPrice) {
+    public static BroadcastProductResponse fromEntity(BroadcastProduct bp) {
+        Product p = bp.getProduct(); // 연관관계 활용
+
         return BroadcastProductResponse.builder()
                 .bpId(bp.getBpId())
-                .productId(bp.getProductId())
-                .name(name)
-                .imageUrl(imageUrl)
-                .originalPrice(originalPrice)
+                .productId(p.getProductId())
+                .name(p.getProductName())
+                .imageUrl(p.getProductThumbUrl()) // Product 엔티티의 편의 메서드 사용
+                .originalPrice(p.getPrice())
                 .bpPrice(bp.getBpPrice())
                 .bpQuantity(bp.getBpQuantity())
                 .displayOrder(bp.getDisplayOrder())
-                .isPinned(bp.isPinned()) // DB는 Char(1) Y/N -> Java boolean
+                .isPinned(bp.isPinned())
                 .status(bp.getStatus())
                 .build();
     }
