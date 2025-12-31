@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 @Getter
 @Entity
 @NoArgsConstructor
-@Table(name = "view_history")
+@Table(name = "view_history", indexes = @Index(name = "idx_bh_broadcast_viewer", columnList = "broadcast_id, viewer_id"))
 public class ViewHistory {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -22,8 +22,9 @@ public class ViewHistory {
     @JoinColumn(name = "broadcast_id", nullable = false)
     private Broadcast broadcast;
 
-    @Column(name = "member_id", nullable = false)
-    private Long memberId;
+    // [수정] Long memberId -> String viewerId (비회원 UUID 지원)
+    @Column(name = "viewer_id", nullable = false, length = 100)
+    private String viewerId;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     @CreationTimestamp
@@ -32,4 +33,17 @@ public class ViewHistory {
     @Column(name = "updated_at", nullable = false)
     @UpdateTimestamp
     private LocalDateTime updatedAt;
+
+    // 입장 시 createdAt과 동일하게 초기화
+    @PrePersist
+    public void prePersist() {
+        if (this.updatedAt == null) {
+            this.updatedAt = LocalDateTime.now();
+        }
+    }
+
+    // 퇴장 시 호출하여 시간 갱신
+    public void recordExit() {
+        this.updatedAt = LocalDateTime.now();
+    }
 }

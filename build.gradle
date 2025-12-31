@@ -59,6 +59,12 @@ dependencies {
 
 	// WebSocket
 	implementation 'org.springframework.boot:spring-boot-starter-websocket'
+
+	// [추가] Redis 분산락/큐 구현체 (Redisson)
+	implementation 'org.redisson:redisson-spring-boot-starter:3.24.3'
+
+	// [추가] MyBatis (통계 쿼리 최적화)
+	implementation 'org.mybatis.spring.boot:mybatis-spring-boot-starter:3.0.3'
 }
 
 tasks.named('test') {

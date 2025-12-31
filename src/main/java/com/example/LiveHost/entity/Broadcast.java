@@ -2,6 +2,8 @@ package com.example.LiveHost.entity;
 
 import com.example.LiveHost.common.enums.BroadcastLayout;
 import com.example.LiveHost.common.enums.BroadcastStatus;
+import com.example.LiveHost.others.entity.Seller;
+import com.example.LiveHost.others.entity.TagCategory;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -24,30 +26,30 @@ public class Broadcast {
     @Column(name = "broadcast_id")
     private Long broadcastId;
 
-    @Column(name = "seller_id", nullable = false)
-    private Long sellerId; // 판매자 ID
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "seller_id", nullable = false)
+    private Seller seller;
 
-    @Column(name = "tag_category_id", nullable = false)
-    private Long tagCategoryId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "tag_category_id", nullable = false)
+    private TagCategory tagCategory;
 
     @Column(name = "broadcast_title", length = 30, nullable = false)
     private String broadcastTitle;
 
-    @Column(name = "broadcast_notice", length = 100)
+    @Column(name = "broadcast_notice", length = 50) // 화면정의서 50자 제한 반영
     private String broadcastNotice;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
-    private BroadcastStatus status;
+    private BroadcastStatus status; // 기본값 제거 (DB Default 혹은 Builder 사용)
 
     @Column(name = "scheduled_at", nullable = false)
     private LocalDateTime scheduledAt;
 
-    @Setter
     @Column(name = "started_at")
     private LocalDateTime startedAt;
 
-    @Setter
     @Column(name = "ended_at")
     private LocalDateTime endedAt;
 
@@ -57,7 +59,6 @@ public class Broadcast {
     @Column(name = "broadcast_wait_url")
     private String broadcastWaitUrl;
 
-    // [중요] 테이블의 stream_key를 자바에서는 sessionId로 사용 (OpenVidu)
     @Column(name = "stream_key", length = 100)
     private String streamKey;
 
@@ -65,6 +66,7 @@ public class Broadcast {
     @Column(name = "broadcast_layout", nullable = false)
     private BroadcastLayout broadcastLayout;
 
+    // 관리자 강제 종료 사유 (기존 변수명 유지)
     @Column(name = "broadcast_stopped_reason", length = 50)
     private String broadcastStoppedReason;
 
@@ -76,29 +78,24 @@ public class Broadcast {
     @UpdateTimestamp
     private LocalDateTime updatedAt;
 
-    // 양방향 매핑 (상품, 큐카드)
-    // @OneToMany : 일(방송)대다(상품, 큐카드) 관계
-    // mappedBy = "Broadcast" : Product의 broadcast 필드가 FK를 관리
-    // cascade = CascadeType.ALL : 방송 지울 떼 그에 해당하는 방송 상품들도 같이 지움
-    @OneToMany(mappedBy = "broadcast", cascade = CascadeType.PERSIST)
+    @OneToMany(mappedBy = "broadcast", cascade = CascadeType.ALL)
+    @Builder.Default // Builder 패턴 사용 시 리스트 초기화 유지
     private List<BroadcastProduct> products = new ArrayList<>();
 
-    @OneToMany(mappedBy = "broadcast", cascade = CascadeType.PERSIST)
+    @OneToMany(mappedBy = "broadcast", cascade = CascadeType.ALL)
+    @Builder.Default
     private List<Qcard> qcards = new ArrayList<>();
 
-    public void deleteBroadcast() {
-        this.status = BroadcastStatus.DELETED;
-    }
+    // --- 비즈니스 로직 메서드 ---
 
     /**
-     * [비즈니스 로직] 방송 정보 수정
-     * - 수정 가능한 필드만 파라미터로 받아서 변경
-     * - null이 들어오지 않도록 DTO에서 검증했으므로 바로 대입
+     * [방송 정보 수정]
+     * 주의: JPA 연관관계 업데이트를 위해 ID(Long)가 아닌 Entity 객체(TagCategory)를 받아야 합니다.
      */
-    public void updateBroadcastInfo(Long categoryId, String title, String notice,
+    public void updateBroadcastInfo(TagCategory tagCategory, String title, String notice,
                                     LocalDateTime scheduledAt, String thumbUrl,
                                     String waitUrl, BroadcastLayout layout) {
-        this.tagCategoryId = categoryId;
+        this.tagCategory = tagCategory;
         this.broadcastTitle = title;
         this.broadcastNotice = notice;
         this.scheduledAt = scheduledAt;
@@ -107,20 +104,51 @@ public class Broadcast {
         this.broadcastLayout = layout;
     }
 
-    public void updateLiveBroadcastInfo(Long categoryId, String title, String notice, String thumbUrl, String waitUrl) {
-        this.tagCategoryId = categoryId;
+    /**
+     * [방송 중 정보 수정]
+     * 방송 중에는 카테고리, 제목, 공지, 이미지 정도만 수정 가능 (시간 변경 불가)
+     */
+    public void updateLiveBroadcastInfo(TagCategory tagCategory, String title, String notice, String thumbUrl, String waitUrl) {
+        this.tagCategory = tagCategory;
         this.broadcastTitle = title;
         this.broadcastNotice = notice;
         this.broadcastThumbUrl = thumbUrl;
         this.broadcastWaitUrl = waitUrl;
     }
 
-    public void delete() {
+    // VOD 상태 변경용 (AdminService에서 호출)
+    public void changeStatus(BroadcastStatus status) {
+        this.status = status;
+    }
+
+    // 방송 시작
+    public void startBroadcast(String streamKey) {
+        this.status = BroadcastStatus.ON_AIR;
+        this.streamKey = streamKey;
+        this.startedAt = LocalDateTime.now();
+    }
+
+    // 방송 종료 (정상 종료)
+    public void endBroadcast() {
+        this.status = BroadcastStatus.ENDED;
+        this.endedAt = LocalDateTime.now();
+    }
+
+    // 예약 취소
+    public void cancelBroadcast() {
+        this.status = BroadcastStatus.CANCELED;
+    }
+
+    // 삭제 (Soft Delete)
+    public void deleteBroadcast() {
         this.status = BroadcastStatus.DELETED;
     }
 
-    // [수정] 상태 변경 비즈니스 메서드 추가
-    public void changeStatus(BroadcastStatus newStatus) {
-        this.status = newStatus;
+    // [핵심] 관리자 강제 종료
+    // 상태를 STOPPED로 변경하고, 사유를 기록하며, 종료 시간을 찍습니다.
+    public void forceStopByAdmin(String reason) {
+        this.status = BroadcastStatus.STOPPED;
+        this.broadcastStoppedReason = reason;
+        this.endedAt = LocalDateTime.now();
     }
 }

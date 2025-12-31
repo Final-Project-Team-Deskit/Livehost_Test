@@ -16,6 +16,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
@@ -31,6 +32,9 @@ public class AwsS3Service {
 
     @Value("${cloud.aws.s3.bucket}")
     private String bucket;
+
+    @Value("${cloud.aws.s3.endpoint}")
+    private String endpoint;
 
     // 허용 확장자 리스트
     private static final List<String> ALLOWED_EXTENSIONS = Arrays.asList("jpg", "jpeg", "png");
@@ -102,6 +106,26 @@ public class AwsS3Service {
         } catch (Exception e) {
             log.error("S3 파일 삭제 실패: {}", storedFileName, e);
             throw new BusinessException(ErrorCode.FILE_DELETE_FAILED);
+        }
+    }
+
+    // [수정] File 대신 InputStream을 받아 스트리밍 업로드
+    public String uploadVodStream(InputStream inputStream, String pathKey, long contentLength) {
+        try {
+            ObjectMetadata metadata = new ObjectMetadata();
+            metadata.setContentLength(contentLength);
+            metadata.setContentType("video/mp4");
+
+            // 스트림을 바로 S3로 쏘아 올림 (메모리 절약)
+            amazonS3.putObject(new PutObjectRequest(bucket, pathKey, inputStream, metadata)
+                    .withCannedAcl(CannedAccessControlList.PublicRead));
+
+            // 업로드된 URL 반환 (endpoint가 없으면 기본 S3 URL 구조 사용)
+            return endpoint != null ? endpoint + "/" + bucket + "/" + pathKey
+                    : amazonS3.getUrl(bucket, pathKey).toString();
+        } catch (Exception e) {
+            log.error("S3 Stream Upload Failed: {}", e.getMessage());
+            throw new RuntimeException("VOD 업로드 실패");
         }
     }
 

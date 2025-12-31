@@ -31,7 +31,7 @@ public class BroadcastScheduler {
         for (Broadcast b : targets) {
             try {
                 log.info("방송 시간(30분) 초과로 자동 종료: id={}", b.getBroadcastId());
-                broadcastService.endBroadcast(b.getSellerId(), b.getBroadcastId());
+                broadcastService.endBroadcast(b.getSeller().getSellerId(), b.getBroadcastId());
             } catch (Exception e) {
                 log.error("자동 종료 실패: id={}, msg={}", b.getBroadcastId(), e.getMessage());
             }

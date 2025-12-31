@@ -20,9 +20,13 @@ import java.time.LocalDateTime;
 public class BroadcastResult {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "broadcast_id")
     private Long broadcastId;
+
+    @OneToOne(fetch = FetchType.LAZY)
+    @MapsId // broadcastId를 PK로 사용하면서 FK로 설정
+    @JoinColumn(name = "broadcast_id")
+    private Broadcast broadcast;
 
     @Column(name = "total_views", nullable = false)
     private int totalViews;
@@ -52,4 +56,7 @@ public class BroadcastResult {
     @Column(name = "updated_at", nullable = false)
     @UpdateTimestamp
     private LocalDateTime updatedAt;
+
+    // 관리자용
+    private int totalReports;
 }

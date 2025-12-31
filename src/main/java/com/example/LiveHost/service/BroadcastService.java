@@ -2,24 +2,26 @@ package com.example.LiveHost.service;
 
 import com.example.LiveHost.common.enums.BroadcastProductStatus;
 import com.example.LiveHost.common.enums.BroadcastStatus;
+import com.example.LiveHost.common.enums.SanctionType;
 import com.example.LiveHost.common.enums.VodStatus;
 import com.example.LiveHost.common.exception.BusinessException;
 import com.example.LiveHost.common.exception.ErrorCode;
 import com.example.LiveHost.dto.*;
-import com.example.LiveHost.entity.Broadcast;
-import com.example.LiveHost.entity.BroadcastProduct;
-import com.example.LiveHost.entity.Qcard;
-import com.example.LiveHost.entity.Vod;
+import com.example.LiveHost.entity.*;
 import com.example.LiveHost.others.entity.Product;
+import com.example.LiveHost.others.entity.Seller;
 import com.example.LiveHost.others.entity.TagCategory;
 import com.example.LiveHost.others.repository.ProductRepository;
+import com.example.LiveHost.others.repository.SellerRepository;
 import com.example.LiveHost.others.repository.TagCategoryRepository;
-import com.example.LiveHost.repository.BroadcastProductRepository;
-import com.example.LiveHost.repository.BroadcastRepository;
-import com.example.LiveHost.repository.QcardRepository;
-import com.example.LiveHost.repository.VodRepository;
+import com.example.LiveHost.repository.*;
+import com.querydsl.core.types.Order;
+import com.querydsl.core.types.OrderSpecifier;
+import io.openvidu.java.client.OpenViduHttpException;
+import io.openvidu.java.client.OpenViduJavaClientException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.event.EventListener;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
@@ -30,10 +32,20 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.socket.messaging.SessionConnectEvent;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 
+import javax.net.ssl.*;
+import java.io.InputStream;
+import java.math.BigDecimal;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.security.cert.X509Certificate;
 import java.time.LocalDateTime;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
+
+import static com.example.LiveHost.entity.QBroadcast.broadcast;
 
 @Slf4j
 @Service
@@ -43,43 +55,72 @@ public class BroadcastService {
     private final BroadcastRepository broadcastRepository;
     private final BroadcastProductRepository broadcastProductRepository;
     private final QcardRepository qcardRepository;
+    private final BroadcastResultRepository broadcastResultRepository;
+    private final VodRepository vodRepository;
+
+    private final SellerRepository sellerRepository;
     private final TagCategoryRepository tagCategoryRepository;
     private final ProductRepository productRepository;
+    private final SanctionRepository sanctionRepository;
+    private final ViewHistoryRepository viewHistoryRepository;
+
     private final RedisService redisService;
     private final SseService sseService;
     private final OpenViduService openViduService;
-    private final SimpMessagingTemplate messagingTemplate;
-    private final VodRepository vodRepository;
     private final AwsS3Service s3Service;
 
-    // 방송 생성 (POST)
-      // 기능: 방송 정보 저장 + 상품 매핑 + 큐카드 저장
-      // 정책: 예약된 방송은 판매자당 최대 7개까지만 가능
+    @Value("${openvidu.url}")
+    private String OPENVIDU_URL;
+
+    @Value("${openvidu.secret}")
+    private String OPENVIDU_SECRET;
+
+
+    // =====================================================================
+    // 1. [판매자] 방송 예약 (Redis Lock + 슬롯 제한 + 기존 로직 통합)
+    // =====================================================================
     @Transactional
     public Long createBroadcast(Long sellerId, BroadcastCreateRequest request) {
+        String lockKey = "lock:seller:" + sellerId + ":broadcast_create";
 
-        // 1. [검증] 예약된 방송 7개 제한 체크
-        long reservedCount = broadcastRepository.countBySellerIdAndStatus(sellerId, BroadcastStatus.RESERVED);
-        if (reservedCount >= 7) {
-            throw new BusinessException(ErrorCode.RESERVATION_LIMIT_EXCEEDED);
+        if (!redisService.acquireLock(lockKey, 3000)) throw new BusinessException(ErrorCode.TOO_MANY_REQUESTS);
+
+        try {
+            long reservedCount = broadcastRepository.countBySellerIdAndStatus(sellerId, BroadcastStatus.RESERVED);
+            if (reservedCount >= 7) throw new BusinessException(ErrorCode.RESERVATION_LIMIT_EXCEEDED);
+
+            long slotCount = broadcastRepository.countByTimeSlot(request.getScheduledAt(), request.getScheduledAt().plusHours(1));
+            if (slotCount >= 3) throw new BusinessException(ErrorCode.BROADCAST_SLOT_FULL);
+
+            Seller seller = sellerRepository.findById(sellerId).orElseThrow(() -> new BusinessException(ErrorCode.SELLER_NOT_FOUND));
+            TagCategory category = tagCategoryRepository.findById(request.getCategoryId()).orElseThrow(() -> new BusinessException(ErrorCode.CATEGORY_NOT_FOUND));
+
+            Broadcast broadcast = Broadcast.builder()
+                    .seller(seller)
+                    .tagCategory(category)
+                    .broadcastTitle(request.getTitle())
+                    .broadcastNotice(request.getNotice())
+                    .scheduledAt(request.getScheduledAt())
+                    .broadcastLayout(request.getBroadcastLayout())
+                    .broadcastThumbUrl(request.getThumbnailUrl())
+                    .broadcastWaitUrl(request.getWaitScreenUrl())
+                    .status(BroadcastStatus.RESERVED)
+                    .build();
+
+            Broadcast saved = broadcastRepository.save(broadcast);
+            saveBroadcastProducts(sellerId, saved, request.getProducts());
+            saveQcards(saved, request.getQcards());
+
+            log.info("방송 생성 완료: id={}", saved.getBroadcastId());
+            return saved.getBroadcastId();
+        } finally {
+            redisService.releaseLock(lockKey);
         }
-
-        // 2. Broadcast Entity 생성 및 저장
-        Broadcast broadcast = request.toEntity(sellerId);
-        Broadcast savedBroadcast = broadcastRepository.save(broadcast);
-
-        // 3. 방송-상품 매핑 저장
-        saveBroadcastProducts(sellerId, savedBroadcast, request.getProducts());
-
-        // 4. 큐카드 저장 (옵션)
-        saveQcards(savedBroadcast, request.getQcards());
-
-        log.info("방송 생성 완료: id={}, title={}", savedBroadcast.getBroadcastId(), savedBroadcast.getBroadcastTitle());
-        return savedBroadcast.getBroadcastId();
     }
 
-
-    // 방송 정보 수정 (PUT)
+    // =====================================================================
+    // 2. [판매자] 방송 수정
+    // =====================================================================
     @Transactional
     public Long updateBroadcast(Long sellerId, Long broadcastId, BroadcastUpdateRequest request) {
         // 1. 방송 조회
@@ -87,37 +128,29 @@ public class BroadcastService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.BROADCAST_NOT_FOUND));
 
         // 2. 권한 검증 (Aspect가 해주지만, Service에서도 이중 체크 권장)
-        if (!broadcast.getSellerId().equals(sellerId)) {
+        if (!broadcast.getSeller().getSellerId().equals(sellerId)) {
             throw new BusinessException(ErrorCode.FORBIDDEN_ACCESS);
         }
 
-        // 3. 상태 검증 분기
-        if (broadcast.getStatus() != BroadcastStatus.RESERVED) {
-            // 4. 방송 기본 정보 수정
-            broadcast.updateBroadcastInfo(
-                    request.getCategoryId(),
-                    request.getTitle(),
-                    request.getNotice(),
-                    request.getScheduledAt(),
-                    request.getThumbnailUrl(),
-                    request.getWaitScreenUrl(),
-                    request.getBroadcastLayout()
-            );
+        // 3. 카테고리 검증
+        TagCategory category = tagCategoryRepository.findById(request.getCategoryId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.CATEGORY_NOT_FOUND));
 
-            // 5. 상품/큐카드 수정 (전체 삭제 후 재등록 전략)
+        // 4. 상태 검증 분기
+        if (broadcast.getStatus() == BroadcastStatus.RESERVED || broadcast.getStatus() == BroadcastStatus.CANCELED) {
+            broadcast.updateBroadcastInfo(
+                    category, request.getTitle(), request.getNotice(),
+                    request.getScheduledAt(), request.getThumbnailUrl(),
+                    request.getWaitScreenUrl(), request.getBroadcastLayout()
+            );
             updateBroadcastProducts(sellerId, broadcast, request.getProducts());
             updateQcards(broadcast, request.getQcards());
         } else {
             broadcast.updateLiveBroadcastInfo(
-                    request.getCategoryId(),
-                    request.getTitle(),
-                    request.getNotice(),
-                    request.getThumbnailUrl(),
-                    request.getWaitScreenUrl()
+                    category, request.getTitle(), request.getNotice(),
+                    request.getThumbnailUrl(), request.getWaitScreenUrl()
             );
-
-            // ★ [핵심 추가] 정보가 변경되었음을 시청자들에게 알림 (SSE)
-            sseService.notifyBroadcastUpdate(broadcastId);
+            sseService.notifyBroadcastUpdate(broadcastId); // SSE 알림
         }
 
         return broadcast.getBroadcastId();
@@ -125,37 +158,38 @@ public class BroadcastService {
         // 트랜잭션이 닫힐 때, JPA가 값이 달라진 것을 감지하고, 자동으로 UPDATE 쿼리를 생성해서 DB에 날림
     }
 
-    // [방송 예약 취소 (DELETE)
+    // =====================================================================
+    // 3. [판매자] 방송 예약 취소 (DELETE)
+    // =====================================================================
     @Transactional
     public void cancelBroadcast(Long sellerId, Long broadcastId) {
         Broadcast broadcast = broadcastRepository.findById(broadcastId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.BROADCAST_NOT_FOUND));
 
         // 권한 체크
-        if (!broadcast.getSellerId().equals(sellerId)) {
+        if (!broadcast.getSeller().getSellerId().equals(sellerId)) {
             throw new BusinessException(ErrorCode.FORBIDDEN_ACCESS);
         }
 
         // 상태 체크 (예약 상태일 때만 삭제 가능)
-        if (broadcast.getStatus() != BroadcastStatus.RESERVED) {
+        if (broadcast.getStatus() != BroadcastStatus.RESERVED && broadcast.getStatus() != BroadcastStatus.CANCELED) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
         }
 
         // 상태를 DELETED로 변경
-        broadcast.delete();
-
+        broadcast.deleteBroadcast();
         log.info("방송 삭제(취소) 처리 완료: id={}, status={}", broadcastId, broadcast.getStatus());
-
         // 트랜잭션이 닫힐 때, JPA가 값이 달라진 것을 감지하고, 자동으로 UPDATE 쿼리를 생성해서 DB에 날림
     }
 
-    //  내 상품 목록 조회 (방송 등록 화면 팝업용)
+    // =====================================================================
+    //  4. [판매자] 내 상품 목록 조회 (방송 등록 화면 팝업용)
+    // =====================================================================
     @Transactional(readOnly = true)
     public List<ProductSelectResponse> getSellerProducts(Long sellerId, String keyword) {
         List<Product> products = (keyword == null || keyword.isBlank())
                 ? productRepository.findAllAvailableBySellerId(sellerId)
                 : productRepository.searchAvailableBySellerId(sellerId, keyword);
-
         // Entity -> DTO 변환
         return products.stream()
                 .map(p -> ProductSelectResponse.builder()
@@ -168,107 +202,119 @@ public class BroadcastService {
                 .collect(Collectors.toList());
     }
 
-    // 방송 상세 조회 (수정 화면)
+    // =====================================================================
+    // 5. [조회] 방송 상세 (Detail) - 판매자 vs 시청자 분리
+    // =====================================================================
+
+    // 5-1. [판매자] 상세 조회 (권한 체크 O, 모든 상태 조회 가능)
     @Transactional(readOnly = true)
     public BroadcastResponse getBroadcastDetail(Long sellerId, Long broadcastId) {
-        // 1. 방송 조회
         Broadcast broadcast = broadcastRepository.findById(broadcastId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.BROADCAST_NOT_FOUND));
 
-        // 2. 권한 검증 (내 방송인지)
-        if (!broadcast.getSellerId().equals(sellerId)) {
+        // 본인 확인
+        if (!broadcast.getSeller().getSellerId().equals(sellerId)) {
             throw new BusinessException(ErrorCode.FORBIDDEN_ACCESS);
         }
 
-        // 3. 카테고리 이름 조회
-        String categoryName = getCategoryName(broadcast.getTagCategoryId());
-
-        // 4. 상품 리스트 변환 (상태값 포함)
-        List<BroadcastProductResponse> productList = getProductListResponse(broadcast);
-
-        // 5. 큐카드 리스트 변환
-        List<QcardResponse> qcardList = getQcardListResponse(broadcast);
-
-        // 6. 응답 생성 (통계는 0으로 고정)
-        return BroadcastResponse.fromEntity(
-                broadcast,
-                categoryName,
-                0, // Total Views (수정 화면에선 불필요)
-                0, // Total Likes (수정 화면에선 불필요)
-                0,
-                productList,
-                qcardList
-        );
+        return createBroadcastResponse(broadcast);
     }
 
-    /**
-     * [시청자/대시보드용] 실시간 방송 상세 조회
-     * - 특징: 방송 상태에 따라 Redis에서 실시간 데이터(조회수, 좋아요, 제재 건수)를 가져옴
-     */
+    // 5-2. [시청자] 상세 조회 (권한 체크 X, 공개 상태 체크 O)
     @Transactional(readOnly = true)
-    public BroadcastResponse getLiveBroadcastDetail(Long broadcastId) {
+    public BroadcastResponse getPublicBroadcastDetail(Long broadcastId) {
         Broadcast broadcast = broadcastRepository.findById(broadcastId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.BROADCAST_NOT_FOUND));
 
-        String categoryName = getCategoryName(broadcast.getTagCategoryId());
-        List<BroadcastProductResponse> productList = getProductListResponse(broadcast);
-        List<QcardResponse> qcardList = getQcardListResponse(broadcast);
-
-        Integer views = 0, likes = 0, sanctions = 0;
-
-        // [수정 완료] LIVE 그룹 (READY, ON_AIR, ENDED)인 경우 Redis 통계 조회
-        if (isLiveGroup(broadcast.getStatus())) {
-            views = redisService.getStatOrZero(redisService.getViewKey(broadcastId));
-            likes = redisService.getStatOrZero(redisService.getLikeKey(broadcastId));
-            sanctions = redisService.getStatOrZero(redisService.getSanctionKey(broadcastId));
+        // [보안] 취소되거나 삭제된 방송은 조회 불가
+        if (broadcast.getStatus() == BroadcastStatus.DELETED || broadcast.getStatus() == BroadcastStatus.CANCELED) {
+            throw new BusinessException(ErrorCode.BROADCAST_NOT_FOUND);
         }
 
-        return BroadcastResponse.fromEntity(broadcast, categoryName, views, likes, sanctions, productList, qcardList);
-    }
-
-    // [Day 5] 방송 목록 조회
-    @Transactional(readOnly = true)
-    public Object getBroadcastList(Long sellerId, BroadcastSearch condition, Pageable pageable) {
-
-        // 1. 전체(ALL) 탭: 대시보드 형태
-        if ("ALL".equalsIgnoreCase(condition.getTab()) || condition.getTab() == null) {
-            List<BroadcastListResponse> live = broadcastRepository.findRecentByStatusGroup(sellerId, "LIVE", 1);
-            List<BroadcastListResponse> reserved = broadcastRepository.findRecentByStatusGroup(sellerId, "RESERVED", 5);
-            List<BroadcastListResponse> vod = broadcastRepository.findRecentByStatusGroup(sellerId, "VOD", 5);
-
-            // 라이브 방송이 있다면 실시간 통계 주입
-            if (!live.isEmpty()) fillRealtimeStats(live.get(0));
-
-            return BroadcastAllResponse.builder()
-                    .liveBroadcast(live.isEmpty() ? null : live.get(0))
-                    .reservedBroadcasts(reserved)
-                    .vodBroadcasts(vod)
-                    .build();
-        }
-
-        // 2. 개별 탭: 리스트 형태 (Slice)
-        else {
-            Slice<BroadcastListResponse> slice = broadcastRepository.searchBroadcasts(sellerId, condition, pageable);
-
-            // "LIVE" 탭 목록 조회 시에는 각 아이템마다 통계 주입
-            if ("LIVE".equalsIgnoreCase(condition.getTab())) {
-                slice.getContent().forEach(this::fillRealtimeStats);
+        // [보안] 비공개 VOD 조회 불가
+        if (broadcast.getStatus() == BroadcastStatus.VOD) {
+            Vod vod = vodRepository.findByBroadcast(broadcast) // OneToOne
+                    .orElseThrow(() -> new BusinessException(ErrorCode.VOD_NOT_FOUND));
+            if (vod.getStatus() != VodStatus.PUBLIC) {
+                throw new BusinessException(ErrorCode.FORBIDDEN_ACCESS);
             }
-            return slice;
         }
+
+        return createBroadcastResponse(broadcast);
     }
 
-    // [Day 6] 방송 시작 (ON_AIR 전환 + 세션 토큰 발급)
+    // 5-3. 실시간 통계 조회 (Polling용 - 가벼운 API)
+    @Transactional(readOnly = true)
+    public BroadcastStatsResponse getBroadcastStats(Long broadcastId) {
+        // 방송 존재 여부 체크
+        Broadcast broadcast = broadcastRepository.findById(broadcastId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.BROADCAST_NOT_FOUND));
+
+        // [보안] 취소되거나 삭제된 방송은 조회 불가
+        if (broadcast.getStatus() == BroadcastStatus.DELETED || broadcast.getStatus() == BroadcastStatus.CANCELED) {
+            throw new BusinessException(ErrorCode.BROADCAST_NOT_FOUND);
+        }
+
+        int views = 0;
+        int likes = 0;
+        int reports = 0;
+
+        if (isLiveGroup(broadcast.getStatus())) {
+            // 라이브 중: Redis 조회 (빠름)
+            views = redisService.getRealtimeViewerCount(broadcastId);
+            likes = redisService.getLikeCount(broadcastId);
+            reports = redisService.getReportCount(broadcastId);
+        } else {
+            // 종료됨: DB 결과 조회
+            BroadcastResult result = broadcastResultRepository.findById(broadcastId).orElse(null);
+            if (result != null) {
+                views = result.getTotalViews();
+                likes = result.getTotalLikes();
+                reports = sanctionRepository.countByBroadcast(broadcast);
+            }
+        }
+
+        return BroadcastStatsResponse.builder()
+                .viewerCount(views)
+                .likeCount(likes)
+                .reportCount(reports)
+                .build();
+    }
+
+
+    // =====================================================================
+    // 6. [조회] 방송 목록 (List/Overview)
+    // =====================================================================
+    // 6-1. [공용] 방송 목록 조회
+    @Transactional(readOnly = true)
+    public Object getPublicBroadcasts(BroadcastSearch condition, Pageable pageable) {
+        if ("ALL".equalsIgnoreCase(condition.getTab())) return getOverview(null, false);
+        Slice<BroadcastListResponse> list = broadcastRepository.searchBroadcasts(null, condition, pageable, false);
+        injectLiveStats(list.getContent());
+        return list;
+    }
+    // 6-2. [판매자] 방송 목록 조회
+    @Transactional(readOnly = true)
+    public Object getSellerBroadcasts(Long sellerId, BroadcastSearch condition, Pageable pageable) {
+        if ("ALL".equalsIgnoreCase(condition.getTab())) return getOverview(sellerId, true);
+        Slice<BroadcastListResponse> list = broadcastRepository.searchBroadcasts(sellerId, condition, pageable, true);
+        injectLiveStats(list.getContent());
+        return list;
+    }
+
+    // =====================================================================
+    // 7. [제어] 방송 시작 / 입장 / 종료 (Start/Join/End)
+    // =====================================================================
+    // 7-1. [판매자] 방송 시작 (Start) -> ON_AIR 전환, HOST 토큰 발급
     @Transactional
     public String startBroadcast(Long sellerId, Long broadcastId) {
         Broadcast broadcast = broadcastRepository.findById(broadcastId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.BROADCAST_NOT_FOUND));
 
-        if (!broadcast.getSellerId().equals(sellerId)) throw new BusinessException(ErrorCode.FORBIDDEN_ACCESS);
+        if (!broadcast.getSeller().getSellerId().equals(sellerId)) throw new BusinessException(ErrorCode.FORBIDDEN_ACCESS);
 
         // 상태 변경 (RESERVED/READY -> ON_AIR)
-        broadcast.changeStatus(BroadcastStatus.ON_AIR);
-        broadcast.setStartedAt(LocalDateTime.now());
+        broadcast.startBroadcast("session-" + broadcastId);
 
         // OpenVidu 세션 생성 및 호스트 토큰 발급
         try {
@@ -280,17 +326,41 @@ public class BroadcastService {
         }
     }
 
+    // 7-2. [시청자] 방송 입장 (Join) -> SUBSCRIBER 토큰 발급
+    public String joinBroadcast(Long broadcastId, String viewerId){
+        Broadcast broadcast = broadcastRepository.findById(broadcastId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.BROADCAST_NOT_FOUND));
+
+        if (broadcast.getStatus() == BroadcastStatus.STOPPED) {
+            throw new BusinessException(ErrorCode.BROADCAST_STOPPED_BY_ADMIN);
+        }
+        if (!isLiveGroup(broadcast.getStatus())) {
+            throw new BusinessException(ErrorCode.BROADCAST_NOT_ON_AIR);
+        }
+
+        // UV 집계 (Redis) - 실제 입장은 WebSocket Connect에서 처리되지만 토큰 발급 시에도 기록 가능
+        String uuid = (viewerId != null) ? viewerId : UUID.randomUUID().toString();
+        redisService.enterLiveRoom(broadcastId, uuid); // 토큰 발급 시점에도 기록
+
+        // [핵심] 시청자용 토큰 발급
+        try {
+            Map<String, Object> params = Map.of("role", "SUBSCRIBER");
+            return openViduService.createToken(broadcastId, params);
+        } catch (Exception e) {
+            throw new BusinessException(ErrorCode.OPENVIDU_ERROR);
+        }
+    }
+
     // [Day 6] 방송 종료 (ENDED 전환 + 세션 닫기)
     @Transactional
     public void endBroadcast(Long sellerId, Long broadcastId) {
         Broadcast broadcast = broadcastRepository.findById(broadcastId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.BROADCAST_NOT_FOUND));
 
-        if (!broadcast.getSellerId().equals(sellerId)) throw new BusinessException(ErrorCode.FORBIDDEN_ACCESS);
+        if (!broadcast.getSeller().getSellerId().equals(sellerId)) throw new BusinessException(ErrorCode.FORBIDDEN_ACCESS);
 
         // 상태 변경
-        broadcast.changeStatus(BroadcastStatus.ENDED);
-        broadcast.setEndedAt(LocalDateTime.now());
+        broadcast.endBroadcast();
 
         // OpenVidu 세션 종료
         openViduService.closeSession(broadcastId);
@@ -305,7 +375,7 @@ public class BroadcastService {
         // 본인 방송 확인
         Broadcast broadcast = broadcastRepository.findById(broadcastId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.BROADCAST_NOT_FOUND));
-        if (!broadcast.getSellerId().equals(sellerId)) throw new BusinessException(ErrorCode.FORBIDDEN_ACCESS);
+        if (!broadcast.getSeller().getSellerId().equals(sellerId)) throw new BusinessException(ErrorCode.FORBIDDEN_ACCESS);
 
         // 1. 기존 핀 해제
         broadcastProductRepository.resetPinByBroadcastId(broadcastId);
@@ -324,94 +394,224 @@ public class BroadcastService {
         sseService.notifyBroadcastUpdate(broadcastId, "PRODUCT_PINNED", bp.getProductId());
     }
 
-    // [Day 7] 시청자 입장 (Connect)
+    // WebSocket Event 시청자 집계  (Connect)
     @EventListener
     public void handleConnectListener(SessionConnectEvent event) {
         StompHeaderAccessor accessor = StompHeaderAccessor.wrap(event.getMessage());
-
-        // 1. 프론트엔드에서 보낸 헤더 값 추출
-        String broadcastIdStr = accessor.getFirstNativeHeader("broadcastId");
-
-        if (broadcastIdStr != null) {
-            Long broadcastId = Long.parseLong(broadcastIdStr);
-
-            // 2. Redis 시청자 수 증가
-            redisService.increment(redisService.getViewKey(broadcastId));
-
-            // 3. [핵심] 세션 속성에 broadcastId 저장 (퇴장 시 사용하기 위해)
-            // SimpMessageHeaderAccessor를 통해 세션 속성 맵에 접근
-            Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
-            if (sessionAttributes != null) {
-                sessionAttributes.put("broadcastId", broadcastId);
-            }
-
-            log.info("User Connected: broadcastId={}", broadcastId);
+        String bId = accessor.getFirstNativeHeader("broadcastId");
+        String vId = accessor.getFirstNativeHeader("X-Viewer-Id");
+        if (bId != null && vId != null) {
+            redisService.enterLiveRoom(Long.parseLong(bId), vId);
+            Map<String, Object> attrs = accessor.getSessionAttributes();
+            if (attrs != null) { attrs.put("broadcastId", bId); attrs.put("viewerId", vId); }
         }
     }
 
-    // [Day 7] 시청자 퇴장 (Disconnect)
+    // WebSocket Event 시청자 집계 (Disconnect)
     @EventListener
     public void handleDisconnectListener(SessionDisconnectEvent event) {
         StompHeaderAccessor accessor = StompHeaderAccessor.wrap(event.getMessage());
-
-        // 1. 세션 속성에서 broadcastId 꺼내기
-        Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
-        if (sessionAttributes != null && sessionAttributes.containsKey("broadcastId")) {
-            Long broadcastId = (Long) sessionAttributes.get("broadcastId");
-
-            // 2. Redis 시청자 수 감소
-            redisService.decrement(redisService.getViewKey(broadcastId));
-
-            log.info("User Disconnected: broadcastId={}", broadcastId);
+        Map<String, Object> attrs = accessor.getSessionAttributes();
+        if (attrs != null && attrs.containsKey("broadcastId")) {
+            redisService.exitLiveRoom(Long.parseLong((String)attrs.get("broadcastId")), (String)attrs.get("viewerId"));
         }
     }
 
     // [Day 7] 좋아요 처리
-    public void likeBroadcast(Long broadcastId) {
-        redisService.increment(redisService.getLikeKey(broadcastId));
+    public void likeBroadcast(Long broadcastId, Long memberId) {
+        redisService.toggleLike(broadcastId, memberId);
     }
 
-    // OpenVidu Webhook 수신 시 실행
+    // =====================================================================
+    // [Webhook] VOD 스트리밍 업로드 & 결과 확정 (비동기 처리)
+    // =====================================================================
     @Transactional
     public void processVod(OpenViduRecordingWebhook payload) {
-        log.info("VOD Processing: {}", payload.getId());
+        // 1. 방송 조회
+        Long broadcastId = Long.parseLong(payload.getSessionId().replace("broadcast-", ""));
+        Broadcast broadcast = broadcastRepository.findById(broadcastId).orElseThrow(() -> new BusinessException(ErrorCode.BROADCAST_NOT_FOUND));
 
-        // 1. 방송 엔티티 조회 (Entity 매핑을 위해 필수)
-        Long broadcastId = Long.parseLong(payload.getSessionId());
-        Broadcast broadcast = broadcastRepository.findById(broadcastId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.BROADCAST_NOT_FOUND));
+        String recordingId = payload.getId();
+        String s3Key = "seller_" + broadcast.getSeller().getSellerId() + "/vods/" + recordingId + ".mp4";
+        String s3Url = "";
 
-        // 2. S3 업로드 (로컬 파일 -> S3)
-        // 실제 운영 시엔 파일 경로 로직 구체화 필요 (여기선 예시 URL 사용)
-        // String s3Url = s3Service.uploadFile(...);
-        String s3Url = "https://your-bucket.s3.ap-northeast-2.amazonaws.com/vods/" + payload.getName() + ".mp4";
+        // 2. OpenVidu 서버에서 영상 다운로드 -> S3 업로드 (스트리밍)
+        try {
+            disableSslVerification(); // SSL 인증서 무시 (개발용)
 
-        // 3. VOD 엔티티 생성 및 저장
+            // URL 생성 (LiveHostController 로직 참조)
+            String videoUrl = OPENVIDU_URL.replaceAll("/$", "") +
+                    "/openvidu/recordings/" + recordingId + "/" + recordingId + ".mp4";
+
+            URL url = new URL(videoUrl);
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+
+            // Basic Auth 헤더 설정
+            String auth = "OPENVIDUAPP:" + OPENVIDU_SECRET;
+            String encodedAuth = Base64.getEncoder().encodeToString(auth.getBytes());
+            conn.setRequestProperty("Authorization", "Basic " + encodedAuth);
+
+            int responseCode = conn.getResponseCode();
+            if (responseCode == HttpURLConnection.HTTP_OK) {
+                try (InputStream inputStream = conn.getInputStream()) {
+                    // [핵심] S3Service의 스트리밍 업로드 호출
+                    long contentLength = conn.getContentLengthLong();
+                    s3Url = s3Service.uploadVodStream(inputStream, s3Key, contentLength);
+                    log.info("VOD Upload Success: {}", s3Url);
+                }
+            } else {
+                log.error("Failed to fetch recording from OpenVidu: {}", responseCode);
+            }
+        } catch (Exception e) {
+            log.error("VOD Processing Error", e);
+            // 업로드 실패해도 통계 저장을 위해 로직 계속 진행 (URL은 빈 값 or 에러처리)
+        }
+
+        // 3. VOD 정보 DB 저장
+        boolean isStopped = broadcast.getStatus() == BroadcastStatus.STOPPED;
+        VodStatus status = isStopped ? VodStatus.PRIVATE : VodStatus.PUBLIC;
+
         Vod vod = Vod.builder()
-                .broadcast(broadcast) // [수정] broadcastId 대신 broadcast 엔티티 주입
-                .vodUrl(s3Url)
+                .broadcast(broadcast)
+                .vodUrl(s3Url) // S3 URL 저장
                 .vodSize(payload.getSize())
-                .vodDuration(payload.getDuration().intValue()) // Double -> Integer 형변환 필요 시
-                .status(VodStatus.PUBLIC) // 초기값 (공개/비공개 정책에 따름)
+                .vodDuration(payload.getDuration().intValue())
+                .status(status)
                 .vodReportCount(0)
-                .vodAdminLock(false) // boolean -> DB 'N'
+                .vodAdminLock(isStopped)
                 .build();
-
         vodRepository.save(vod);
-        log.info("VOD Saved: {}", vod.getVodId());
+
+        // 4. 통계 확정 (Redis -> DB)
+        int uv = redisService.getTotalUniqueViewerCount(broadcastId);
+        int likes = redisService.getLikeCount(broadcastId);
+        int reports = redisService.getReportCount(broadcastId);
+        int mv = redisService.getMaxViewers(broadcastId);
+        LocalDateTime peak = redisService.getMaxViewersTime(broadcastId);
+        Double avg = viewHistoryRepository.getAverageWatchTime(broadcastId);
+
+        BroadcastResult result = BroadcastResult.builder()
+                .broadcast(broadcast)
+                .totalViews(uv)
+                .totalLikes(likes)
+                .totalReports(reports)
+                .avgWatchTime(avg != null ? avg.intValue() : 0)
+                .maxViews(mv)
+                .pickViewsAt(peak)
+                .totalReports(reports)
+                .totalChats(0)              // TODO: Chatting Service 연동 필요 (현재 0)
+                .totalSales(BigDecimal.ZERO)// TODO: Order Service 연동 필요 (현재 0)
+                .build();
+        broadcastResultRepository.save(result);
+
+        // 5. 리소스 정리
+        redisService.deleteBroadcastKeys(broadcastId);
+        if (isStopped || broadcast.getStatus() == BroadcastStatus.ENDED) {
+            broadcast.changeStatus(BroadcastStatus.VOD);
+        }
     }
 
     // [Day 7] 실시간 재고 조회 (방송용 할당 수량)
     @Transactional(readOnly = true)
     public Integer getProductStock(Long broadcastId, Long productId) {
-        // BroadcastProductRepository에 findStock 메서드가 있다고 가정
-        // (SELECT bp.bpQuantity FROM ...)
         Integer stock = broadcastProductRepository.findStock(broadcastId, productId);
 
         if (stock == null) {
             throw new BusinessException(ErrorCode.PRODUCT_NOT_FOUND);
         }
         return stock;
+    }
+
+    //  신고 (1인 1회)
+    public void reportBroadcast(Long broadcastId, Long memberId) {
+        if (!broadcastRepository.existsById(broadcastId)) throw new BusinessException(ErrorCode.BROADCAST_NOT_FOUND);
+        redisService.reportBroadcast(broadcastId, memberId);
+    }
+
+    // 결과 리포트 조회 (화면 정의서 대응)
+    @Transactional(readOnly = true)
+    public BroadcastResultResponse getBroadcastResult(Long broadcastId, Long requesterId, boolean isAdmin) {
+        Broadcast broadcast = broadcastRepository.findById(broadcastId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.BROADCAST_NOT_FOUND));
+
+        if (!isAdmin && !broadcast.getSeller().getSellerId().equals(requesterId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN_ACCESS);
+        }
+
+        BroadcastResult r = broadcastResultRepository.findById(broadcastId).orElse(null);
+        Vod vod = vodRepository.findByBroadcast(broadcast).orElse(null);
+
+        // 통계 데이터 매핑 (Null Safe)
+        int views = 0, likes = 0, chats = 0, maxV = 0, reports = 0, sanctions = 0;
+        long avgTime = 0;
+        BigDecimal sales = BigDecimal.ZERO;
+        LocalDateTime maxTime = null;
+
+        if (r != null) {
+            views = r.getTotalViews(); likes = r.getTotalLikes(); sales = r.getTotalSales();
+            chats = r.getTotalChats(); maxV = r.getMaxViews(); maxTime = r.getPickViewsAt();
+            avgTime = r.getAvgWatchTime(); reports = r.getTotalReports();
+        }
+        sanctions = sanctionRepository.countByBroadcast(broadcast);
+
+        // 상품 성과 리스트
+        List<BroadcastResultResponse.ProductSalesStat> productStats = broadcast.getProducts().stream()
+                .map(bp -> {
+                    Product p = productRepository.findById(bp.getProductId()).orElse(null);
+                    return BroadcastResultResponse.ProductSalesStat.builder()
+                            .productId(bp.getProductId())
+                            .productName(p != null ? p.getProductName() : "")
+                            .imageUrl(p != null ? p.getProductThumbUrl() : "")
+                            .salesAmount(BigDecimal.ZERO) // TODO: OrderService 연동
+                            .price(bp.getBpPrice())
+                            .build();
+                }).collect(Collectors.toList());
+
+        // 방송 시간 계산
+        long duration = 0;
+        if (broadcast.getStartedAt() != null && broadcast.getEndedAt() != null) {
+            duration = java.time.Duration.between(broadcast.getStartedAt(), broadcast.getEndedAt()).toMinutes();
+        }
+
+        return BroadcastResultResponse.builder()
+                .broadcastId(broadcast.getBroadcastId())
+                .title(broadcast.getBroadcastTitle())
+                .startAt(broadcast.getStartedAt())
+                .endAt(broadcast.getEndedAt())
+                .durationMinutes(duration)
+                .status(broadcast.getStatus())
+                .stoppedReason(broadcast.getBroadcastStoppedReason())
+                .totalViews(views).totalLikes(likes).totalSales(sales)
+                .totalChats(chats).maxViewers(maxV).maxViewerTime(maxTime).avgWatchTime(avgTime)
+                .reportCount(reports).sanctionCount(sanctions)
+                .vodUrl((vod != null && vod.getStatus() != VodStatus.DELETED) ? vod.getVodUrl() : null)
+                .vodStatus(vod != null ? vod.getStatus() : null)
+                .isEncoding(vod == null)
+                .productStats(productStats)
+                .build();
+    }
+
+    @Transactional(readOnly = true)
+    public StatisticsResponse getStatistics(Long sellerId, String period) {
+        var sales = broadcastResultRepository.getSalesChart(sellerId, period);
+        var arpu = broadcastResultRepository.getArpuChart(sellerId, period);
+        List<StatisticsResponse.BroadcastRank> best, worst, topView;
+
+        if (sellerId != null) { // 판매자
+            best = broadcastResultRepository.getRanking(sellerId, "SALES", true, 5);
+            worst = broadcastResultRepository.getRanking(sellerId, "SALES", false, 5);
+            topView = broadcastResultRepository.getRanking(sellerId, "VIEWS", true, 5);
+        } else { // 관리자
+            best = broadcastResultRepository.getRanking(null, "SALES", true, 10);
+            worst = broadcastResultRepository.getRanking(null, "SALES", false, 10);
+            topView = List.of();
+        }
+        // ARPU 단일값 계산 (여기선 생략, 차트만 반환)
+        return StatisticsResponse.builder()
+                .salesChart(sales).arpuChart(arpu)
+                .bestBroadcasts(best).worstBroadcasts(worst).topViewerBroadcasts(topView)
+                .build();
     }
 
 
@@ -501,17 +701,77 @@ public class BroadcastService {
         return status == BroadcastStatus.ON_AIR || status == BroadcastStatus.READY || status == BroadcastStatus.ENDED;
     }
 
-    private String getCategoryName(Long categoryId) {
-        if (categoryId == null) return "카테고리 없음";
-        return tagCategoryRepository.findById(categoryId)
-                .map(TagCategory::getTagCategoryName).orElse("삭제된 카테고리");
+    private BroadcastResponse createBroadcastResponse(Broadcast broadcast) {
+        Integer views = 0, likes = 0, reports = 0;
+        if (isLiveGroup(broadcast.getStatus())) {
+            views = redisService.getRealtimeViewerCount(broadcast.getBroadcastId());
+            likes = redisService.getLikeCount(broadcast.getBroadcastId());
+            reports = redisService.getReportCount(broadcast.getBroadcastId());
+        } else {
+            BroadcastResult result = broadcastResultRepository.findById(broadcast.getBroadcastId()).orElse(null);
+            if (result != null) { views = result.getTotalViews(); likes = result.getTotalLikes(); }
+            reports = sanctionRepository.countByBroadcast(broadcast);
+        }
+        return BroadcastResponse.fromEntity(broadcast, broadcast.getTagCategory().getTagCategoryName(), views, likes, reports, getProductListResponse(broadcast), getQcardListResponse(broadcast));
     }
 
-    // 리스트 응답(DTO)에 실시간 통계 채워넣기 (Call by Reference)
-    private void fillRealtimeStats(BroadcastListResponse response) {
-        String viewKey = redisService.getViewKey(response.getBroadcastId());
-        String likeKey = redisService.getLikeKey(response.getBroadcastId());
-        // BroadcastListResponse DTO에 setter나 builder로 값을 넣을 수 있어야 함
-        // response.setTotalViews(redisService.getStatOrZero(viewKey)); // 예시
+    private BroadcastAllResponse getOverview(Long sellerId, boolean isAdmin) {
+        List<BroadcastListResponse> onAir = broadcastRepository.findTop5ByStatus(sellerId, List.of(BroadcastStatus.ON_AIR, BroadcastStatus.READY), new OrderSpecifier<>(Order.DESC, broadcast.startedAt), isAdmin);
+        List<BroadcastListResponse> reserved = broadcastRepository.findTop5ByStatus(sellerId, List.of(BroadcastStatus.RESERVED), new OrderSpecifier<>(Order.ASC, broadcast.scheduledAt), isAdmin);
+        List<BroadcastListResponse> vod = broadcastRepository.findTop5ByStatus(sellerId, List.of(BroadcastStatus.VOD, BroadcastStatus.ENDED, BroadcastStatus.STOPPED), new OrderSpecifier<>(Order.DESC, broadcast.endedAt), isAdmin);
+        injectLiveDetails(onAir);
+        return BroadcastAllResponse.builder().onAir(onAir).reserved(reserved).vod(vod).build();
+    }
+
+    private void injectLiveStats(List<BroadcastListResponse> list) {
+        list.forEach(item -> {
+            if (item.getStatus() == BroadcastStatus.ON_AIR) {
+                // Redis 실시간 통계
+                item.setLiveViewerCount(redisService.getRealtimeViewerCount(item.getBroadcastId()));
+                item.setTotalLikes(redisService.getLikeCount(item.getBroadcastId()));
+                item.setReportCount(redisService.getReportCount(item.getBroadcastId()));
+            }
+        });
+    }
+
+    private void injectLiveDetails(List<BroadcastListResponse> list) {
+        list.forEach(item -> {
+            if (item.getStatus() == BroadcastStatus.ON_AIR) {
+                // Redis 실시간 통계
+                item.setLiveViewerCount(redisService.getRealtimeViewerCount(item.getBroadcastId()));
+                item.setTotalLikes(redisService.getLikeCount(item.getBroadcastId()));
+                item.setReportCount(redisService.getReportCount(item.getBroadcastId()));
+
+                // [추가] 상품 재고 리스트 주입
+                Broadcast b = broadcastRepository.findById(item.getBroadcastId()).orElse(null);
+                if (b != null) {
+                    item.setProducts(b.getProducts().stream().map(bp -> {
+                        Product p = productRepository.findById(bp.getProductId()).orElse(null);
+                        return BroadcastListResponse.SimpleProductInfo.builder()
+                                .name(p!=null ? p.getProductName() : "")
+                                .stock(p!=null ? p.getStockQty() : 0)
+                                .isSoldOut(p!=null && p.getStockQty()<=0).build();
+                    }).collect(Collectors.toList()));
+                }
+            }
+        });
+    }
+
+    // SSL 무시 (LiveHostController 로직 복사)
+    private void disableSslVerification() {
+        try {
+            TrustManager[] trustAllCerts = new TrustManager[] { new X509TrustManager() {
+                public java.security.cert.X509Certificate[] getAcceptedIssuers() { return null; }
+                public void checkClientTrusted(X509Certificate[] certs, String authType) { }
+                public void checkServerTrusted(X509Certificate[] certs, String authType) { }
+            } };
+            SSLContext sc = SSLContext.getInstance("SSL");
+            sc.init(null, trustAllCerts, new java.security.SecureRandom());
+            HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
+            HostnameVerifier allHostsValid = (hostname, session) -> true;
+            HttpsURLConnection.setDefaultHostnameVerifier(allHostsValid);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 }

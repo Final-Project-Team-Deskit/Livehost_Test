@@ -25,7 +25,7 @@ public class Vod {
     @Column(name = "vod_id")
     private Long vodId;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "broadcast_id", nullable = false)
     private Broadcast broadcast;
 
@@ -56,4 +56,12 @@ public class Vod {
     @Column(name = "updated_at", nullable = false)
     @UpdateTimestamp
     private LocalDateTime updatedAt;
+
+    public void changeStatus(VodStatus newStatus) {
+        this.status = newStatus;
+    }
+
+    public void setAdminLock(boolean lock) {
+        this.vodAdminLock = lock;
+    }
 }

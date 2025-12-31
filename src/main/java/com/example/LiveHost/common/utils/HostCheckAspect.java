@@ -38,7 +38,7 @@ public class HostCheckAspect {
                 .orElseThrow(() -> new BusinessException(ErrorCode.BROADCAST_NOT_FOUND));
 
         // 4. 방송의 판매자ID와 현재 유저ID가 같은지 비교
-        if (!broadcast.getSellerId().equals(currentUserId)) {
+        if (!broadcast.getSeller().getSellerId().equals(currentUserId)) {
             log.warn("권한 없는 접근 시도! 방송ID: {}, 시도한 유저ID: {}", broadcastId, currentUserId);
             throw new BusinessException(ErrorCode.FORBIDDEN_ACCESS); // 주인 X (403 에러)
         }

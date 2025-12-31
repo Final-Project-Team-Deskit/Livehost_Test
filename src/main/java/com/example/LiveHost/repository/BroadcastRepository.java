@@ -11,4 +11,6 @@ public interface BroadcastRepository extends JpaRepository<Broadcast, Long>, Bro
     long countBySellerIdAndStatus(Long sellerId, BroadcastStatus broadcastStatus);
 
     List<Broadcast> findByStatusAndStartedAtBefore(BroadcastStatus status, LocalDateTime startedAtBefore);
+
+    long countBySeller_SellerId(Long sellerSellerId);
 }

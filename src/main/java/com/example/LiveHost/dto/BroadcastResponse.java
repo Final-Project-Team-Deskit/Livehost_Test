@@ -52,7 +52,7 @@ public class BroadcastResponse {
                                                List<QcardResponse> qcards) {
         return BroadcastResponse.builder()
                 .broadcastId(broadcast.getBroadcastId())
-                .sellerId(broadcast.getSellerId())
+                .sellerId(broadcast.getSeller().getSellerId())
                 .title(broadcast.getBroadcastTitle())
                 .notice(broadcast.getBroadcastNotice())
                 .status(broadcast.getStatus())

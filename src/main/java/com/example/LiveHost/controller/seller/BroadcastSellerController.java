@@ -8,6 +8,7 @@ import com.example.LiveHost.service.SanctionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -20,43 +21,42 @@ import java.util.Map;
 public class BroadcastSellerController {
 
     private final BroadcastService broadcastService;
-    private final RedisService redisService;
     private final SanctionService sanctionService;
 
-    // 방송 생성 API
-    // POST /api/v1/broadcasts
+    // 1. 방송 예약 (생성)
     @PostMapping
     public ResponseEntity<ApiResult<Long>> createBroadcast(
-            @RequestHeader("X-Seller-Id") Long sellerId, // Gateway 등에서 넘어온 판매자 ID
-            @Valid @RequestBody BroadcastCreateRequest request) {
-
-        Long broadcastId = broadcastService.createBroadcast(sellerId, request);
-        return ResponseEntity.ok(ApiResult.success(broadcastId));
+            @RequestHeader("X-Seller-Id") Long sellerId,
+            @RequestBody @Valid BroadcastCreateRequest request
+    ) {
+        return ResponseEntity.ok(ApiResult.success(
+                broadcastService.createBroadcast(sellerId, request)
+        ));
     }
 
-    // [방송 수정] - @HostCheck: AOP가 먼저 가로채서 본인 방송인지 확인합니다.
-    // @HostCheck - 다만 테스트 단계에서 아직 회원 권한 쪽과 합쳐지지 않았기에 주석 처리
+    // 2. 방송 정보 수정
     @PutMapping("/{broadcastId}")
     public ResponseEntity<ApiResult<Long>> updateBroadcast(
             @RequestHeader("X-Seller-Id") Long sellerId,
             @PathVariable Long broadcastId,
-            @Valid @RequestBody BroadcastUpdateRequest request) {
-
-        Long updatedId = broadcastService.updateBroadcast(sellerId, broadcastId, request);
-        return ResponseEntity.ok(ApiResult.success(updatedId));
+            @RequestBody @Valid BroadcastUpdateRequest request
+    ) {
+        return ResponseEntity.ok(ApiResult.success(
+                broadcastService.updateBroadcast(sellerId, broadcastId, request)
+        ));
     }
 
-    // [방송 취소]
-    // @HostCheck 적용
-    // @HostCheck
+    // 3. 방송 취소 (삭제)
     @DeleteMapping("/{broadcastId}")
-    public ResponseEntity<ApiResult<String>> cancelBroadcast(
+    public ResponseEntity<ApiResult<Void>> cancelBroadcast(
             @RequestHeader("X-Seller-Id") Long sellerId,
-            @PathVariable Long broadcastId) {
-
+            @PathVariable Long broadcastId
+    ) {
         broadcastService.cancelBroadcast(sellerId, broadcastId);
-        return ResponseEntity.ok(ApiResult.success("방송 예약이 취소되었습니다."));
+        return ResponseEntity.ok(ApiResult.success(null));
     }
+
+
 
     // 내 상품 목록 조회
     @GetMapping("/my-products")
@@ -66,58 +66,61 @@ public class BroadcastSellerController {
         return ResponseEntity.ok(ApiResult.success(broadcastService.getSellerProducts(sellerId, keyword)));
     }
 
-    // 방송 상세 조회 (수정 화면 진입용)
-        // GET /seller/api/broadcasts/{broadcastId}
+    // 4. 방송 목록 조회 (판매자 대시보드용 - 라이브 상세 정보 포함)
+    @GetMapping
+    public ResponseEntity<ApiResult<Object>> getSellerBroadcasts(
+            @RequestHeader("X-Seller-Id") Long sellerId,
+            @ModelAttribute BroadcastSearch searchCondition,
+            @PageableDefault(size = 10) Pageable pageable
+    ) {
+        return ResponseEntity.ok(ApiResult.success(
+                broadcastService.getSellerBroadcasts(sellerId, searchCondition, pageable)
+        ));
+    }
+
+    // 5. 방송 상세 조회 (수정 화면 등)
     @GetMapping("/{broadcastId}")
     public ResponseEntity<ApiResult<BroadcastResponse>> getBroadcastDetail(
             @RequestHeader("X-Seller-Id") Long sellerId,
-            @PathVariable Long broadcastId) {
-        BroadcastResponse response = broadcastService.getBroadcastDetail(sellerId, broadcastId);
-        return ResponseEntity.ok(ApiResult.success(response));
+            @PathVariable Long broadcastId
+    ) {
+        return ResponseEntity.ok(ApiResult.success(
+                broadcastService.getBroadcastDetail(sellerId, broadcastId)
+        ));
     }
 
-    // [Day 5] 방송 목록 조회 API
-    @GetMapping
-    public ResponseEntity<ApiResult<Object>> getBroadcasts(
-            @RequestHeader("X-Seller-Id") Long sellerId,
-            @ModelAttribute BroadcastSearch condition,
-            Pageable pageable) {
-        return ResponseEntity.ok(ApiResult.success(broadcastService.getBroadcastList(sellerId, condition, pageable)));
-    }
+    // =====================================================================
+    // [라이브 제어 API]
+    // =====================================================================
 
-    // 2. [실시간] 통계 조회 (Polling용 - 3초마다 호출)
-    // 상품 정보 등 무거운 데이터 제외하고 숫자만 리턴 -> 서버 부하 감소
-    @GetMapping("/{broadcastId}/stats")
-    public ResponseEntity<ApiResult<Map<String, Integer>>> getRealtimeStats(@PathVariable Long broadcastId) {
-        Integer views = redisService.getStatOrZero(redisService.getViewKey(broadcastId));
-        Integer likes = redisService.getStatOrZero(redisService.getLikeKey(broadcastId));
-        Integer sanctions = redisService.getStatOrZero(redisService.getSanctionKey(broadcastId));
-
-        return ResponseEntity.ok(ApiResult.success(Map.of(
-                "totalViews", views,
-                "totalLikes", likes,
-                "totalSanctions", sanctions
-        )));
-    }
-
-    // [Day 6] 방송 시작 API
-    // PUT /seller/api/broadcasts/{broadcastId}/start
-    @PutMapping("/{broadcastId}/start")
+    // 6. 방송 시작 (ON_AIR 전환 + 토큰 발급)
+    @PostMapping("/{broadcastId}/start")
     public ResponseEntity<ApiResult<String>> startBroadcast(
             @RequestHeader("X-Seller-Id") Long sellerId,
-            @PathVariable Long broadcastId) {
-        // 호스트 토큰 반환
+            @PathVariable Long broadcastId
+    ) {
         String token = broadcastService.startBroadcast(sellerId, broadcastId);
         return ResponseEntity.ok(ApiResult.success(token));
     }
 
-    // [Day 6] 방송 종료 API
-    // PUT /seller/api/broadcasts/{broadcastId}/end
-    @PutMapping("/{broadcastId}/end")
+    // 7. 방송 종료 (ENDED 전환)
+    @PostMapping("/{broadcastId}/end")
     public ResponseEntity<ApiResult<Void>> endBroadcast(
             @RequestHeader("X-Seller-Id") Long sellerId,
-            @PathVariable Long broadcastId) {
+            @PathVariable Long broadcastId
+    ) {
         broadcastService.endBroadcast(sellerId, broadcastId);
+        return ResponseEntity.ok(ApiResult.success(null));
+    }
+
+    // 8. 상품 핀 설정 (라이브 중 강조 상품 변경)
+    @PostMapping("/{broadcastId}/pin/{productId}")
+    public ResponseEntity<ApiResult<Void>> pinProduct(
+            @RequestHeader("X-Seller-Id") Long sellerId,
+            @PathVariable Long broadcastId,
+            @PathVariable Long productId
+    ) {
+        broadcastService.pinProduct(sellerId, broadcastId, productId);
         return ResponseEntity.ok(ApiResult.success(null));
     }
 
@@ -131,31 +134,40 @@ public class BroadcastSellerController {
         return ResponseEntity.ok(ApiResult.success(null));
     }
 
-    // [Day 7] 상품 핀 설정
-    @PutMapping("/{broadcastId}/products/{productId}/pin")
-    public ResponseEntity<ApiResult<Void>> pinProduct(
+    // =====================================================================
+    // [통계 API]
+    // =====================================================================
+
+    // 9. 통계 대시보드 (매출 차트, 랭킹 등)
+    @GetMapping("/statistics")
+    public ResponseEntity<ApiResult<StatisticsResponse>> getStatistics(
             @RequestHeader("X-Seller-Id") Long sellerId,
-            @PathVariable Long broadcastId,
-            @PathVariable Long productId) {
-        broadcastService.pinProduct(sellerId, broadcastId, productId);
-        return ResponseEntity.ok(ApiResult.success(null));
+            @RequestParam(defaultValue = "DAILY") String period // DAILY, MONTHLY, YEARLY
+    ) {
+        return ResponseEntity.ok(ApiResult.success(
+                broadcastService.getStatistics(sellerId, period)
+        ));
     }
 
-//    // [Day 7] 방송 결과 조회
-//    @GetMapping("/{broadcastId}/result")
-//    public ResponseEntity<ApiResult<BroadcastResultResponse>> getBroadcastResult(
-//            @RequestHeader("X-Seller-Id") Long sellerId,
-//            @PathVariable Long broadcastId) {
-//        return ResponseEntity.ok(ApiResult.success(broadcastResultService.getBroadcastResult(sellerId, broadcastId)));
-//    }
-//
-//    // [Day 7] VOD 상태 변경
-//    @PatchMapping("/{broadcastId}/vod/status")
-//    public ResponseEntity<ApiResult<Void>> updateVodStatus(
-//            @RequestHeader("X-Seller-Id") Long sellerId,
-//            @PathVariable Long broadcastId,
-//            @RequestBody VodStatusUpdateRequest request) {
-//        vodService.updateVodStatus(sellerId, broadcastId, request);
-//        return ResponseEntity.ok(ApiResult.success(null));
-//    }
+    // 10. 방송 결과 리포트 (개별 방송 상세 통계)
+    @GetMapping("/{broadcastId}/report")
+    public ResponseEntity<ApiResult<BroadcastResultResponse>> getBroadcastResultReport(
+            @RequestHeader("X-Seller-Id") Long sellerId,
+            @PathVariable Long broadcastId
+    ) {
+        return ResponseEntity.ok(ApiResult.success(
+                broadcastService.getBroadcastResult(broadcastId, sellerId, false) // isAdmin=false
+        ));
+    }
+
+    // 11. 등록용 상품 목록 조회 (Helper)
+    @GetMapping("/products")
+    public ResponseEntity<ApiResult<List<ProductSelectResponse>>> getSellerProducts(
+            @RequestHeader("X-Seller-Id") Long sellerId,
+            @RequestParam(required = false) String keyword
+    ) {
+        return ResponseEntity.ok(ApiResult.success(
+                broadcastService.getSellerProducts(sellerId, keyword)
+        ));
+    }
 }

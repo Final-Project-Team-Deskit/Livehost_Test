@@ -1,36 +1,49 @@
 package com.example.LiveHost.dto;
 
+import com.example.LiveHost.common.enums.BroadcastStatus;
+import com.example.LiveHost.common.enums.VodStatus;
 import com.example.LiveHost.entity.BroadcastResult;
 import lombok.Builder;
 import lombok.Getter;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Getter
 @Builder
 public class BroadcastResultResponse {
-
     private Long broadcastId;
-    private Integer maxViewers;      // 최대 시청자 수 (max_views)
-    private Integer totalViewers;    // 누적 시청자 수 (total_views)
-    private Integer totalLikes;      // 총 좋아요 수 (total_likes)
-    private Integer totalChats;      // 총 채팅 수 (total_chats)
-    private BigDecimal totalSales;   // 총 매출액 (total_sales)
-    private Integer avgWatchTime;    // 평균 시청 시간 (초 단위)
+    private String title;
+    private LocalDateTime startAt;
+    private LocalDateTime endAt;
+    private long durationMinutes;
+    private BroadcastStatus status;
+    private String stoppedReason;
 
-    private LocalDateTime broadcastDate; // 방송 날짜
+    private int totalViews;
+    private int totalLikes;
+    private BigDecimal totalSales;
+    private int totalChats;
+    private int maxViewers;
+    private LocalDateTime maxViewerTime;
+    private long avgWatchTime;
+    private int reportCount;
+    private int sanctionCount;
 
-    public static BroadcastResultResponse fromEntity(BroadcastResult result) {
-        return BroadcastResultResponse.builder()
-                .broadcastId(result.getBroadcastId())
-                .maxViewers(result.getMaxViews())
-                .totalViewers(result.getTotalViews())
-                .totalLikes(result.getTotalLikes())
-                .totalChats(result.getTotalChats())
-                .totalSales(result.getTotalSales())
-                .avgWatchTime(result.getAvgWatchTime())
-                .broadcastDate(result.getCreatedAt())
-                .build();
+    private String vodUrl;
+    private VodStatus vodStatus;
+    private boolean isEncoding;
+
+    private List<ProductSalesStat> productStats;
+
+    @Getter @Builder
+    public static class ProductSalesStat {
+        private Long productId;
+        private String productName;
+        private String imageUrl;
+        private int price;
+        private int salesQuantity;
+        private BigDecimal salesAmount;
     }
 }

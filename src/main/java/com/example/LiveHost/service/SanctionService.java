@@ -32,7 +32,7 @@ public class SanctionService {
         Broadcast broadcast = broadcastRepository.findById(broadcastId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.BROADCAST_NOT_FOUND));
 
-        if (!broadcast.getSellerId().equals(sellerId)) {
+        if (!broadcast.getSeller().getSellerId().equals(sellerId)) {
             throw new BusinessException(ErrorCode.FORBIDDEN_ACCESS);
         }
 

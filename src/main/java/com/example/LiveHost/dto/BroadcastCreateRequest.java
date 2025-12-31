@@ -3,6 +3,8 @@ package com.example.LiveHost.dto;
 import com.example.LiveHost.entity.Broadcast;
 import com.example.LiveHost.common.enums.BroadcastStatus;
 import com.example.LiveHost.common.enums.BroadcastLayout;
+import com.example.LiveHost.others.entity.Seller;
+import com.example.LiveHost.others.entity.TagCategory;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
@@ -49,10 +51,10 @@ public class BroadcastCreateRequest {
     private List<QcardRequest> qcards;
 
     // DTO -> Entity 변환 메서드 (Seller와 Category는 Service에서 주입)
-    public Broadcast toEntity(Long sellerId) {
+    public Broadcast toEntity(Seller seller, TagCategory tagCategory) {
         return Broadcast.builder()
-                .sellerId(sellerId)
-                .tagCategoryId(this.categoryId)
+                .seller(seller)
+                .tagCategory(tagCategory)
                 .broadcastTitle(this.title)
                 .broadcastNotice(this.notice)
                 .scheduledAt(this.scheduledAt)

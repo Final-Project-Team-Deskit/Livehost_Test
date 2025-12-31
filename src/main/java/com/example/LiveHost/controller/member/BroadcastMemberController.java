@@ -14,19 +14,21 @@ public class BroadcastMemberController {
 
     private final BroadcastService broadcastService;
 
-    // [Day 7] OpenVidu Webhook 수신
-    @PostMapping("/webhook/openvidu")
-    public ResponseEntity<Void> handleWebhook(@RequestBody OpenViduRecordingWebhook payload) {
-        if ("recordingStatusChanged".equals(payload.getEvent()) && "ready".equals(payload.getStatus())) {
-            broadcastService.processVod(payload);
-        }
-        return ResponseEntity.ok().build();
-    }
-
     // [Day 7] 좋아요 누르기
     @PostMapping("/broadcasts/{broadcastId}/like")
-    public ResponseEntity<ApiResult<Void>> likeBroadcast(@PathVariable Long broadcastId) {
-        broadcastService.likeBroadcast(broadcastId);
+    public ResponseEntity<ApiResult<Void>> likeBroadcast(@RequestHeader("X-Member-Id") Long memberId,
+                                                         @PathVariable Long broadcastId) {
+        broadcastService.likeBroadcast(broadcastId, memberId);
+        return ResponseEntity.ok(ApiResult.success(null));
+    }
+
+    // 5. 방송 신고 (비회원도 가능, X-Viewer-Id 필수)
+    @PostMapping("/broadcasts/{broadcastId}/report")
+    public ResponseEntity<ApiResult<Void>> reportBroadcast(
+            @PathVariable Long broadcastId,
+            @RequestHeader("X-Member-Id") Long memberId
+    ) {
+        broadcastService.reportBroadcast(broadcastId, memberId);
         return ResponseEntity.ok(ApiResult.success(null));
     }
 }
