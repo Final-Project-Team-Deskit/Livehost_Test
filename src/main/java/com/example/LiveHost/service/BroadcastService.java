@@ -704,17 +704,47 @@ public class BroadcastService {
     }
 
     private BroadcastResponse createBroadcastResponse(Broadcast broadcast) {
-        Integer views = 0, likes = 0, reports = 0;
+        Integer views = 0;
+        Integer likes = 0;
+        Integer reports = 0;
+        String vodUrl = null; // [1] VOD URL 변수 초기화
+
+        // [2] 통계 데이터 조회 분기 (라이브 중 vs 종료 후)
         if (isLiveGroup(broadcast.getStatus())) {
+            // A. 라이브 중 (Redis 조회)
             views = redisService.getRealtimeViewerCount(broadcast.getBroadcastId());
             likes = redisService.getLikeCount(broadcast.getBroadcastId());
             reports = redisService.getReportCount(broadcast.getBroadcastId());
         } else {
+            // B. 종료/VOD/중단 (DB 조회)
             BroadcastResult result = broadcastResultRepository.findById(broadcast.getBroadcastId()).orElse(null);
-            if (result != null) { views = result.getTotalViews(); likes = result.getTotalLikes(); }
-            reports = sanctionRepository.countByBroadcast(broadcast);
+            if (result != null) {
+                views = result.getTotalViews();
+                likes = result.getTotalLikes();
+                reports = result.getTotalReports();
+            }
+            // 참고: 만약 제재 수(Sanction)가 필요하다면 별도 변수로 sanctionRepository.countByBroadcast(broadcast) 호출
         }
-        return BroadcastResponse.fromEntity(broadcast, broadcast.getTagCategory().getTagCategoryName(), views, likes, reports, getProductListResponse(broadcast), getQcardListResponse(broadcast));
+
+        // [3] VOD URL 조회 (상태가 VOD이고 공개 상태일 때만)
+        if (broadcast.getStatus() == BroadcastStatus.VOD) {
+            Vod vod = vodRepository.findByBroadcast(broadcast).orElse(null);
+            if (vod != null && vod.getStatus() == VodStatus.PUBLIC) {
+                vodUrl = vod.getVodUrl(); // S3 URL 가져오기
+            }
+        }
+
+        // [4] DTO 생성 및 반환
+        return BroadcastResponse.fromEntity(
+                broadcast,
+                broadcast.getTagCategory().getTagCategoryName(),
+                views,
+                likes,
+                reports,
+                getProductListResponse(broadcast), // 상품 리스트
+                getQcardListResponse(broadcast),   // 큐카드 리스트
+                vodUrl // 마지막에 vodUrl 전달
+        );
     }
 
     private BroadcastAllResponse getOverview(Long sellerId, boolean isAdmin) {

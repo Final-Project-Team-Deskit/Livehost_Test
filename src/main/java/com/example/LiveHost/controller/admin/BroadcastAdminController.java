@@ -4,6 +4,7 @@ import com.example.LiveHost.common.exception.ApiResult;
 import com.example.LiveHost.dto.BroadcastResultResponse;
 import com.example.LiveHost.dto.BroadcastSearch;
 import com.example.LiveHost.dto.SanctionStatisticsResponse;
+import com.example.LiveHost.dto.StatisticsResponse;
 import com.example.LiveHost.service.AdminService;
 import com.example.LiveHost.service.BroadcastService;
 import lombok.RequiredArgsConstructor;
@@ -22,33 +23,49 @@ public class BroadcastAdminController {
     private final BroadcastService broadcastService;
 
     // 1. 관리자용 방송 목록 조회 (모든 상태/판매자 조회 가능)
-    @GetMapping
+    // 1. 전체 방송 목록 조회 (모니터링용)
+    @GetMapping("/broadcasts")
     public ResponseEntity<ApiResult<Object>> getAllBroadcasts(
             @ModelAttribute BroadcastSearch searchCondition,
-            @PageableDefault(size = 20) Pageable pageable
+            @PageableDefault(size = 10) Pageable pageable
     ) {
-        // isAdmin = true로 호출 -> CANCELED, STOPPED 등도 조회 가능
         return ResponseEntity.ok(ApiResult.success(
-                broadcastService.getPublicBroadcasts(searchCondition, pageable)
-                // 주의: getPublicBroadcasts 내부 로직에서 isAdmin 플래그 처리가 필요하다면
-                // broadcastService.getAdminBroadcasts(...) 같은 메서드를 별도로 만드는 게 좋음.
-                // 현재 구조상 searchBroadcasts repository 메서드는 isAdmin 플래그를 받으므로,
-                // Service에 getAdminBroadcasts 메서드를 추가하거나 기존 메서드 재활용 가능.
+                broadcastService.getAdminBroadcasts(searchCondition, pageable)
         ));
     }
 
-    // 2. 방송 강제 종료 (제재)
-    @PutMapping("/{broadcastId}/stop")
-    public ResponseEntity<ApiResult<Void>> forceStopBroadcast(
+    // 2. 방송 강제 종료 (STOPPED)
+    @PutMapping("/broadcasts/{broadcastId}/stop")
+    public ResponseEntity<ApiResult<Void>> forceStop(
             @PathVariable Long broadcastId,
-            @RequestBody Map<String, String> body // {"reason": "부적절한 방송"}
+            @RequestBody Map<String, String> body
     ) {
         adminService.forceStopBroadcast(broadcastId, body.get("reason"));
         return ResponseEntity.ok(ApiResult.success(null));
     }
 
-    // 3. 제재 통계 대시보드 (차트, 블랙리스트 랭킹)
-    @GetMapping("/statistics/sanctions")
+    // 3. 예약 방송 취소 (CANCELED)
+    @PutMapping("/broadcasts/{broadcastId}/cancel")
+    public ResponseEntity<ApiResult<Void>> cancelBroadcast(
+            @PathVariable Long broadcastId
+    ) {
+        adminService.cancelBroadcast(broadcastId);
+        return ResponseEntity.ok(ApiResult.success(null));
+    }
+
+    // 4. 전체 플랫폼 통계 (매출/시청자)
+    @GetMapping("/statistics")
+    public ResponseEntity<ApiResult<StatisticsResponse>> getAdminStatistics(
+            @RequestParam(defaultValue = "DAILY") String period
+    ) {
+        // sellerId = null -> 전체 통계
+        return ResponseEntity.ok(ApiResult.success(
+                broadcastService.getStatistics(null, period)
+        ));
+    }
+
+    // 5. 제재 현황 통계
+    @GetMapping("/sanctions/statistics")
     public ResponseEntity<ApiResult<SanctionStatisticsResponse>> getSanctionStatistics(
             @RequestParam(defaultValue = "DAILY") String period
     ) {

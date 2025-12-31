@@ -99,7 +99,7 @@ public class SanctionRepositoryImpl implements SanctionRepositoryCustom {
         return queryFactory
                 .select(Projections.constructor(SanctionStatisticsResponse.ViewerRank.class,
                         sanction.member.memberId.stringValue(),
-                        Expressions.asString("Member"),
+                        member.name.coalesce("Unknown"), // 닉네임 조회
                         sanction.count()))
                 .from(sanction)
                 .leftJoin(sanction.member, member)

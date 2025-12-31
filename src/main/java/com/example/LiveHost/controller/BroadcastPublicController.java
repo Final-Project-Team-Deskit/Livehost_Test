@@ -3,11 +3,16 @@ package com.example.LiveHost.controller;
 import com.example.LiveHost.common.exception.ApiResult;
 import com.example.LiveHost.dto.*;
 import com.example.LiveHost.service.BroadcastService;
+import com.example.LiveHost.service.SseService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api") // Public 경로는 /api 로 시작
@@ -15,6 +20,7 @@ import org.springframework.web.bind.annotation.*;
 public class BroadcastPublicController {
 
     private final BroadcastService broadcastService;
+    private final SseService sseService;
 
     // 1. 방송 목록 조회 (검색/필터링)
     @GetMapping("/broadcasts")
@@ -57,6 +63,27 @@ public class BroadcastPublicController {
                 broadcastService.getBroadcastStats(broadcastId)
         ));
     }
+
+    // 5. [Polling B] 실시간 상품 정보 (DB - 3~5초 간격 권장)
+    // 재고, 가격, 핀 상태
+    @GetMapping("/broadcasts/{broadcastId}/products")
+    public ResponseEntity<ApiResult<List<BroadcastProductResponse>>> getProducts(@PathVariable Long broadcastId) {
+        return ResponseEntity.ok(ApiResult.success(
+                broadcastService.getBroadcastProducts(broadcastId)
+        ));
+    }
+
+    // 6. SSE 구독 연결
+    @GetMapping(value = "/broadcasts/{broadcastId}/subscribe", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter subscribe(
+            @PathVariable Long broadcastId,
+            @RequestHeader(value = "X-Viewer-Id", required = false) String viewerId
+    ) {
+        // 비회원도 구독 가능 (UUID 사용)
+        String userId = (viewerId != null) ? viewerId : "anonymous";
+        return sseService.subscribe(broadcastId, userId);
+    }
+
 
     // =====================================================================
     // [Webhook] OpenVidu 서버가 호출하는 엔드포인트 (인증 제외 필수)

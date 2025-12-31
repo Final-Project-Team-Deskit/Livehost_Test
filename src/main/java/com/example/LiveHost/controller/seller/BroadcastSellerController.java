@@ -56,14 +56,15 @@ public class BroadcastSellerController {
         return ResponseEntity.ok(ApiResult.success(null));
     }
 
-
-
     // 내 상품 목록 조회
-    @GetMapping("/my-products")
-    public ResponseEntity<ApiResult<List<ProductSelectResponse>>> getMyProducts(
+    @GetMapping("/products")
+    public ResponseEntity<ApiResult<List<ProductSelectResponse>>> getSellerProducts(
             @RequestHeader("X-Seller-Id") Long sellerId,
-            @RequestParam(required = false) String keyword) {
-        return ResponseEntity.ok(ApiResult.success(broadcastService.getSellerProducts(sellerId, keyword)));
+            @RequestParam(required = false) String keyword
+    ) {
+        return ResponseEntity.ok(ApiResult.success(
+                broadcastService.getSellerProducts(sellerId, keyword)
+        ));
     }
 
     // 4. 방송 목록 조회 (판매자 대시보드용 - 라이브 상세 정보 포함)
@@ -118,9 +119,9 @@ public class BroadcastSellerController {
     public ResponseEntity<ApiResult<Void>> pinProduct(
             @RequestHeader("X-Seller-Id") Long sellerId,
             @PathVariable Long broadcastId,
-            @PathVariable Long productId
+            @PathVariable Long bpId
     ) {
-        broadcastService.pinProduct(sellerId, broadcastId, productId);
+        broadcastService.pinProduct(sellerId, broadcastId, bpId);
         return ResponseEntity.ok(ApiResult.success(null));
     }
 
@@ -160,14 +161,4 @@ public class BroadcastSellerController {
         ));
     }
 
-    // 11. 등록용 상품 목록 조회 (Helper)
-    @GetMapping("/products")
-    public ResponseEntity<ApiResult<List<ProductSelectResponse>>> getSellerProducts(
-            @RequestHeader("X-Seller-Id") Long sellerId,
-            @RequestParam(required = false) String keyword
-    ) {
-        return ResponseEntity.ok(ApiResult.success(
-                broadcastService.getSellerProducts(sellerId, keyword)
-        ));
-    }
 }
