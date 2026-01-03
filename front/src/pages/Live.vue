@@ -153,11 +153,29 @@ watch(
 onBeforeUnmount(() => {
   if (toastTimer) clearTimeout(toastTimer)
 })
+
+const liveCount = computed(() => broadcasts.value.filter((item) => item.status === 'ON_AIR').length)
+const reservedCount = computed(() => broadcasts.value.filter((item) => item.status === 'RESERVED').length)
 </script>
 
 <template>
   <PageContainer>
-    <PageHeader title="라이브 일정" eyebrow="DESKIT LIVE" />
+    <PageHeader title="라이브 방송" eyebrow="DESKIT LIVE" />
+
+    <div class="filter-bar">
+      <div class="tabs" role="tablist">
+        <button
+          v-for="tab in TAB_OPTIONS"
+          :key="tab.value"
+          type="button"
+          role="tab"
+          :aria-selected="filters.tab === tab.value"
+          :class="['tab-btn', { 'tab-btn--active': filters.tab === tab.value }]"
+          @click="handleTabChange(tab.value)"
+        >
+          {{ tab.label }}
+        </button>
+      </div>
 
     <div class="tabs" role="tablist">
       <button
@@ -236,8 +254,9 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <div v-if="toast" class="toast" :class="`toast--${toast.variant}`" role="status" aria-live="polite">
-      {{ toast.message }}
+    <div class="summary">
+      <span>LIVE {{ liveCount }}</span>
+      <span>예약 {{ reservedCount }}</span>
     </div>
   </PageContainer>
 </template>
@@ -268,8 +287,8 @@ onBeforeUnmount(() => {
   color: #fff;
 }
 
-.date-strip {
-  display: flex;
+.tabs {
+  display: inline-flex;
   gap: 10px;
   width: 100%;
   justify-content: center;
@@ -281,6 +300,7 @@ onBeforeUnmount(() => {
 .date-pill {
   border: 1px solid var(--border-color);
   background: var(--surface);
+  border: 1px solid var(--border-color);
   border-radius: 12px;
   padding: 10px 12px;
   min-width: 76px;
@@ -298,16 +318,19 @@ onBeforeUnmount(() => {
   transform: translateY(-1px);
 }
 
-.date-pill__label {
+.tab-btn {
+  border: none;
+  background: transparent;
+  padding: 10px 16px;
+  border-radius: 10px;
   font-weight: 800;
-  font-size: 0.9rem;
-  color: var(--text-strong);
+  cursor: pointer;
+  color: var(--text-muted);
 }
 
-.date-pill__date {
-  font-size: 0.85rem;
-  color: var(--text-muted);
-  min-height: 1.1em;
+.tab-btn--active {
+  background: var(--primary-color);
+  color: #fff;
 }
 
 .timeline {
@@ -316,43 +339,38 @@ onBeforeUnmount(() => {
   gap: 18px;
 }
 
-.time-group {
+.date-field {
   display: grid;
-  grid-template-columns: 96px 1fr;
-  gap: 16px;
-  align-items: start;
+  gap: 6px;
+  color: var(--text-muted);
+  font-weight: 700;
 }
 
-.time-label {
-  font-size: 1.2rem;
-  font-weight: 800;
-  color: var(--text-strong);
-  padding-top: 8px;
-}
-
-.time-group__list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.live-card-row {
+.number-field {
   display: grid;
-  grid-template-columns: 180px 1fr auto;
-  gap: 18px;
-  align-items: center;
-  padding: 14px;
-  border-radius: 16px;
+  gap: 6px;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.live-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.live-card {
+  display: grid;
+  gap: 10px;
   border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 10px;
   background: var(--surface);
-}
-
-.row--clickable {
   cursor: pointer;
   transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
 
-.row--clickable:hover {
+.live-card:hover {
   border-color: var(--primary-color);
   box-shadow: 0 10px 22px rgba(119, 136, 115, 0.12);
   transform: translateY(-1px);
@@ -364,29 +382,58 @@ onBeforeUnmount(() => {
 }
 
 .thumb {
-  width: 180px;
-  height: 140px;
-  border-radius: 16px;
+  width: 100%;
+  height: 160px;
   object-fit: cover;
+  display: block;
+}
+
+.status-pill {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  background: var(--surface);
+  color: var(--text-strong);
+}
+
+.status-pill--on_air {
+  background: var(--live-color-soft);
+  color: var(--live-color);
+}
+
+.status-pill--reserved {
+  background: var(--hover-bg);
+  color: var(--primary-color);
+}
+
+.status-pill--ended {
+  background: var(--border-color);
+  color: var(--text-muted);
+}
+
+.status-pill--vod {
+  background: var(--surface-weak);
 }
 
 .meta {
-  display: flex;
-  flex-direction: column;
+  display: grid;
   gap: 6px;
-  min-width: 0;
 }
 
 .meta__title-row {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 10px;
-  flex-wrap: wrap;
 }
 
 .meta__title {
   margin: 0;
-  font-size: 1.15rem;
+  font-size: 1rem;
   font-weight: 800;
   color: var(--text-strong);
   line-height: 1.35;
@@ -395,41 +442,42 @@ onBeforeUnmount(() => {
 .meta__seller {
   margin: 0;
   color: var(--text-muted);
-  font-size: 0.95rem;
+  font-size: 0.9rem;
 }
 
 .meta__desc {
   margin: 0;
   color: var(--text-soft);
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   overflow: hidden;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
-  white-space: normal;
-  line-height: 1.4;
 }
 
-.status-pill {
-  padding: 2px 10px;
-  border-radius: 999px;
-  background: var(--surface-weak);
+.meta__time {
+  margin: 0;
   color: var(--text-muted);
-  font-size: 0.8rem;
   font-weight: 700;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
 }
 
-.status-pill--live {
-  background: var(--live-color-soft);
+.status-viewers {
+  font-size: 0.85rem;
   color: var(--live-color);
+  font-weight: 800;
 }
 
-.status-pill--ended {
-  background: var(--border-color);
+.empty-state-box,
+.error-box {
+  margin-top: 14px;
+  padding: 18px;
+  border: 1px dashed var(--border-color);
+  border-radius: 14px;
+  background: var(--surface);
   color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .status-viewers {
@@ -437,11 +485,9 @@ onBeforeUnmount(() => {
   font-weight: 700;
 }
 
-.right-slot {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  min-width: 132px;
+.observer-target {
+  width: 100%;
+  height: 1px;
 }
 
 .meta__time {
@@ -455,7 +501,7 @@ onBeforeUnmount(() => {
   color: #fff;
   font-weight: 800;
   border-radius: 12px;
-  padding: 8px 14px;
+  padding: 10px 14px;
   cursor: pointer;
 }
 
@@ -478,23 +524,7 @@ onBeforeUnmount(() => {
   z-index: 20;
 }
 
-.toast--success {
-  background: var(--primary-color);
-  color: #fff;
-}
-
-.toast--neutral {
-  background: var(--surface);
-  color: var(--text-strong);
-  border: 1px solid var(--border-color);
-}
-
-.empty-state-box {
-  padding: 18px;
-  border: 1px dashed var(--border-color);
-  border-radius: 14px;
-  background: var(--surface);
-  color: var(--text-muted);
+.summary {
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -520,30 +550,8 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 640px) {
-  .time-group {
+  .search-form {
     grid-template-columns: 1fr;
-  }
-
-  .time-label {
-    padding-top: 0;
-  }
-
-  .live-card-row {
-    grid-template-columns: 1fr;
-    align-items: flex-start;
-  }
-
-  .thumb {
-    width: 100%;
-    height: 180px;
-  }
-
-  .right-slot {
-    width: 100%;
-  }
-
-  .action-btn {
-    width: 100%;
   }
 }
 </style>
