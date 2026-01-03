@@ -117,7 +117,8 @@ const handleTabChange = async (value: BroadcastTab) => {
 }
 
 const handleRowClick = (item: BroadcastListItem) => {
-  router.push({ name: 'live-detail', params: { id: item.id } })
+  const id = item.id ?? item.broadcastId
+  router.push({ name: 'live-detail', params: { id } })
 }
 
 const observeInfiniteScroll = () => {

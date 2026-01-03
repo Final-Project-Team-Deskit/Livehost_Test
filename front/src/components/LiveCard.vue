@@ -49,12 +49,14 @@ const scheduledLabel = computed(() => {
 })
 
 const handleWatchNow = () => {
+  const id = props.item.id ?? props.item.broadcastId
+  if (!id) return
   if (props.item.status === 'ON_AIR') {
-    router.push({ name: 'live-detail', params: { id: props.item.id } })
+    router.push({ name: 'live-detail', params: { id } })
     return
   }
   if (props.item.status === 'ENDED' || props.item.status === 'VOD') {
-    router.push({ name: 'vod', params: { id: props.item.id } })
+    router.push({ name: 'vod', params: { id } })
   }
 }
 </script>
