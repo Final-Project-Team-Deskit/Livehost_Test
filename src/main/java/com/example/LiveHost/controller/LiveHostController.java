@@ -1,13 +1,10 @@
 package com.example.LiveHost.controller;
 
-import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.model.CannedAccessControlList;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
+import com.example.LiveHost.common.config.LiveAuthUtils;
 import io.openvidu.java.client.*;
 import jakarta.annotation.PostConstruct;
 
@@ -53,6 +50,7 @@ public class LiveHostController {
     private String endpoint;
 
     private final AmazonS3 amazonS3;
+    private final LiveAuthUtils liveAuthUtils;
 
     @PostConstruct
     public void init() {
@@ -125,8 +123,7 @@ public class LiveHostController {
 
     // 4. 녹화 종료 (방송 종료 버튼 클릭 시 호출)
     @PostMapping("/sessions/{sessionId}/recording/stop")
-    public ResponseEntity<String> stopRecording(@RequestHeader("X-Seller-Id") Long sellerId, // Gateway 등에서 넘어온 판매자 ID
-            @PathVariable("sessionId") String sessionId) {
+    public ResponseEntity<String> stopRecording(@PathVariable("sessionId") String sessionId) {
         String recordingId = this.sessionRecordings.remove(sessionId);
         if (recordingId == null) {
             return new ResponseEntity<>("Recording not found for session", HttpStatus.NOT_FOUND);
@@ -169,7 +166,7 @@ public class LiveHostController {
                     metadata.setContentLength(conn.getContentLengthLong()); // OpenVidu 서버가 헤더로 알려준 정보를 NCP한테 전달하는 것
                     metadata.setContentType("video/mp4");
 
-                    String objectName = "seller_" + sellerId + "/vods/" + recordingId + ".mp4";
+                    String objectName = "seller_" + liveAuthUtils.getCurrentSeller().getSellerId() + "/vods/" + recordingId + ".mp4";
 
                     // [업로드 실행] OpenVidu -> (Stream) -> Backend -> NCP
                     amazonS3.putObject(new PutObjectRequest(bucketName, objectName, inputStream, metadata)

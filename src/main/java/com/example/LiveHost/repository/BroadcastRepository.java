@@ -3,12 +3,15 @@ package com.example.LiveHost.repository;
 import com.example.LiveHost.common.enums.BroadcastStatus;
 import com.example.LiveHost.entity.Broadcast;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 public interface BroadcastRepository extends JpaRepository<Broadcast, Long>, BroadcastRepositoryCustom {
-    long countBySellerIdAndStatus(Long sellerId, BroadcastStatus broadcastStatus);
+    @Query("SELECT COUNT(b) FROM Broadcast b WHERE b.seller.sellerId = :sellerId AND b.status = :status")
+    long countBySellerIdAndStatus(@Param("sellerId") Long sellerId, @Param("status") BroadcastStatus status);
 
     List<Broadcast> findByStatusAndStartedAtBefore(BroadcastStatus status, LocalDateTime startedAtBefore);
 
