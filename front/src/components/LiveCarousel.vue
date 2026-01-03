@@ -5,10 +5,10 @@ import type { Swiper as SwiperClass } from 'swiper'
 import { Autoplay, Pagination, Navigation } from 'swiper/modules'
 
 import LiveCard from './LiveCard.vue'
-import type { BroadcastListItem } from '../api/liveApi'
+import type { LiveItem } from '../lib/home-data'
 
 defineProps<{
-  items: BroadcastListItem[]
+  items: LiveItem[]
 }>()
 
 const modules = [Autoplay, Pagination, Navigation]
