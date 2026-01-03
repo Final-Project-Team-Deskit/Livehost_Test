@@ -9,10 +9,17 @@ export const http = axios.create({
 
 http.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = localStorage.getItem('access_token')
+  const sellerId = localStorage.getItem('seller_id')
 
   if (token) {
     const headers = AxiosHeaders.from(config.headers)
     headers.set('Authorization', `Bearer ${token}`)
+    config.headers = headers
+  }
+
+  if (sellerId) {
+    const headers = AxiosHeaders.from(config.headers)
+    headers.set('X-Seller-Id', sellerId)
     config.headers = headers
   }
 

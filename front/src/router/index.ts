@@ -103,6 +103,16 @@ const routes: RouteRecordRaw[] = [
         component: () => import('../pages/admin/AdminLive.vue'),
       },
       {
+        path: 'live/statistics',
+        name: 'admin-live-statistics',
+        component: () => import('../pages/admin/LiveStatistics.vue'),
+      },
+      {
+        path: 'live/sanctions',
+        name: 'admin-live-sanctions',
+        component: () => import('../pages/admin/LiveSanctions.vue'),
+      },
+      {
         path: 'live/reservations/:reservationId',
         name: 'admin-live-reservation-detail',
         component: () => import('../pages/admin/live/ReservationDetail.vue'),
@@ -143,6 +153,16 @@ const routes: RouteRecordRaw[] = [
         path: 'live',
         name: 'seller-live',
         component: () => import('../pages/seller/Live.vue'),
+      },
+      {
+        path: 'live/statistics',
+        name: 'seller-live-statistics',
+        component: () => import('../pages/seller/LiveStatistics.vue'),
+      },
+      {
+        path: 'live/sanctions',
+        name: 'seller-live-sanctions',
+        component: () => import('../pages/seller/LiveSanctions.vue'),
       },
       {
         path: 'products',
@@ -238,5 +258,3 @@ router.beforeEach(async (to) => {
   }
   return true
 })
-
-

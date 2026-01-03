@@ -1,228 +1,176 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watchEffect } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import PageContainer from '../components/PageContainer.vue'
 import PageHeader from '../components/PageHeader.vue'
-import { liveItems } from '../lib/live/data'
-import {
-  filterLivesByDay,
-  getDayWindow,
-  getLiveStatus,
-  parseLiveDate,
-  sortLivesByStartAt,
-} from '../lib/live/utils'
-import type { LiveItem } from '../lib/live/types'
-import { useNow } from '../lib/live/useNow'
+import { fetchBroadcasts, type BroadcastListItem, type BroadcastTab } from '../api/liveApi'
 
 const router = useRouter()
 const today = new Date()
-const { now } = useNow(1000)
 
-const NOTIFY_KEY = 'deskit_live_notifications'
-const notifiedIds = ref<Set<string>>(new Set())
+const TAB_OPTIONS: { label: string; value: BroadcastTab }[] = [
+  { label: '전체', value: 'ALL' },
+  { label: 'LIVE', value: 'LIVE' },
+  { label: '예약', value: 'RESERVED' },
+  { label: 'VOD', value: 'VOD' },
+]
+
 const normalizeDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate())
+const getDayWindow = (base: Date) => {
+  const result: Date[] = []
+  for (let offset = -3; offset <= 3; offset += 1) {
+    const day = new Date(base)
+    day.setDate(base.getDate() + offset)
+    result.push(normalizeDay(day))
+  }
+  return result
+}
+
+const dayWindow = computed(() => getDayWindow(today))
+const selectedDay = ref<Date>(normalizeDay(dayWindow.value[3]))
+const activeTab = ref<BroadcastTab>('ALL')
+
+const broadcasts = ref<BroadcastListItem[]>([])
+const loading = ref(false)
+const errorMessage = ref<string | null>(null)
 const toast = ref<{ message: string; variant: 'success' | 'neutral' } | null>(null)
 let toastTimer: ReturnType<typeof setTimeout> | null = null
 
-const dayWindow = computed(() => getDayWindow(today))
-const selectedDay = ref(normalizeDay(dayWindow.value[3]))
-
-const formatTime = (value: string) => {
-  const time = parseLiveDate(value)
+const formatTime = (value?: string) => {
+  if (!value) return ''
+  const time = new Date(value)
   const hours = time.getHours().toString().padStart(2, '0')
   const minutes = time.getMinutes().toString().padStart(2, '0')
   return `${hours}:${minutes}`
 }
 
-const getStatus = (item: LiveItem) => getLiveStatus(item, now.value)
-const getCountdownLabel = (item: LiveItem) => {
-  if (getStatus(item) !== 'UPCOMING') {
-    return ''
-  }
-  const start = parseLiveDate(item.startAt)
-  const nowValue = now.value
-  const diffMs = start.getTime() - nowValue.getTime()
-  if (diffMs <= 0) {
-    return '시작 예정'
-  }
-
-  const dayMs = 86400000
-  const startDay = normalizeDay(start)
-  const nowDay = normalizeDay(nowValue)
-  const dayDiff = Math.floor((startDay.getTime() - nowDay.getTime()) / dayMs)
-
-  if (dayDiff >= 2) {
-    return `${dayDiff}일 후 시작`
-  }
-  if (dayDiff === 1) {
-    return '내일 시작'
-  }
-
-  const minutes = Math.floor(diffMs / 60000)
-  if (minutes < 1) {
-    return '곧 시작'
-  }
-  if (minutes < 60) {
-    return `${minutes}분 후 시작`
-  }
-  const hours = Math.floor(minutes / 60)
-  const remaining = minutes % 60
-  return remaining === 0 ? `${hours}시간 후 시작` : `${hours}시간 ${remaining}분 후 시작`
+const getStartDateForFilter = () => {
+  const start = new Date(selectedDay.value)
+  start.setHours(0, 0, 0, 0)
+  return start
 }
 
-const itemsForDay = computed(() => {
-  return sortLivesByStartAt(filterLivesByDay(liveItems, selectedDay.value))
-})
-
-const liveItemsForDay = computed(() => itemsForDay.value.filter((item) => getStatus(item) === 'LIVE'))
-const upcomingItemsForDay = computed(() => itemsForDay.value.filter((item) => getStatus(item) === 'UPCOMING'))
-const endedItemsForDay = computed(() =>
-  [...itemsForDay.value].filter((item) => getStatus(item) === 'ENDED').reverse(),
-)
-
-const orderedItems = computed(() => [
-  ...liveItemsForDay.value,
-  ...upcomingItemsForDay.value,
-  ...endedItemsForDay.value,
-])
-
-const statusWeight = (item: LiveItem) => {
-  const s = getStatus(item)
-  if (s === 'LIVE') return 0
-  if (s === 'UPCOMING') return 1
-  return 2
+const getEndDateForFilter = () => {
+  const end = new Date(selectedDay.value)
+  end.setHours(23, 59, 59, 999)
+  return end
 }
 
-const groupedByTime = computed(() => {
-  const groups = new Map<string, LiveItem[]>()
-  orderedItems.value.forEach((item) => {
-    const key = formatTime(item.startAt)
-    const bucket = groups.get(key) ?? []
-    bucket.push(item)
-    groups.set(key, bucket)
-  })
-  return Array.from(groups.entries()).map(([time, items]) => {
-    const next = [...items].sort((a, b) => {
-      const weight = statusWeight(a) - statusWeight(b)
-      if (weight !== 0) return weight
-      const ta = parseLiveDate(a.startAt).getTime()
-      const tb = parseLiveDate(b.startAt).getTime()
-      if (ta !== tb) return ta - tb
-      return a.id.localeCompare(b.id)
-    })
-    return [time, next] as [string, LiveItem[]]
-  })
-})
-
-const isToday = (day: Date) => {
-  return (
-    day.getFullYear() === today.getFullYear() &&
-    day.getMonth() === today.getMonth() &&
-    day.getDate() === today.getDate()
-  )
+const statusToDisplay = (status: BroadcastListItem['status']) => {
+  if (status === 'ON_AIR') return 'LIVE'
+  if (status === 'RESERVED') return '예정'
+  if (status === 'VOD') return 'VOD'
+  return '종료'
 }
 
-const isSelectedDay = (day: Date) => {
-  return (
-    day.getFullYear() === selectedDay.value.getFullYear() &&
-    day.getMonth() === selectedDay.value.getMonth() &&
-    day.getDate() === selectedDay.value.getDate()
-  )
-}
-
-const formatDayLabel = (day: Date) => {
-  const dayNames = ['일', '월', '화', '수', '목', '금', '토']
-  const label = isToday(day) ? '오늘' : dayNames[day.getDay()]
-  const date = `${day.getMonth() + 1}.${day.getDate()}`
-
-  return { label, date }
-}
-
-const getDayCount = (day: Date) => filterLivesByDay(liveItems, day).length
-
-const selectDay = (day: Date) => {
-  selectedDay.value = normalizeDay(day)
-}
-
-const selectToday = () => {
-  selectedDay.value = normalizeDay(today)
-}
-
-const handleRowClick = (item: LiveItem) => {
-  const status = getStatus(item)
-  if (status === 'UPCOMING') {
-    return
-  }
-  if (status === 'LIVE') {
-    router.push({ name: 'live-detail', params: { id: item.id } })
-    return
-  }
-  if (status === 'ENDED') {
-    router.push({ name: 'vod', params: { id: item.id } })
-  }
-}
-
-const isNotified = (id: string) => notifiedIds.value.has(id)
-
-const handleRowKeydown = (event: KeyboardEvent, item: LiveItem) => {
-  if (event.key === 'Enter' || event.key === ' ') {
-    event.preventDefault()
-    handleRowClick(item)
-  }
+const getStatus = (item: BroadcastListItem) => {
+  if (item.status === 'ON_AIR') return 'LIVE'
+  if (item.status === 'RESERVED') return 'UPCOMING'
+  return 'ENDED'
 }
 
 const showToast = (message: string, variant: 'success' | 'neutral') => {
   toast.value = { message, variant }
-  if (toastTimer) {
-    clearTimeout(toastTimer)
-  }
+  if (toastTimer) clearTimeout(toastTimer)
   toastTimer = setTimeout(() => {
     toast.value = null
     toastTimer = null
   }, 2200)
 }
 
-const toggleNotify = (id: string) => {
-  const next = new Set(notifiedIds.value)
-  const wasNotified = next.has(id)
-  if (wasNotified) {
-    next.delete(id)
-  } else {
-    next.add(id)
+const fetchForDay = async () => {
+  loading.value = true
+  errorMessage.value = null
+  try {
+    const { content } = await fetchBroadcasts({
+      tab: activeTab.value,
+      startDate: getStartDateForFilter(),
+      endDate: getEndDateForFilter(),
+      page: 0,
+      size: 200,
+    })
+    broadcasts.value = content
+  } catch (error) {
+    console.error('Failed to fetch live schedule', error)
+    errorMessage.value = '라이브 일정 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.'
+  } finally {
+    loading.value = false
   }
-  notifiedIds.value = next
-  showToast(wasNotified ? '알림 해제됨' : '알림 신청 완료', wasNotified ? 'neutral' : 'success')
+}
+
+const handleRowClick = (item: BroadcastListItem) => {
+  const id = item.id ?? item.broadcastId
+  if (!id) return
+  if (item.status === 'ON_AIR') {
+    router.push({ name: 'live-detail', params: { id } })
+  } else if (item.status === 'VOD' || item.status === 'ENDED') {
+    router.push({ name: 'vod', params: { id } })
+  }
+}
+
+const groupedByTime = computed(() => {
+  const map = new Map<string, BroadcastListItem[]>()
+  broadcasts.value.forEach((item) => {
+    const key = formatTime(item.startedAt ?? item.scheduledAt ?? item.startAt)
+    const bucket = map.get(key) ?? []
+    bucket.push(item)
+    map.set(key, bucket)
+  })
+  return Array.from(map.entries()).sort(([a], [b]) => (a < b ? -1 : 1))
+})
+
+const isSelectedDay = (day: Date) =>
+  day.getFullYear() === selectedDay.value.getFullYear() &&
+  day.getMonth() === selectedDay.value.getMonth() &&
+  day.getDate() === selectedDay.value.getDate()
+
+const formatDayLabel = (day: Date) => {
+  const dayNames = ['일', '월', '화', '수', '목', '금', '토']
+  const label = day.getTime() === normalizeDay(today).getTime() ? '오늘' : dayNames[day.getDay()]
+  const date = `${day.getMonth() + 1}.${day.getDate()}`
+  return { label, date }
+}
+
+const selectDay = async (day: Date) => {
+  selectedDay.value = normalizeDay(day)
+  await fetchForDay()
+}
+
+const handleTabChange = async (tab: BroadcastTab) => {
+  activeTab.value = tab
+  await fetchForDay()
 }
 
 onMounted(() => {
-  try {
-    const raw = localStorage.getItem(NOTIFY_KEY)
-    if (!raw) {
-      return
-    }
-    const parsed = JSON.parse(raw)
-    if (Array.isArray(parsed)) {
-      notifiedIds.value = new Set(parsed.filter((id) => typeof id === 'string'))
-    }
-  } catch {
-    notifiedIds.value = new Set()
-  }
+  fetchForDay()
 })
 
-watchEffect(() => {
-  localStorage.setItem(NOTIFY_KEY, JSON.stringify(Array.from(notifiedIds.value)))
-})
+watch(
+  () => [selectedDay.value, activeTab.value],
+  () => {},
+)
 
 onBeforeUnmount(() => {
-  if (toastTimer) {
-    clearTimeout(toastTimer)
-  }
+  if (toastTimer) clearTimeout(toastTimer)
 })
 </script>
 
 <template>
   <PageContainer>
     <PageHeader title="라이브 일정" eyebrow="DESKIT LIVE" />
+
+    <div class="tabs" role="tablist">
+      <button
+        v-for="tab in TAB_OPTIONS"
+        :key="tab.value"
+        type="button"
+        class="tab-btn"
+        :class="{ 'tab-btn--active': activeTab === tab.value }"
+        @click="handleTabChange(tab.value)"
+      >
+        {{ tab.label }}
+      </button>
+    </div>
 
     <div class="date-strip">
       <button
@@ -235,15 +183,16 @@ onBeforeUnmount(() => {
       >
         <span class="date-pill__label">{{ formatDayLabel(day).label }}</span>
         <span class="date-pill__date">{{ formatDayLabel(day).date }}</span>
-        <span v-if="getDayCount(day) >= 2" class="date-pill__count">{{ getDayCount(day) }}</span>
       </button>
     </div>
 
-    <div v-if="!orderedItems.length" class="empty-state-box">
-      <p>선택한 날짜에 라이브가 없습니다.</p>
-      <button type="button" class="action-btn action-btn--ghost" @click="selectToday">
-        오늘 보기
-      </button>
+    <div v-if="loading" class="empty-state-box">라이브 일정을 불러오는 중입니다...</div>
+    <div v-else-if="errorMessage" class="empty-state-box empty-state-box--error">
+      <p>{{ errorMessage }}</p>
+      <button type="button" class="action-btn action-btn--ghost" @click="fetchForDay">다시 시도</button>
+    </div>
+    <div v-else-if="!broadcasts.length" class="empty-state-box">
+      No broadcasts scheduled for this date.
     </div>
 
     <div v-else class="timeline">
@@ -252,7 +201,7 @@ onBeforeUnmount(() => {
         <div class="time-group__list">
           <article
             v-for="item in items"
-            :key="item.id"
+            :key="item.broadcastId"
             class="live-card-row"
             :class="{
               'row--clickable': getStatus(item) !== 'UPCOMING',
@@ -261,41 +210,26 @@ onBeforeUnmount(() => {
             :aria-disabled="getStatus(item) === 'UPCOMING' ? 'true' : undefined"
             :tabindex="getStatus(item) === 'UPCOMING' ? -1 : 0"
             @click="handleRowClick(item)"
-            @keydown="(e) => handleRowKeydown(e, item)"
           >
-            <img class="thumb" :src="item.thumbnailUrl" :alt="item.title" />
+            <img class="thumb" :src="item.thumbnailUrl || '/placeholder-live-thumb.jpg'" :alt="item.title" />
             <div class="meta">
               <div class="meta__title-row">
                 <h4 class="meta__title">{{ item.title }}</h4>
-                <span
-                  v-if="getStatus(item) === 'LIVE'"
-                  class="status-pill status-pill--live"
-                >
+                <span v-if="item.status === 'ON_AIR'" class="status-pill status-pill--live">
                   LIVE
                   <span v-if="item.viewerCount" class="status-viewers">
                     {{ item.viewerCount.toLocaleString() }}명
                   </span>
                 </span>
-                <span v-else-if="getStatus(item) === 'UPCOMING'" class="status-pill">예정</span>
-                <span v-else class="status-pill status-pill--ended">종료</span>
-                <span v-if="getStatus(item) === 'UPCOMING'" class="status-pill status-pill--sub">
-                  {{ getCountdownLabel(item) }}
-                </span>
+                <span v-else-if="item.status === 'RESERVED'" class="status-pill">예정</span>
+                <span v-else class="status-pill status-pill--ended">{{ statusToDisplay(item.status) }}</span>
               </div>
               <p v-if="item.sellerName" class="meta__seller">{{ item.sellerName }}</p>
-              <p v-if="item.description" class="meta__desc">{{ item.description }}</p>
+              <p v-if="item.notice" class="meta__desc">{{ item.notice }}</p>
+              <p v-else-if="item.description" class="meta__desc">{{ item.description }}</p>
             </div>
-            <div v-if="getStatus(item) === 'UPCOMING'" class="right-slot">
-              <button
-                type="button"
-                :class="[
-                  'action-btn',
-                  isNotified(item.id) ? 'action-btn--tinted' : 'action-btn--ghost',
-                ]"
-                @click.stop="toggleNotify(item.id)"
-              >
-                {{ isNotified(item.id) ? '알림 신청됨' : '알림 신청' }}
-              </button>
+            <div class="right-slot">
+              <span class="meta__time">{{ formatTime(item.scheduledAt ?? item.startedAt ?? item.startAt) }}</span>
             </div>
           </article>
         </div>
@@ -309,24 +243,37 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.date-strip {
-  display: flex;
+.tabs {
+  display: inline-flex;
   gap: 10px;
-  overflow-x: auto;
-  padding: 6px 2px 18px;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  margin-bottom: 12px;
+}
+
+.tab-btn {
+  border: none;
+  background: transparent;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-weight: 800;
+  cursor: pointer;
+  color: var(--text-muted);
+}
+
+.tab-btn--active {
+  background: var(--primary-color);
+  color: #fff;
 }
 
 .date-strip {
   display: flex;
   gap: 10px;
   width: 100%;
-
-  /* ✅ 가운데 정렬 */
   justify-content: center;
-
-  /* ✅ 줄바꿈 허용해서 "10일"이 한 줄로 안 들어가면 자연스럽게 다음 줄로 */
   flex-wrap: wrap;
-
   padding: 6px 2px 18px;
   margin: 0 auto 18px;
 }
@@ -337,22 +284,18 @@ onBeforeUnmount(() => {
   border-radius: 12px;
   padding: 10px 12px;
   min-width: 76px;
-
   display: grid;
   gap: 4px;
   text-align: center;
   cursor: pointer;
   transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
-
   flex: 0 0 auto;
 }
 
-@media (max-width: 840px) {
-  .date-strip {
-    justify-content: flex-start;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-  }
+.date-pill--active {
+  border-color: var(--primary-color);
+  box-shadow: 0 10px 22px rgba(119, 136, 115, 0.12);
+  transform: translateY(-1px);
 }
 
 .date-pill__label {
@@ -365,22 +308,6 @@ onBeforeUnmount(() => {
   font-size: 0.85rem;
   color: var(--text-muted);
   min-height: 1.1em;
-}
-
-.date-pill__count {
-  align-self: center;
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: var(--text-soft);
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--surface-weak);
-}
-
-.date-pill--active {
-  border-color: var(--primary-color);
-  box-shadow: 0 10px 22px rgba(119, 136, 115, 0.12);
-  transform: translateY(-1px);
 }
 
 .timeline {
@@ -434,12 +361,6 @@ onBeforeUnmount(() => {
 .row--disabled {
   cursor: default;
   opacity: 0.66;
-}
-
-.row--disabled:hover {
-  border-color: var(--border-color);
-  box-shadow: none;
-  transform: none;
 }
 
 .thumb {
@@ -511,12 +432,6 @@ onBeforeUnmount(() => {
   color: var(--text-muted);
 }
 
-.status-pill--sub {
-  background: transparent;
-  color: var(--text-muted);
-  border: 1px solid var(--border-color);
-}
-
 .status-viewers {
   font-size: 0.75rem;
   font-weight: 700;
@@ -527,6 +442,11 @@ onBeforeUnmount(() => {
   justify-content: flex-end;
   align-items: center;
   min-width: 132px;
+}
+
+.meta__time {
+  font-weight: 800;
+  color: var(--text-strong);
 }
 
 .action-btn {
@@ -543,11 +463,6 @@ onBeforeUnmount(() => {
   background: var(--surface);
   color: var(--text-strong);
   border: 1px solid var(--border-color);
-}
-
-.action-btn--tinted {
-  background: var(--primary-color);
-  color: #fff;
 }
 
 .toast {
@@ -583,6 +498,10 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.empty-state-box--error {
+  color: var(--text-strong);
 }
 
 @media (max-width: 960px) {
