@@ -41,7 +41,7 @@ onMounted(() => {
           <div v-else>
             <LiveCarousel v-if="liveItems.length" :items="liveItems" />
             <p v-else-if="liveLoading" class="live-placeholder">라이브를 불러오는 중입니다...</p>
-            <p v-else class="live-placeholder">현재 진행 중인 라이브가 없습니다.</p>
+            <p v-else class="live-placeholder">No live broadcasts currently on air.</p>
           </div>
         </section>
 

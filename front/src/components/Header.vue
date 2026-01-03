@@ -23,11 +23,46 @@ const sellerTabs = [
   {label: '상품관리', to: '/seller/products'},
 ]
 
+const sellerDropdowns = [
+  {
+    label: '방송관리',
+    items: [
+      {label: '방송 목록', to: '/seller/live'},
+      {label: '방송 등록', to: '/seller/live/create'},
+    ],
+  },
+  {
+    label: '통계',
+    items: [
+      {label: '방송 통계', to: '/seller/live/statistics'},
+      {label: '제재 통계', to: '/seller/live/sanctions'},
+    ],
+  },
+]
+
 const adminTabs = [
   {label: '회원관리', to: '/admin/users'},
   {label: '방송관리', to: '/admin/live'},
   {label: '상품관리', to: '/admin/products'},
   {label: '고객센터', to: '/admin/support'},
+]
+
+const adminDropdowns = [
+  {
+    label: '방송 관리',
+    items: [
+      {label: '방송 목록', to: '/admin/live'},
+      {label: '제재 관리', to: '/admin/live/sanctions'},
+      {label: '방송 통계', to: '/admin/live/statistics'},
+    ],
+  },
+  {
+    label: '통계',
+    items: [
+      {label: '방송 통계', to: '/admin/live/statistics'},
+      {label: '제재 통계', to: '/admin/live/sanctions'},
+    ],
+  },
 ]
 
 const refreshAuth = () => {
@@ -178,6 +213,21 @@ const handleLogout = async () => {
         </nav>
         <div v-else class="seller-nav">
           <nav v-if="isSellerRoute" class="nav seller-tabs" aria-label="판매자 대시보드 탭">
+            <div v-for="dropdown in sellerDropdowns" :key="dropdown.label" class="dropdown">
+              <button type="button" class="nav-link dropdown__trigger">
+                {{ dropdown.label }}
+              </button>
+              <div class="dropdown__menu">
+                <RouterLink
+                  v-for="item in dropdown.items"
+                  :key="item.to"
+                  :to="item.to"
+                  class="dropdown__item"
+                >
+                  {{ item.label }}
+                </RouterLink>
+              </div>
+            </div>
             <RouterLink
               v-for="tab in sellerTabs"
               :key="tab.to"
@@ -190,6 +240,21 @@ const handleLogout = async () => {
             </RouterLink>
           </nav>
           <nav v-else class="nav seller-tabs" aria-label="관리자 대시보드 탭">
+            <div v-for="dropdown in adminDropdowns" :key="dropdown.label" class="dropdown">
+              <button type="button" class="nav-link dropdown__trigger">
+                {{ dropdown.label }}
+              </button>
+              <div class="dropdown__menu">
+                <RouterLink
+                  v-for="item in dropdown.items"
+                  :key="item.to"
+                  :to="item.to"
+                  class="dropdown__item"
+                >
+                  {{ item.label }}
+                </RouterLink>
+              </div>
+            </div>
             <RouterLink
               v-for="tab in adminTabs"
               :key="tab.to"
@@ -448,6 +513,46 @@ const handleLogout = async () => {
 
 .seller-nav {
   min-width: 0;
+}
+
+.dropdown {
+  position: relative;
+}
+
+.dropdown__trigger {
+  cursor: pointer;
+}
+
+.dropdown__menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  min-width: 180px;
+  background: #fff;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.12);
+  padding: 8px;
+  display: none;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 12;
+}
+
+.dropdown:hover .dropdown__menu,
+.dropdown:focus-within .dropdown__menu {
+  display: flex;
+}
+
+.dropdown__item {
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: var(--text-strong);
+  font-weight: 700;
+}
+
+.dropdown__item:hover {
+  background: var(--surface-weak);
 }
 
 .seller-nav__title {
@@ -832,4 +937,3 @@ const handleLogout = async () => {
   }
 }
 </style>
-

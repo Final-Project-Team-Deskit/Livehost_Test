@@ -10,6 +10,8 @@ const props = defineProps<{
 
 const router = useRouter()
 
+const status = computed(() => props.item.status)
+
 const elapsed = computed(() => {
   if (props.item.status !== 'ON_AIR') return ''
   const started = new Date(props.item.startedAt ?? props.item.startAt)

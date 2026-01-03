@@ -3,13 +3,13 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PageContainer from '../components/PageContainer.vue'
 import PageHeader from '../components/PageHeader.vue'
-import { fetchBroadcastDetail, type BroadcastDetail } from '../api/liveApi'
+import { fetchBroadcastDetail, type BroadcastResponse } from '../api/liveApi'
 import { getProductsForLive, type LiveProductItem } from '../lib/live/detail'
 
 const route = useRoute()
 const router = useRouter()
 
-const broadcast = ref<BroadcastDetail | null>(null)
+const broadcast = ref<BroadcastResponse | null>(null)
 const loading = ref(false)
 const errorMessage = ref<string | null>(null)
 

@@ -19,6 +19,7 @@ export type BroadcastListItem = {
   broadcastId: number
   id?: number
   title: string
+  notice?: string
   status: BroadcastStatus
   startAt: string
   scheduledAt?: string
@@ -29,6 +30,7 @@ export type BroadcastListItem = {
   thumbnailUrl?: string
   description?: string
   sellerName?: string
+  sellerProfileUrl?: string
 }
 
 export type BroadcastListResponse = {
@@ -38,32 +40,37 @@ export type BroadcastListResponse = {
   size: number
 }
 
-export type BroadcastDetail = {
+export type BroadcastResponse = {
   broadcastId: number
   title: string
+  notice?: string
   status: BroadcastStatus
+  layout?: string
   description?: string
   thumbnailUrl?: string
-  startAt: string
   scheduledAt?: string
   startedAt?: string
   endedAt?: string
+  startAt?: string
   vodUrl?: string
   streamUrl?: string
+  streamKey?: string
   viewerCount?: number
   totalViews?: number
   sellerName?: string
-  sellerProfileImageUrl?: string
+  sellerProfileUrl?: string
   categoryName?: string
 }
 
 export type CreateBroadcastPayload = {
   title: string
+  notice?: string
   description?: string
   categoryId?: number
   scheduledAt?: string | Date
   startAt?: string | Date
   thumbnailUrl?: string
+  layout?: string
 }
 
 const formatDateTimeParam = (value?: string | Date) => {
@@ -99,20 +106,18 @@ export const fetchBroadcasts = async (
   }
 }
 
-export const fetchBroadcastDetail = async (
-  id: number | string,
-): Promise<BroadcastDetail> => {
-  const response = await http.get<BroadcastDetail>(endpoints.broadcastDetail(id))
+export const fetchBroadcastDetail = async (id: number | string): Promise<BroadcastResponse> => {
+  const response = await http.get<BroadcastResponse>(endpoints.broadcastDetail(id))
   return response.data
 }
 
-export const createBroadcast = async (payload: CreateBroadcastPayload): Promise<BroadcastDetail> => {
+export const createBroadcast = async (payload: CreateBroadcastPayload): Promise<BroadcastResponse> => {
   const body = {
     ...payload,
     scheduledAt: formatDateTimeParam(payload.scheduledAt),
     startAt: formatDateTimeParam(payload.startAt),
   }
-  const response = await http.post<BroadcastDetail>(endpoints.sellerBroadcasts, body)
+  const response = await http.post<BroadcastResponse>(endpoints.sellerBroadcasts, body)
   return response.data
 }
 

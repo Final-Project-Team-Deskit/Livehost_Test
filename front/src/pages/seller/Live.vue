@@ -374,8 +374,9 @@ const openVodDetail = (item: LiveItem) => {
           <button type="button" class="live-feature__cta" @click="handleCta('live', currentLive!)">방송 입장</button>
         </article>
         <article v-else class="live-feature ds-surface live-feature--empty">
-          <p class="live-card__title">등록된 방송이 없습니다.</p>
+          <p class="live-card__title">방송 내역이 없습니다.</p>
           <p class="live-card__meta">새 방송을 등록해보세요.</p>
+          <button type="button" class="live-cta live-cta--ghost" @click="handleCreate">방송 등록</button>
         </article>
 
         <article class="live-products ds-surface">
@@ -435,8 +436,9 @@ const openVodDetail = (item: LiveItem) => {
           <button type="button" class="live-feature__cta" @click="handleCta('live', currentLive!)">방송 입장</button>
         </article>
         <article v-else class="live-feature ds-surface live-feature--empty">
-          <p class="live-card__title">등록된 방송이 없습니다.</p>
+          <p class="live-card__title">방송 내역이 없습니다.</p>
           <p class="live-card__meta">새 방송을 등록해보세요.</p>
+          <button type="button" class="live-cta live-cta--ghost" @click="handleCreate">방송 등록</button>
         </article>
       </div>
 
@@ -506,18 +508,19 @@ const openVodDetail = (item: LiveItem) => {
         </template>
 
         <article v-else class="live-card ds-surface live-card--empty">
-          <p class="live-card__title">등록된 방송이 없습니다.</p>
-          <p class="live-card__meta">예약 방송을 추가해보세요.</p>
+          <p class="live-card__title">예약된 방송이 없습니다.</p>
+          <p class="live-card__meta">예약을 등록해보세요.</p>
+          <button type="button" class="live-cta" @click="handleCreate">방송 등록</button>
         </article>
       </div>
 
-      <div v-else class="carousel-wrap">
-        <button type="button" class="carousel-btn carousel-btn--left" aria-label="예약 방송 왼쪽 이동" @click="scrollCarousel('scheduled', -1)">
-          ‹
-        </button>
+        <div v-else class="carousel-wrap">
+          <button type="button" class="carousel-btn carousel-btn--left" aria-label="예약 방송 왼쪽 이동" @click="scrollCarousel('scheduled', -1)">
+            ‹
+          </button>
 
-        <div class="live-carousel" ref="setCarouselRef('scheduled')" aria-label="예약 방송 목록">
-          <template v-if="scheduledItems.length">
+          <div class="live-carousel" ref="setCarouselRef('scheduled')" aria-label="예약 방송 목록">
+            <template v-if="scheduledItems.length">
             <article
               v-for="item in scheduledItems"
               :key="item.id"
@@ -542,11 +545,12 @@ const openVodDetail = (item: LiveItem) => {
             </article>
           </template>
 
-          <article v-else class="live-card ds-surface live-card--empty">
-            <p class="live-card__title">등록된 방송이 없습니다.</p>
-            <p class="live-card__meta">예약 방송을 추가해보세요.</p>
-          </article>
-        </div>
+            <article v-else class="live-card ds-surface live-card--empty">
+              <p class="live-card__title">예약된 방송이 없습니다.</p>
+              <p class="live-card__meta">예약을 등록해보세요.</p>
+              <button type="button" class="live-cta" @click="handleCreate">방송 등록</button>
+            </article>
+          </div>
 
         <button type="button" class="carousel-btn carousel-btn--right" aria-label="예약 방송 오른쪽 이동" @click="scrollCarousel('scheduled', 1)">
           ›
