@@ -1,19 +1,19 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import type { LiveItem } from '../lib/live/types'
-import { getLiveStatus, parseLiveDate } from '../lib/live/utils'
-import { useNow } from '../lib/live/useNow'
+import type { BroadcastListItem } from '../api/liveApi'
 
 const props = defineProps<{
-  item: LiveItem
+  item: BroadcastListItem
   isActive?: boolean
 }>()
 
-const { now } = useNow(1000)
+const router = useRouter()
+
 const elapsed = computed(() => {
-  const started = parseLiveDate(props.item.startAt)
-  const diffMs = now.value.getTime() - started.getTime()
+  if (props.item.status !== 'ON_AIR') return ''
+  const started = new Date(props.item.startedAt ?? props.item.startAt)
+  const diffMs = Date.now() - started.getTime()
   const hours = Math.floor(diffMs / (1000 * 60 * 60))
   const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60))
   const seconds = Math.floor((diffMs % (1000 * 60)) / 1000)
@@ -25,19 +25,19 @@ const elapsed = computed(() => {
   }
   return `${pad(minutes)}:${pad(seconds)}`
 })
-const status = computed(() => getLiveStatus(props.item, now.value))
+
 const buttonLabel = computed(() => {
-  if (status.value === 'LIVE') {
+  if (props.item.status === 'ON_AIR') {
     return '입장하기'
   }
-  if (status.value === 'ENDED') {
+  if (props.item.status === 'ENDED' || props.item.status === 'VOD') {
     return 'VOD 다시보기'
   }
   return '예정'
 })
 
 const scheduledLabel = computed(() => {
-  const start = parseLiveDate(props.item.startAt)
+  const start = new Date(props.item.scheduledAt ?? props.item.startAt)
   const dayNames = ['일', '월', '화', '수', '목', '금', '토']
   const month = String(start.getMonth() + 1).padStart(2, '0')
   const date = String(start.getDate()).padStart(2, '0')
@@ -48,14 +48,12 @@ const scheduledLabel = computed(() => {
   return `${month}.${date} (${day}) ${hours}:${minutes} 예정`
 })
 
-const router = useRouter()
-
 const handleWatchNow = () => {
-  if (status.value === 'LIVE') {
+  if (props.item.status === 'ON_AIR') {
     router.push({ name: 'live-detail', params: { id: props.item.id } })
     return
   }
-  if (status.value === 'ENDED') {
+  if (props.item.status === 'ENDED' || props.item.status === 'VOD') {
     router.push({ name: 'vod', params: { id: props.item.id } })
   }
 }

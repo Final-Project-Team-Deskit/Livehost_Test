@@ -1,9 +1,17 @@
 <script setup lang="ts">
-import { liveItems, popularProducts, popularSetups } from '../lib/home-data'
+import { onMounted } from 'vue'
+import { popularProducts, popularSetups } from '../lib/home-data'
 import LiveCarousel from '../components/LiveCarousel.vue'
 import SetupCarousel from '../components/SetupCarousel.vue'
 import ProductCarousel from '../components/ProductCarousel.vue'
 import PageContainer from '../components/PageContainer.vue'
+import { useBroadcastHighlights } from '../composables/useBroadcastHighlights'
+
+const { items: liveItems, loading: liveLoading, errorMessage, fetchHighlights } = useBroadcastHighlights()
+
+onMounted(() => {
+  fetchHighlights()
+})
 </script>
 
 <template>
@@ -26,7 +34,15 @@ import PageContainer from '../components/PageContainer.vue'
             <h2 class="section-title">라이브 방송</h2>
             <p class="ds-section-sub">지금 진행 중인 라이브를 만나보세요.</p>
           </div>
-          <LiveCarousel :items="liveItems" />
+          <div v-if="errorMessage" class="live-error">
+            <p>{{ errorMessage }}</p>
+            <button type="button" class="retry-btn" @click="fetchHighlights">다시 시도</button>
+          </div>
+          <div v-else>
+            <LiveCarousel v-if="liveItems.length" :items="liveItems" />
+            <p v-else-if="liveLoading" class="live-placeholder">라이브를 불러오는 중입니다...</p>
+            <p v-else class="live-placeholder">현재 진행 중인 라이브가 없습니다.</p>
+          </div>
         </section>
 
         <section>
@@ -111,6 +127,31 @@ import PageContainer from '../components/PageContainer.vue'
 
 .hero__lede {
   margin: 10px 0 0;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.live-error {
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px dashed var(--border-color);
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-muted);
+}
+
+.retry-btn {
+  border: 1px solid var(--border-color);
+  background: var(--surface);
+  border-radius: 10px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.live-placeholder {
   color: var(--text-muted);
   font-weight: 700;
 }
