@@ -2,9 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '../../components/PageHeader.vue'
-import { getScheduledBroadcasts } from '../../composables/useSellerBroadcasts'
-import { sellerReservationSummaries } from '../../lib/mocks/sellerReservations'
-import { sellerVodSummaries } from '../../lib/mocks/sellerVods'
+import { fetchSellerBroadcasts, type BroadcastListItem } from '../../api/liveApi'
 
 type LiveTab = 'all' | 'scheduled' | 'live' | 'vod'
 type CarouselKind = 'live' | 'scheduled' | 'vod'
@@ -38,68 +36,7 @@ const gradientThumb = (from: string, to: string) =>
   `<rect width='320' height='200' fill='url(%23g)'/>` +
   `</svg>`
 
-const liveItems = ref<LiveItem[]>([
-  {
-    id: 'live-1',
-    title: '진행 중인 방송 제목',
-    subtitle: '셋업 추천 라이브',
-    thumb: gradientThumb('0f172a', '1f2937'),
-    datetime: '오늘 14:00 - 15:00',
-    statusBadge: 'LIVE',
-    viewerBadge: '500명 시청 중',
-    ctaLabel: '방송 입장',
-  },
-  {
-    id: 'live-2',
-    title: '게이밍 데스크 셋업',
-    subtitle: '조명 & 모니터암',
-    thumb: gradientThumb('111827', '0f172a'),
-    datetime: '오늘 16:30 - 17:10',
-    statusBadge: 'LIVE',
-    viewerBadge: '214명 시청 중',
-    ctaLabel: '방송 입장',
-  },
-  {
-    id: 'live-3',
-    title: '미니멀 오피스 데스크',
-    subtitle: '수납/정리 팁',
-    thumb: gradientThumb('1f2937', '111827'),
-    datetime: '오늘 19:00 - 20:00',
-    statusBadge: 'LIVE',
-    viewerBadge: '89명 시청 중',
-    ctaLabel: '방송 입장',
-  },
-  {
-    id: 'live-4',
-    title: '홈카페 코너 셋업',
-    subtitle: '바 스툴 & 선반',
-    thumb: gradientThumb('0b1324', '0f172a'),
-    datetime: '오늘 20:30 - 21:20',
-    statusBadge: 'LIVE',
-    viewerBadge: '132명 시청 중',
-    ctaLabel: '방송 입장',
-  },
-  {
-    id: 'live-5',
-    title: '작업실 조명 추천',
-    subtitle: '데스크 램프 비교',
-    thumb: gradientThumb('0f172a', '111827'),
-    datetime: '오늘 21:40 - 22:10',
-    statusBadge: 'LIVE',
-    viewerBadge: '76명 시청 중',
-    ctaLabel: '방송 입장',
-  },
-  {
-    id: 'live-6',
-    title: '듀얼 모니터 세팅',
-    subtitle: '케이블 정리 포함',
-    thumb: gradientThumb('111827', '1f2937'),
-    datetime: '오늘 22:20 - 22:50',
-    statusBadge: 'LIVE',
-    viewerBadge: '54명 시청 중',
-    ctaLabel: '방송 입장',
-  },
-])
+const liveItems = ref<LiveItem[]>([])
 
 const currentLive = computed(() => liveItems.value[0] ?? null)
 
@@ -163,16 +100,9 @@ const liveStats = ref({
 
 const scheduledItems = ref<LiveItem[]>([])
 
-const vodItems = ref<LiveItem[]>(
-  sellerVodSummaries.map((item) => ({
-    id: item.id,
-    title: item.title,
-    subtitle: '',
-    thumb: item.thumb,
-    datetime: `업로드: ${item.startedAt}`,
-    ctaLabel: '상세보기',
-  })),
-)
+const vodItems = ref<LiveItem[]>([])
+const loading = ref(false)
+const errorMessage = ref<string | null>(null)
 
 const vodStartDate = ref('')
 const vodEndDate = ref('')
@@ -253,9 +183,75 @@ const handleCreate = () => {
   router.push('/seller/live/create').catch(() => {})
 }
 
-const loadScheduled = () => {
-  const stored = getScheduledBroadcasts()
-  scheduledItems.value = [...stored, ...sellerReservationSummaries]
+const formatDateRange = (start?: string, end?: string) => {
+  if (!start) return ''
+  const startDate = new Date(start)
+  const endDate = end ? new Date(end) : undefined
+  const month = String(startDate.getMonth() + 1).padStart(2, '0')
+  const date = String(startDate.getDate()).padStart(2, '0')
+  const startTime = `${String(startDate.getHours()).padStart(2, '0')}:${String(
+    startDate.getMinutes(),
+  ).padStart(2, '0')}`
+  if (!endDate) return `${month}.${date} ${startTime}`
+  const endTime = `${String(endDate.getHours()).padStart(2, '0')}:${String(
+    endDate.getMinutes(),
+  ).padStart(2, '0')}`
+  return `${month}.${date} ${startTime} - ${endTime}`
+}
+
+const mapBroadcastToItem = (item: BroadcastListItem): LiveItem => {
+  const id = item.id ?? item.broadcastId
+  return {
+    id: String(id),
+    title: item.title,
+    subtitle: item.sellerName ?? '',
+    thumb: item.thumbnailUrl || gradientThumb('0f172a', '1f2937'),
+    datetime: formatDateRange(item.startedAt ?? item.scheduledAt ?? item.startAt, item.endedAt),
+    statusBadge:
+      item.status === 'ON_AIR' ? 'LIVE' : item.status === 'RESERVED' ? '예약' : item.status === 'VOD' ? 'VOD' : '종료',
+    viewerBadge:
+      item.status === 'ON_AIR' && item.viewerCount
+        ? `${item.viewerCount.toLocaleString()}명 시청 중`
+        : undefined,
+    likes: item.totalViews,
+    viewers: item.viewerCount,
+    createdAt: item.startAt,
+    ctaLabel:
+      item.status === 'ON_AIR'
+        ? '방송 입장'
+        : item.status === 'RESERVED'
+          ? '상세보기'
+          : '상세보기',
+  }
+}
+
+const fetchSellerData = async () => {
+  loading.value = true
+  errorMessage.value = null
+  try {
+    const { content } = await fetchSellerBroadcasts({ size: 100 })
+    const live: LiveItem[] = []
+    const reserved: LiveItem[] = []
+    const vod: LiveItem[] = []
+    content.forEach((item) => {
+      const mapped = mapBroadcastToItem(item)
+      if (item.status === 'ON_AIR') {
+        live.push(mapped)
+      } else if (item.status === 'RESERVED') {
+        reserved.push(mapped)
+      } else {
+        vod.push(mapped)
+      }
+    })
+    liveItems.value = live
+    scheduledItems.value = reserved
+    vodItems.value = vod
+  } catch (error) {
+    console.error('판매자 방송 목록을 불러오지 못했습니다.', error)
+    errorMessage.value = '방송 목록을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.'
+  } finally {
+    loading.value = false
+  }
 }
 
 const syncTabFromRoute = () => {
@@ -266,7 +262,7 @@ const syncTabFromRoute = () => {
 }
 
 onMounted(() => {
-  loadScheduled()
+  fetchSellerData()
   syncTabFromRoute()
 })
 
@@ -301,6 +297,10 @@ const openVodDetail = (item: LiveItem) => {
 <template>
   <div>
     <PageHeader eyebrow="DESKIT" title="방송관리" />
+    <div v-if="errorMessage" class="error-box">
+      <p>{{ errorMessage }}</p>
+      <button type="button" class="retry-btn" @click="fetchSellerData">다시 불러오기</button>
+    </div>
     <header class="live-header">
       <div class="live-header__spacer" aria-hidden="true"></div>
 
