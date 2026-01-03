@@ -77,11 +77,10 @@ public class BroadcastPublicController {
     @GetMapping(value = "/broadcasts/{broadcastId}/subscribe", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter subscribe(
             @PathVariable Long broadcastId,
-            @RequestHeader(value = "X-Viewer-Id", required = false) String viewerId,
-            @RequestParam(value = "viewerId", required = false) String viewerIdParam
+            @RequestHeader(value = "X-Viewer-Id", required = false) String viewerId
     ) {
-        // 비회원도 구독 가능 (UUID 사용) - 헤더 우선, 없으면 쿼리 파라미터 사용
-        String userId = (viewerId != null) ? viewerId : (viewerIdParam != null ? viewerIdParam : "anonymous");
+        // 비회원도 구독 가능 (UUID 사용)
+        String userId = (viewerId != null) ? viewerId : "anonymous";
         return sseService.subscribe(broadcastId, userId);
     }
 
