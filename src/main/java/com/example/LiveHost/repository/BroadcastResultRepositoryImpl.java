@@ -1,6 +1,6 @@
 package com.example.LiveHost.repository;
 
-import com.example.LiveHost.dto.StatisticsResponse;
+import com.example.LiveHost.dto.response.StatisticsResponse;
 import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.Projections;
 import com.querydsl.core.types.dsl.BooleanExpression;

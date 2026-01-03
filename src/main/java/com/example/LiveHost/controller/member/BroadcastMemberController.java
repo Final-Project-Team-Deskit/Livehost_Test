@@ -1,7 +1,6 @@
 package com.example.LiveHost.controller.member;
 
 import com.example.LiveHost.common.exception.ApiResult;
-import com.example.LiveHost.dto.OpenViduRecordingWebhook;
 import com.example.LiveHost.service.BroadcastService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;

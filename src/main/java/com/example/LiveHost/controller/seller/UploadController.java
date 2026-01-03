@@ -2,7 +2,7 @@ package com.example.LiveHost.controller.seller;
 
 import com.example.LiveHost.common.enums.UploadType;
 import com.example.LiveHost.common.exception.ApiResult;
-import com.example.LiveHost.dto.ImageUploadResponse;
+import com.example.LiveHost.dto.response.ImageUploadResponse;
 import com.example.LiveHost.service.AwsS3Service;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;

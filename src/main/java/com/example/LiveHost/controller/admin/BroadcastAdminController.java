@@ -1,10 +1,10 @@
 package com.example.LiveHost.controller.admin;
 
 import com.example.LiveHost.common.exception.ApiResult;
-import com.example.LiveHost.dto.BroadcastResultResponse;
-import com.example.LiveHost.dto.BroadcastSearch;
-import com.example.LiveHost.dto.SanctionStatisticsResponse;
-import com.example.LiveHost.dto.StatisticsResponse;
+import com.example.LiveHost.dto.response.BroadcastResultResponse;
+import com.example.LiveHost.dto.request.BroadcastSearch;
+import com.example.LiveHost.dto.response.SanctionStatisticsResponse;
+import com.example.LiveHost.dto.response.StatisticsResponse;
 import com.example.LiveHost.service.AdminService;
 import com.example.LiveHost.service.BroadcastService;
 import lombok.RequiredArgsConstructor;

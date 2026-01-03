@@ -1,7 +1,6 @@
 package com.example.LiveHost.repository;
 
-import com.example.LiveHost.common.enums.SanctionType;
-import com.example.LiveHost.dto.SanctionStatisticsResponse;
+import com.example.LiveHost.dto.response.SanctionStatisticsResponse;
 import java.util.List;
 
 public interface SanctionRepositoryCustom {

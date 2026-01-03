@@ -2,7 +2,7 @@ package com.example.LiveHost.repository;
 
 import com.example.LiveHost.common.enums.BroadcastStatus;
 import com.example.LiveHost.common.enums.SanctionType;
-import com.example.LiveHost.dto.SanctionStatisticsResponse;
+import com.example.LiveHost.dto.response.SanctionStatisticsResponse;
 import com.querydsl.core.types.Projections;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.Expressions;

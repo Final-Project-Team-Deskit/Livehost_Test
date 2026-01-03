@@ -3,7 +3,7 @@ package com.example.LiveHost.service;
 import com.example.LiveHost.common.enums.BroadcastStatus;
 import com.example.LiveHost.common.exception.BusinessException;
 import com.example.LiveHost.common.exception.ErrorCode;
-import com.example.LiveHost.dto.SanctionStatisticsResponse;
+import com.example.LiveHost.dto.response.SanctionStatisticsResponse;
 import com.example.LiveHost.entity.Broadcast;
 import com.example.LiveHost.repository.BroadcastRepository;
 import com.example.LiveHost.repository.SanctionRepository;

@@ -3,7 +3,7 @@ package com.example.LiveHost.service;
 import com.example.LiveHost.common.enums.SanctionType;
 import com.example.LiveHost.common.exception.BusinessException;
 import com.example.LiveHost.common.exception.ErrorCode;
-import com.example.LiveHost.dto.SanctionRequest;
+import com.example.LiveHost.dto.request.SanctionRequest;
 import com.example.LiveHost.entity.Broadcast;
 import com.example.LiveHost.entity.Sanction;
 import com.example.LiveHost.others.entity.Member;

@@ -2,8 +2,8 @@ package com.example.LiveHost.repository;
 
 import com.example.LiveHost.common.enums.BroadcastStatus;
 import com.example.LiveHost.common.enums.VodStatus;
-import com.example.LiveHost.dto.BroadcastListResponse;
-import com.example.LiveHost.dto.BroadcastSearch;
+import com.example.LiveHost.dto.response.BroadcastListResponse;
+import com.example.LiveHost.dto.request.BroadcastSearch;
 import com.querydsl.core.types.Order;
 import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.Projections;
