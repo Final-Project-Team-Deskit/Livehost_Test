@@ -104,6 +104,7 @@ const syncDraft = () => {
     questions: trimmedQuestions,
     reservationId: reservationId.value,
   })
+  draft.value.questions = trimmedQuestions
 }
 
 const restoreDraft = () => {
