@@ -92,6 +92,9 @@ const updateProductQuantity = (productId: string, value: number) => {
 
 const syncDraft = () => {
   const trimmedQuestions = draft.value.questions.map((q) => ({ ...q, text: q.text.trim() })).filter((q) => q.text.length > 0)
+  if (!isEditMode.value) {
+    return
+  }
   saveDraft({
     ...draft.value,
     title: draft.value.title.trim(),
@@ -99,6 +102,7 @@ const syncDraft = () => {
     category: draft.value.category.trim(),
     notice: draft.value.notice.trim(),
     questions: trimmedQuestions,
+    reservationId: reservationId.value,
   })
   draft.value.questions = trimmedQuestions
 }
@@ -110,16 +114,7 @@ const restoreDraft = () => {
     return
   }
 
-  const saved = loadDraft()
-  if (saved && saved.reservationId === reservationId.value) {
-    draft.value = { ...draft.value, ...saved }
-  } else {
-    draft.value = createEmptyDraft()
-  }
-
-  if (isEditMode.value) {
-    draft.value = { ...draft.value, ...buildDraftFromReservation(reservationId.value) }
-  }
+  draft.value = { ...createEmptyDraft(), ...buildDraftFromReservation(reservationId.value), reservationId: reservationId.value }
 }
 
 const handleThumbUpload = (event: Event) => {
@@ -865,7 +860,7 @@ input[type='file'] {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 10;
+  z-index: 1300;
   padding: 16px;
 }
 
