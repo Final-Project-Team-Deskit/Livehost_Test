@@ -46,6 +46,8 @@ const showSettings = ref(false)
 const viewerCount = ref(1010)
 const likeCount = ref(1574)
 const elapsed = ref('02:01:44')
+const streamStage = ref<HTMLElement | null>(null)
+const isFullscreen = ref(false)
 const micEnabled = ref(true)
 const videoEnabled = ref(true)
 const volume = ref(43)
@@ -57,6 +59,9 @@ const showQCards = ref(false)
 const showBasicInfo = ref(false)
 const showSanctionModal = ref(false)
 const isLoadingStream = ref(true)
+const handleFullscreenChange = () => {
+  isFullscreen.value = Boolean(document.fullscreenElement)
+}
 
 const confirmState = reactive({
   open: false,
@@ -176,10 +181,12 @@ const handleKeydown = (event: KeyboardEvent) => {
 
 onMounted(() => {
   window.addEventListener('keydown', handleKeydown)
+  document.addEventListener('fullscreenchange', handleFullscreenChange)
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleKeydown)
+  document.removeEventListener('fullscreenchange', handleFullscreenChange)
 })
 
 const openConfirm = (options: Partial<typeof confirmState>, onConfirm: () => void) => {
@@ -261,6 +268,20 @@ const requestEndBroadcast = () => {
     handleEndBroadcast,
   )
 }
+
+const toggleFullscreen = async () => {
+  const el = streamStage.value
+  if (!el) return
+  try {
+    if (document.fullscreenElement) {
+      await document.exitFullscreen()
+    } else {
+      await el.requestFullscreen()
+    }
+  } catch {
+    return
+  }
+}
 </script>
 
 <template>
@@ -294,8 +315,10 @@ const requestEndBroadcast = () => {
     >
       <aside v-if="showProducts" class="stream-panel ds-surface">
         <div class="panel-head">
-          <h3>상품 관리</h3>
-          <span class="panel-count">{{ sortedProducts.length }}개</span>
+          <div class="panel-head__left">
+            <h3>상품 관리</h3>
+          </div>
+          <button type="button" class="panel-close" aria-label="상품 관리 닫기" @click="showProducts = false">×</button>
         </div>
         <div class="panel-list">
           <div
@@ -316,6 +339,7 @@ const requestEndBroadcast = () => {
             <button
               type="button"
               class="pin-btn"
+              :disabled="item.status === '품절'"
               :class="{ 'is-active': pinnedProductId === item.id }"
               aria-label="고정"
               @click="handlePinProduct(item.id)"
@@ -334,106 +358,32 @@ const requestEndBroadcast = () => {
         </div>
       </aside>
 
-      <div class="stream-center ds-surface">
-        <div class="stream-overlay stream-overlay--left">
-          <div class="stream-overlay__row">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path
-                d="M8 12a3 3 0 100-6 3 3 0 000 6z"
-                stroke="currentColor"
-                stroke-width="1.7"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-              <path
-                d="M16 12a3 3 0 100-6 3 3 0 000 6z"
-                stroke="currentColor"
-                stroke-width="1.7"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-              <path
-                d="M4 18c.4-2 2.6-3.5 4.8-3.5"
-                stroke="currentColor"
-                stroke-width="1.7"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-              <path
-                d="M20 18c-.4-2-2.6-3.5-4.8-3.5"
-                stroke="currentColor"
-                stroke-width="1.7"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-            </svg>
-            <span>{{ viewerCount.toLocaleString('ko-KR') }}명 시청 중</span>
-          </div>
-          <div class="stream-overlay__row">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <circle cx="12" cy="13" r="7" stroke="currentColor" stroke-width="1.7" />
-              <path
-                d="M12 3h4"
-                stroke="currentColor"
-                stroke-width="1.7"
-                stroke-linecap="round"
-              />
-              <path
-                d="M12 13V9"
-                stroke="currentColor"
-                stroke-width="1.7"
-                stroke-linecap="round"
-              />
-            </svg>
-            <span>경과 {{ elapsed }}</span>
-          </div>
-        </div>
-        <div class="stream-overlay stream-overlay--right">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path
-              d="M12 20s-7-4.4-7-9a4 4 0 017-2 4 4 0 017 2c0 4.6-7 9-7 9z"
-              stroke="currentColor"
-              stroke-width="1.7"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-          </svg>
-          <span>{{ likeCount.toLocaleString('ko-KR') }}</span>
+      <div ref="streamStage" class="stream-center ds-surface">
+        <div class="stream-overlay stream-overlay--stack">
+          <div class="stream-overlay__row">⏱ 경과 {{ elapsed }}</div>
+          <div class="stream-overlay__row">👥 {{ viewerCount.toLocaleString('ko-KR') }}명 시청 중</div>
+          <div class="stream-overlay__row">❤ {{ likeCount.toLocaleString('ko-KR') }}</div>
         </div>
         <div class="stream-fab">
           <button
             type="button"
             class="fab-btn"
             :class="{ 'is-off': !showProducts }"
-            aria-label="상품 패널 토글"
+            :aria-label="showProducts ? '상품 패널 닫기' : '상품 패널 열기'"
             @click="showProducts = !showProducts"
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path
-                d="M4 7l4-3h8l4 3-2 4h-3v9H9v-9H6L4 7z"
-                stroke="currentColor"
-                stroke-width="1.7"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-            </svg>
+            <span aria-hidden="true">🛍</span>
+            <span>상품</span>
           </button>
           <button
             type="button"
             class="fab-btn"
             :class="{ 'is-off': !showChat }"
-            aria-label="채팅 패널 토글"
+            :aria-label="showChat ? '채팅 패널 닫기' : '채팅 패널 열기'"
             @click="showChat = !showChat"
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path
-                d="M5 6h14a3 3 0 013 3v6a3 3 0 01-3 3H9l-4 3v-3H5a3 3 0 01-3-3V9a3 3 0 013-3z"
-                stroke="currentColor"
-                stroke-width="1.7"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-            </svg>
+            <span aria-hidden="true">💬</span>
+            <span>채팅</span>
           </button>
           <button
             type="button"
@@ -458,6 +408,9 @@ const requestEndBroadcast = () => {
                 stroke-linejoin="round"
               />
             </svg>
+          </button>
+          <button type="button" class="fab-btn" aria-label="전체 화면" @click="toggleFullscreen">
+            {{ isFullscreen ? '🗕' : '⛶' }}
           </button>
         </div>
         <div class="stream-center__body">
@@ -567,8 +520,10 @@ const requestEndBroadcast = () => {
 
       <aside v-if="showChat" class="stream-panel stream-chat ds-surface">
         <div class="panel-head">
-          <h3>실시간 채팅</h3>
-          <span class="panel-count">{{ chatItems.length }}명</span>
+          <div class="panel-head__left">
+            <h3>실시간 채팅</h3>
+          </div>
+          <button type="button" class="panel-close" aria-label="채팅 패널 닫기" @click="showChat = false">×</button>
         </div>
         <div class="panel-chat">
           <div
@@ -661,6 +616,23 @@ const requestEndBroadcast = () => {
   justify-content: space-between;
   gap: 10px;
   flex: 0 0 auto;
+}
+
+.panel-head__left {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.panel-close {
+  border: 1px solid var(--border-color);
+  background: var(--surface);
+  color: var(--text-strong);
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 900;
 }
 
 .panel-head h3 {
@@ -771,6 +743,11 @@ const requestEndBroadcast = () => {
   cursor: pointer;
 }
 
+.pin-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .pin-btn.is-active {
   color: var(--primary-color);
 }
@@ -797,16 +774,11 @@ const requestEndBroadcast = () => {
   gap: 6px;
 }
 
-.stream-overlay--left {
+.stream-overlay--stack {
   left: 14px;
-}
-
-.stream-overlay--right {
-  right: 14px;
-  display: inline-flex;
-  align-items: center;
+  top: 14px;
+  display: grid;
   gap: 6px;
-  font-weight: 800;
 }
 
 .stream-overlay__row {
@@ -821,9 +793,10 @@ const requestEndBroadcast = () => {
   position: absolute;
   bottom: 16px;
   right: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  display: grid;
+  grid-auto-rows: 1fr;
+  gap: 8px;
+  justify-items: end;
 }
 
 .fab-btn {
@@ -835,6 +808,10 @@ const requestEndBroadcast = () => {
   color: #fff;
   cursor: pointer;
   font-size: 1.05rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
 }
 
 .fab-btn.is-off {
@@ -978,6 +955,7 @@ const requestEndBroadcast = () => {
   cursor: pointer;
   position: relative;
   overflow: hidden;
+  font-size: 0.9rem;
 }
 
 .stream-toggle.is-off {
