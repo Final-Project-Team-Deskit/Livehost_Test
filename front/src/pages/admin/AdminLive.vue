@@ -124,6 +124,18 @@ const refreshTabFromQuery = () => {
   }
 }
 
+const handleNavChange = (value: 'list' | 'stats' | 'sanctions') => {
+  if (value === 'stats') {
+    router.push('/admin/live/stats').catch(() => {})
+    return
+  }
+  if (value === 'sanctions') {
+    router.push('/admin/live/sanctions').catch(() => {})
+    return
+  }
+  router.push('/admin/live').catch(() => {})
+}
+
 watch(
   () => route.query.tab,
   () => refreshTabFromQuery(),
@@ -418,6 +430,24 @@ onBeforeUnmount(() => {
 .live-header__right {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
+}
+
+.inline-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
+  color: var(--text-strong);
+}
+
+.inline-filter select {
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-weight: 700;
+  color: var(--text-strong);
+  background: var(--surface);
 }
 
 .live-tabs {
