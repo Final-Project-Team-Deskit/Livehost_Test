@@ -48,6 +48,11 @@ const scheduledWindow = computed(() => {
 })
 
 const cancelReason = computed(() => (detail.value as any).cancelReason ?? '사유가 등록되지 않았습니다.')
+const isCancelled = computed(() => detail.value.status === '취소됨')
+const standbyImage = computed(() => (detail.value as any).standbyThumb || detail.value.thumb)
+const displayedCancelReason = computed(() =>
+  isCancelled.value ? cancelReason.value : '취소되지 않은 예약입니다.',
+)
 </script>
 
 <template>
@@ -69,7 +74,10 @@ const cancelReason = computed(() => (detail.value as any).cancelReason ?? '사�
       <div class="detail-meta">
         <p><span>방송 예정 시간</span>{{ scheduledWindow }}</p>
         <p><span>카테고리</span>{{ detail.category }}</p>
-        <p v-if="detail.status === '취소됨'"><span>취소 사유</span>{{ cancelReason }}</p>
+        <p class="cancel-row">
+          <span>취소 사유</span>
+          <span :class="['cancel-value', { cancelled: isCancelled }]">{{ displayedCancelReason }}</span>
+        </p>
       </div>
     </section>
 
@@ -92,7 +100,7 @@ const cancelReason = computed(() => (detail.value as any).cancelReason ?? '사�
         <div class="upload-col">
           <p class="upload-label">대기화면</p>
           <div class="upload-preview">
-            <img :src="detail.standbyThumb || detail.thumb" :alt="`${detail.title} 대기화면`" />
+            <img :src="standbyImage" :alt="`${detail.title} 대기화면`" />
           </div>
         </div>
       </div>
@@ -287,6 +295,18 @@ const cancelReason = computed(() => (detail.value as any).cancelReason ?? '사�
   font-weight: 800;
 }
 
+.cancel-row {
+  align-items: center;
+}
+
+.cancel-value {
+  color: var(--text-muted);
+}
+
+.cancel-value.cancelled {
+  color: #ef4444;
+}
+
 .notice-box h3 {
   margin: 0;
   font-size: 1.05rem;
@@ -320,7 +340,10 @@ const cancelReason = computed(() => (detail.value as any).cancelReason ?? '사�
 }
 
 .upload-preview {
-  height: 180px;
+  position: relative;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  min-height: 180px;
   border-radius: 12px;
   background: var(--surface-weak);
   border: 1px solid var(--border-color);
