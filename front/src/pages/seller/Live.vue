@@ -1,10 +1,14 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '../../components/PageHeader.vue'
+import DeviceSetupModal from '../../components/DeviceSetupModal.vue'
 import { getScheduledBroadcasts } from '../../composables/useSellerBroadcasts'
-import { sellerReservationSummaries } from '../../lib/mocks/sellerReservations'
-import { sellerVodSummaries } from '../../lib/mocks/sellerVods'
+import { getSellerReservationDetail, sellerReservationSummaries } from '../../lib/mocks/sellerReservations'
+import { getSellerVodDetail, sellerVodSummaries } from '../../lib/mocks/sellerVods'
+
+const router = useRouter()
+const route = useRoute()
 
 type LiveTab = 'all' | 'scheduled' | 'live' | 'vod'
 type CarouselKind = 'live' | 'scheduled' | 'vod'
@@ -22,11 +26,97 @@ type LiveItem = {
   viewers?: number
   visibility?: string | boolean
   createdAt?: string
+  category?: string
+  status?: string
+  startAtMs?: number
+  revenue?: number
 }
 
-const router = useRouter()
-const route = useRoute()
 const activeTab = ref<LiveTab>('all')
+const scheduledStatus = ref<'all' | 'reserved' | 'canceled'>('all')
+const scheduledCategory = ref<string>('all')
+const scheduledSort = ref<'nearest' | 'latest' | 'oldest'>('nearest')
+const scheduledVisibleCount = ref(8)
+
+const vodStartDate = ref('')
+const vodEndDate = ref('')
+const vodVisibility = ref<'all' | 'public' | 'private'>('all')
+const vodSort = ref<'latest' | 'oldest' | 'likes_desc' | 'likes_asc' | 'viewers_desc' | 'viewers_asc' | 'revenue_desc' | 'revenue_asc'>(
+  'latest',
+)
+const vodCategory = ref<string>('all')
+const vodVisibleCount = ref(8)
+
+const showDeviceModal = ref(false)
+const selectedScheduled = ref<LiveItem | null>(null)
+
+const liveItems = ref<LiveItem[]>([])
+const liveProducts = ref(
+  [
+    {
+      id: 'p-1',
+      title: '모던 스탠딩 데스크',
+      optionLabel: '1200mm · 오프화이트',
+      status: '판매중',
+      priceOriginal: 289000,
+      priceSale: 229000,
+      soldCount: 48,
+      stockTotal: 120,
+      pinned: true,
+      thumb: '',
+    },
+    {
+      id: 'p-2',
+      title: '로우 프로파일 키보드',
+      optionLabel: '무선 · 베이지',
+      status: '판매중',
+      priceOriginal: 139000,
+      priceSale: 99000,
+      soldCount: 72,
+      stockTotal: 180,
+      pinned: false,
+      thumb: '',
+    },
+    {
+      id: 'p-3',
+      title: '미니멀 데스크 매트',
+      optionLabel: '900mm · 샌드',
+      status: '품절',
+      priceOriginal: 59000,
+      priceSale: 45000,
+      soldCount: 110,
+      stockTotal: 110,
+      pinned: false,
+      thumb: '',
+    },
+    {
+      id: 'p-4',
+      title: '알루미늄 모니터암',
+      optionLabel: '싱글 · 블랙',
+      status: '판매중',
+      priceOriginal: 169000,
+      priceSale: 129000,
+      soldCount: 39,
+      stockTotal: 95,
+      pinned: true,
+      thumb: '',
+    },
+  ],
+)
+
+const liveStats = ref({
+  status: '방송 중',
+  viewers: '1,248명',
+  likes: '3,420',
+  revenue: '₩4,920,000',
+})
+
+const scheduledItems = ref<LiveItem[]>([])
+const vodItems = ref<LiveItem[]>([])
+
+const liveTicker = ref<number | null>(null)
+
+const gradientPalette = ['111827', '0f172a', '1f2937', '334155'] as const
 
 const gradientThumb = (from: string, to: string) =>
   `data:image/svg+xml;utf8,` +
@@ -38,157 +128,218 @@ const gradientThumb = (from: string, to: string) =>
   `<rect width='320' height='200' fill='url(%23g)'/>` +
   `</svg>`
 
-const liveItems = ref<LiveItem[]>([
-  {
-    id: 'live-1',
-    title: '진행 중인 방송 제목',
-    subtitle: '셋업 추천 라이브',
-    thumb: gradientThumb('0f172a', '1f2937'),
-    datetime: '오늘 14:00 - 15:00',
-    statusBadge: 'LIVE',
-    viewerBadge: '500명 시청 중',
-    ctaLabel: '방송 입장',
-  },
-  {
-    id: 'live-2',
-    title: '게이밍 데스크 셋업',
-    subtitle: '조명 & 모니터암',
-    thumb: gradientThumb('111827', '0f172a'),
-    datetime: '오늘 16:30 - 17:10',
-    statusBadge: 'LIVE',
-    viewerBadge: '214명 시청 중',
-    ctaLabel: '방송 입장',
-  },
-  {
-    id: 'live-3',
-    title: '미니멀 오피스 데스크',
-    subtitle: '수납/정리 팁',
-    thumb: gradientThumb('1f2937', '111827'),
-    datetime: '오늘 19:00 - 20:00',
-    statusBadge: 'LIVE',
-    viewerBadge: '89명 시청 중',
-    ctaLabel: '방송 입장',
-  },
-  {
-    id: 'live-4',
-    title: '홈카페 코너 셋업',
-    subtitle: '바 스툴 & 선반',
-    thumb: gradientThumb('0b1324', '0f172a'),
-    datetime: '오늘 20:30 - 21:20',
-    statusBadge: 'LIVE',
-    viewerBadge: '132명 시청 중',
-    ctaLabel: '방송 입장',
-  },
-  {
-    id: 'live-5',
-    title: '작업실 조명 추천',
-    subtitle: '데스크 램프 비교',
-    thumb: gradientThumb('0f172a', '111827'),
-    datetime: '오늘 21:40 - 22:10',
-    statusBadge: 'LIVE',
-    viewerBadge: '76명 시청 중',
-    ctaLabel: '방송 입장',
-  },
-  {
-    id: 'live-6',
-    title: '듀얼 모니터 세팅',
-    subtitle: '케이블 정리 포함',
-    thumb: gradientThumb('111827', '1f2937'),
-    datetime: '오늘 22:20 - 22:50',
-    statusBadge: 'LIVE',
-    viewerBadge: '54명 시청 중',
-    ctaLabel: '방송 입장',
-  },
-])
+const liveCategories = ['홈오피스', '주변기기', '조명', '정리/수납']
+
+const buildLiveItems = () => {
+  liveItems.value = [
+    {
+      id: 'live-1',
+      title: '진행 중인 방송 제목',
+      subtitle: '셋업 추천 라이브',
+      thumb: gradientThumb('0f172a', '1f2937'),
+      datetime: '오늘 14:00 - 15:00',
+      statusBadge: 'LIVE',
+      viewerBadge: '500명 시청 중',
+      ctaLabel: '방송 입장',
+      viewers: 500,
+      likes: 320,
+      category: liveCategories[0],
+    },
+    {
+      id: 'live-2',
+      title: '게이밍 데스크 셋업',
+      subtitle: '조명 & 모니터암',
+      thumb: gradientThumb('111827', '0f172a'),
+      datetime: '오늘 16:30 - 17:10',
+      statusBadge: 'LIVE',
+      viewerBadge: '214명 시청 중',
+      ctaLabel: '방송 입장',
+      viewers: 214,
+      likes: 190,
+      category: liveCategories[1],
+    },
+    {
+      id: 'live-3',
+      title: '미니멀 오피스 데스크',
+      subtitle: '수납/정리 팁',
+      thumb: gradientThumb('1f2937', '111827'),
+      datetime: '오늘 19:00 - 20:00',
+      statusBadge: 'LIVE',
+      viewerBadge: '89명 시청 중',
+      ctaLabel: '방송 입장',
+      viewers: 89,
+      likes: 120,
+      category: liveCategories[2],
+    },
+    {
+      id: 'live-4',
+      title: '홈카페 코너 셋업',
+      subtitle: '바 스툴 & 선반',
+      thumb: gradientThumb('0b1324', '0f172a'),
+      datetime: '오늘 20:30 - 21:20',
+      statusBadge: 'LIVE',
+      viewerBadge: '132명 시청 중',
+      ctaLabel: '방송 입장',
+      viewers: 132,
+      likes: 140,
+      category: liveCategories[3],
+    },
+    {
+      id: 'live-5',
+      title: '작업실 조명 추천',
+      subtitle: '데스크 램프 비교',
+      thumb: gradientThumb('0f172a', '111827'),
+      datetime: '오늘 21:40 - 22:10',
+      statusBadge: 'LIVE',
+      viewerBadge: '76명 시청 중',
+      ctaLabel: '방송 입장',
+      viewers: 76,
+      likes: 90,
+      category: liveCategories[1],
+    },
+    {
+      id: 'live-6',
+      title: '듀얼 모니터 세팅',
+      subtitle: '케이블 정리 포함',
+      thumb: gradientThumb('111827', '1f2937'),
+      datetime: '오늘 22:20 - 22:50',
+      statusBadge: 'LIVE',
+      viewerBadge: '54명 시청 중',
+      ctaLabel: '방송 입장',
+      viewers: 54,
+      likes: 60,
+      category: liveCategories[0],
+    },
+  ]
+
+  liveProducts.value = liveProducts.value.map((item, index) => ({
+    ...item,
+    thumb: gradientThumb(gradientPalette[index % gradientPalette.length], '0f172a'),
+  }))
+}
 
 const currentLive = computed(() => liveItems.value[0] ?? null)
 
-const liveProducts = ref([
-  {
-    id: 'p-1',
-    title: '모던 스탠딩 데스크',
-    optionLabel: '1200mm · 오프화이트',
-    status: '판매중',
-    priceOriginal: 289000,
-    priceSale: 229000,
-    soldCount: 48,
-    stockTotal: 120,
-    pinned: true,
-    thumb: gradientThumb('111827', '1f2937'),
-  },
-  {
-    id: 'p-2',
-    title: '로우 프로파일 키보드',
-    optionLabel: '무선 · 베이지',
-    status: '판매중',
-    priceOriginal: 139000,
-    priceSale: 99000,
-    soldCount: 72,
-    stockTotal: 180,
-    pinned: false,
-    thumb: gradientThumb('0f172a', '334155'),
-  },
-  {
-    id: 'p-3',
-    title: '미니멀 데스크 매트',
-    optionLabel: '900mm · 샌드',
-    status: '품절',
-    priceOriginal: 59000,
-    priceSale: 45000,
-    soldCount: 110,
-    stockTotal: 110,
-    pinned: false,
-    thumb: gradientThumb('1f2937', '0f172a'),
-  },
-  {
-    id: 'p-4',
-    title: '알루미늄 모니터암',
-    optionLabel: '싱글 · 블랙',
-    status: '판매중',
-    priceOriginal: 169000,
-    priceSale: 129000,
-    soldCount: 39,
-    stockTotal: 95,
-    pinned: true,
-    thumb: gradientThumb('0b1324', '111827'),
-  },
-])
+const vodCategories = ['홈오피스', '주변기기', '정리/수납', '조명']
 
-const liveStats = ref({
-  status: '방송 중',
-  viewers: '1,248명',
-  likes: '3,420',
-  revenue: '₩4,920,000',
-})
+const loadScheduled = () => {
+  const fromStorage = getScheduledBroadcasts().map((item, index) => {
+    const detail = getSellerReservationDetail(item.id)
+    const startAtMs = Date.parse(item.datetime.replace(/\./g, '-').replace(' ', 'T'))
+    return {
+      ...item,
+      category: detail?.category ?? liveCategories[index % liveCategories.length],
+      status: detail?.status ?? '예약됨',
+      startAtMs: Number.isNaN(startAtMs) ? undefined : startAtMs,
+    }
+  })
 
-const scheduledItems = ref<LiveItem[]>([])
+  const seeded = sellerReservationSummaries.map((item, index) => {
+    const detail = getSellerReservationDetail(item.id)
+    const startAtMs = Date.parse(item.datetime.replace(/\./g, '-').replace(' ', 'T'))
+    return {
+      ...item,
+      category: detail?.category ?? liveCategories[index % liveCategories.length],
+      status: detail?.status ?? '예약됨',
+      startAtMs: Number.isNaN(startAtMs) ? undefined : startAtMs,
+    }
+  })
 
-const vodItems = ref<LiveItem[]>(
-  sellerVodSummaries.map((item) => ({
-    id: item.id,
-    title: item.title,
-    subtitle: '',
-    thumb: item.thumb,
-    datetime: `업로드: ${item.startedAt}`,
-    ctaLabel: '상세보기',
-  })),
-)
-
-const vodStartDate = ref('')
-const vodEndDate = ref('')
-const vodVisibility = ref<'all' | 'public' | 'private'>('all')
-const vodSort = ref<'latest' | 'oldest' | 'likes_desc' | 'likes_asc' | 'viewers_desc' | 'viewers_asc'>('latest')
-
-const toDateMs = (item: LiveItem) => {
-  const raw = item.createdAt || item.datetime || ''
-  const parsed = Date.parse(raw)
-  return Number.isNaN(parsed) ? 0 : parsed
+  scheduledItems.value = [...fromStorage, ...seeded]
 }
 
+const loadVods = () => {
+  vodItems.value = sellerVodSummaries.map((item, index) => {
+    const detail = getSellerVodDetail(item.id)
+    const visibility = detail?.vod?.visibility === '비공개' ? 'private' : 'public'
+    const startMs = Date.parse(item.startedAt.replace(/\./g, '-').replace(' ', 'T'))
+    const endMs = Date.parse(item.endedAt.replace(/\./g, '-').replace(' ', 'T'))
+    return {
+      id: item.id,
+      title: item.title,
+      subtitle: '',
+      thumb: item.thumb,
+      datetime: `업로드: ${item.startedAt}`,
+      ctaLabel: '상세보기',
+      visibility,
+      createdAt: item.startedAt,
+      likes: detail?.metrics?.likes ?? 0,
+      viewers: detail?.metrics?.maxViewers ?? 0,
+      revenue: detail?.metrics?.totalRevenue ?? 0,
+      category: vodCategories[index % vodCategories.length],
+      startAtMs: Number.isNaN(startMs) ? undefined : startMs,
+      statusBadge: detail?.vod?.visibility === '비공개' ? '비공개' : 'VOD',
+      viewerBadge: detail?.metrics?.maxViewers ? `${detail.metrics.maxViewers}명 시청` : undefined,
+      status: 'VOD',
+      endAtMs: Number.isNaN(endMs) ? undefined : endMs,
+    }
+  })
+}
+
+const filteredVodItems = computed(() => {
+  const startMs = vodStartDate.value ? Date.parse(`${vodStartDate.value}T00:00:00`) : null
+  const endMs = vodEndDate.value ? Date.parse(`${vodEndDate.value}T23:59:59`) : null
+
+  let filtered = vodItems.value.filter((item) => {
+    const dateMs = item.startAtMs ?? toDateMs(item)
+    if (startMs && dateMs < startMs) return false
+    if (endMs && dateMs > endMs) return false
+    const visibility = getVisibility(item)
+    if (vodVisibility.value !== 'all' && vodVisibility.value !== visibility) return false
+    if (vodCategory.value !== 'all' && item.category !== vodCategory.value) return false
+    return true
+  })
+
+  filtered = filtered.slice().sort((a, b) => {
+    if (vodSort.value === 'latest') return toDateMs(b) - toDateMs(a)
+    if (vodSort.value === 'oldest') return toDateMs(a) - toDateMs(b)
+    if (vodSort.value === 'likes_desc') return getLikes(b) - getLikes(a)
+    if (vodSort.value === 'likes_asc') return getLikes(a) - getLikes(b)
+    if (vodSort.value === 'viewers_desc') return getViewers(b) - getViewers(a)
+    if (vodSort.value === 'viewers_asc') return getViewers(a) - getViewers(b)
+    if (vodSort.value === 'revenue_desc') return (b.revenue ?? 0) - (a.revenue ?? 0)
+    if (vodSort.value === 'revenue_asc') return (a.revenue ?? 0) - (b.revenue ?? 0)
+    return 0
+  })
+
+  return filtered
+})
+
+const filteredScheduledItems = computed(() => {
+  let filtered = scheduledItems.value
+
+  if (scheduledStatus.value === 'reserved') {
+    filtered = filtered.filter((item) => item.status !== '취소됨')
+  } else if (scheduledStatus.value === 'canceled') {
+    filtered = filtered.filter((item) => item.status === '취소됨')
+  }
+
+  if (scheduledCategory.value !== 'all') {
+    filtered = filtered.filter((item) => item.category === scheduledCategory.value)
+  }
+
+  filtered = filtered.slice().sort((a, b) => {
+    const aDate = a.startAtMs ?? toDateMs(a)
+    const bDate = b.startAtMs ?? toDateMs(b)
+    if (scheduledSort.value === 'latest') return bDate - aDate
+    if (scheduledSort.value === 'oldest') return aDate - bDate
+    return aDate - bDate
+  })
+
+  return filtered
+})
+
+const scheduledCategories = computed(() =>
+  Array.from(new Set(filteredScheduledItems.value.map((item) => item.category ?? '기타'))),
+)
+
+const scheduledLoop = computed(() => (filteredScheduledItems.value.length ? [...filteredScheduledItems.value, ...filteredScheduledItems.value] : []))
+
+const visibleScheduledItems = computed(() => filteredScheduledItems.value.slice(0, scheduledVisibleCount.value))
+const visibleVodItems = computed(() => filteredVodItems.value.slice(0, vodVisibleCount.value))
+
 const getLikes = (item: LiveItem) => (typeof item.likes === 'number' ? item.likes : 0)
-
 const getViewers = (item: LiveItem) => (typeof item.viewers === 'number' ? item.viewers : 0)
-
 const getVisibility = (item: LiveItem): 'public' | 'private' => {
   if (typeof item.visibility === 'boolean') return item.visibility ? 'public' : 'private'
   if (typeof item.visibility === 'string') {
@@ -199,28 +350,11 @@ const getVisibility = (item: LiveItem): 'public' | 'private' => {
   return 'public'
 }
 
-const filteredVodItems = computed(() => {
-  const startMs = vodStartDate.value ? Date.parse(`${vodStartDate.value}T00:00:00`) : null
-  const endMs = vodEndDate.value ? Date.parse(`${vodEndDate.value}T23:59:59`) : null
-  const filtered = vodItems.value.filter((item) => {
-    const dateMs = toDateMs(item)
-    if (startMs && dateMs < startMs) return false
-    if (endMs && dateMs > endMs) return false
-    const visibility = getVisibility(item)
-    if (vodVisibility.value !== 'all' && vodVisibility.value !== visibility) return false
-    return true
-  })
-
-  return filtered.slice().sort((a, b) => {
-    if (vodSort.value === 'latest') return toDateMs(b) - toDateMs(a)
-    if (vodSort.value === 'oldest') return toDateMs(a) - toDateMs(b)
-    if (vodSort.value === 'likes_desc') return getLikes(b) - getLikes(a)
-    if (vodSort.value === 'likes_asc') return getLikes(a) - getLikes(b)
-    if (vodSort.value === 'viewers_desc') return getViewers(b) - getViewers(a)
-    if (vodSort.value === 'viewers_asc') return getViewers(a) - getViewers(b)
-    return 0
-  })
-})
+const toDateMs = (item: LiveItem) => {
+  const raw = item.createdAt || item.datetime || ''
+  const parsed = Date.parse(raw.replace(/\./g, '-').replace(' ', 'T'))
+  return Number.isNaN(parsed) ? 0 : parsed
+}
 
 const visibleLive = computed(() => activeTab.value === 'all' || activeTab.value === 'live')
 const visibleScheduled = computed(() => activeTab.value === 'all' || activeTab.value === 'scheduled')
@@ -231,6 +365,7 @@ const carouselRefs = ref<Record<CarouselKind, HTMLElement | null>>({
   scheduled: null,
   vod: null,
 })
+const loopTimers = ref<Record<'scheduled' | 'vod', number | null>>({ scheduled: null, vod: null })
 
 const setCarouselRef = (kind: CarouselKind) => (el: Element | null) => {
   carouselRefs.value[kind] = (el as HTMLElement) || null
@@ -245,17 +380,43 @@ const scrollCarousel = (kind: CarouselKind, dir: -1 | 1) => {
   el.scrollBy({ left: dir * (cardW + gap) * 2, behavior: 'smooth' })
 }
 
+const startLoop = (kind: 'scheduled' | 'vod') => {
+  const existing = loopTimers.value[kind]
+  if (existing) window.clearInterval(existing)
+  const el = carouselRefs.value[kind]
+  if (!el) {
+    loopTimers.value[kind] = null
+    return
+  }
+  const tick = () => {
+    const first = el.querySelector<HTMLElement>('.live-card')
+    const gap = 14
+    const cardW = first?.offsetWidth ?? 280
+    const delta = cardW + gap
+    const max = el.scrollWidth - el.clientWidth
+    if (el.scrollLeft + delta + 4 >= max) {
+      el.scrollTo({ left: 0 })
+    } else {
+      el.scrollBy({ left: delta, behavior: 'smooth' })
+    }
+  }
+  loopTimers.value[kind] = window.setInterval(tick, 3200)
+}
+
+const stopLoops = () => {
+  Object.keys(loopTimers.value).forEach((key) => {
+    const id = loopTimers.value[key as 'scheduled' | 'vod']
+    if (id) window.clearInterval(id)
+    loopTimers.value[key as 'scheduled' | 'vod'] = null
+  })
+}
+
 const setTab = (tab: LiveTab) => {
   activeTab.value = tab
 }
 
 const handleCreate = () => {
   router.push('/seller/live/create').catch(() => {})
-}
-
-const loadScheduled = () => {
-  const stored = getScheduledBroadcasts()
-  scheduledItems.value = [...stored, ...sellerReservationSummaries]
 }
 
 const syncTabFromRoute = () => {
@@ -265,15 +426,26 @@ const syncTabFromRoute = () => {
   }
 }
 
-onMounted(() => {
-  loadScheduled()
-  syncTabFromRoute()
-})
-
 watch(
   () => route.query.tab,
   () => {
     syncTabFromRoute()
+  },
+)
+
+watch(
+  () => [activeTab.value, scheduledLoop.value.length],
+  () => {
+    if (activeTab.value !== 'scheduled') startLoop('scheduled')
+    else stopLoops()
+  },
+)
+
+watch(
+  () => [activeTab.value, filteredVodItems.value.length],
+  () => {
+    if (activeTab.value !== 'vod') startLoop('vod')
+    else stopLoops()
   },
 )
 
@@ -283,10 +455,28 @@ const handleCta = (kind: CarouselKind, item: LiveItem) => {
     return
   }
   if (kind === 'scheduled') {
+    if (canStartNow(item)) {
+      selectedScheduled.value = item
+      showDeviceModal.value = true
+      return
+    }
     router.push(`/seller/broadcasts/reservations/${item.id}`).catch(() => {})
     return
   }
   router.push(`/seller/broadcasts/vods/${item.id}`).catch(() => {})
+}
+
+const handleDeviceStart = () => {
+  const target = selectedScheduled.value
+  if (!target) return
+  router.push(`/seller/live/stream/${target.id}`).catch(() => {})
+}
+
+const canStartNow = (item: LiveItem) => {
+  if (!item.startAtMs) return false
+  const now = Date.now()
+  const diff = now - item.startAtMs
+  return diff >= 0 && diff <= 1000 * 60 * 30
 }
 
 const openReservationDetail = (item: LiveItem) => {
@@ -296,6 +486,45 @@ const openReservationDetail = (item: LiveItem) => {
 const openVodDetail = (item: LiveItem) => {
   router.push(`/seller/broadcasts/vods/${item.id}`).catch(() => {})
 }
+
+const startLiveTicker = () => {
+  liveTicker.value = window.setInterval(() => {
+    liveStats.value = {
+      status: liveStats.value.status,
+      viewers: `${(parseInt(liveStats.value.viewers.replace(/[^0-9]/g, ''), 10) || 1200) + Math.floor(Math.random() * 30)}명`,
+      likes: `${(parseInt(liveStats.value.likes.replace(/[^0-9]/g, ''), 10) || 3000) + Math.floor(Math.random() * 10)}`,
+      revenue: `₩${(parseInt(liveStats.value.revenue.replace(/[^0-9]/g, ''), 10) || 4920000 + Math.floor(Math.random() * 50000)).toLocaleString()}`,
+    }
+
+    liveProducts.value = liveProducts.value.map((product) => {
+      if (product.status === '품절') return product
+      const delta = Math.random() < 0.2 ? 1 : 0
+      const soldCount = product.soldCount + delta
+      const stockTotal = Math.max(product.stockTotal - delta, 0)
+      return {
+        ...product,
+        soldCount,
+        stockTotal,
+        status: stockTotal === 0 ? '품절' : product.status,
+      }
+    })
+  }, 3200)
+}
+
+onMounted(() => {
+  buildLiveItems()
+  loadScheduled()
+  loadVods()
+  syncTabFromRoute()
+  startLiveTicker()
+})
+
+onBeforeUnmount(() => {
+  if (liveTicker.value) {
+    window.clearInterval(liveTicker.value)
+  }
+  stopLoops()
+})
 </script>
 
 <template>
@@ -346,8 +575,13 @@ const openVodDetail = (item: LiveItem) => {
 
     <section v-if="visibleLive" class="live-section">
       <div class="live-section__head">
-        <h3>방송 중</h3>
-        <p class="ds-section-sub">현재 진행 중인 라이브 방송입니다.</p>
+        <div class="live-section__title">
+          <h3>방송 중</h3>
+        </div>
+        <div class="live-section__desc">
+          <p v-if="activeTab !== 'all'" class="ds-section-sub">현재 진행 중인 라이브 방송입니다.</p>
+          <button v-else class="link-more" type="button" @click="setTab('live')">+ 더보기</button>
+        </div>
       </div>
 
       <div v-if="activeTab === 'live'" class="live-livegrid">
@@ -374,8 +608,8 @@ const openVodDetail = (item: LiveItem) => {
           <button type="button" class="live-feature__cta" @click="handleCta('live', currentLive!)">방송 입장</button>
         </article>
         <article v-else class="live-feature ds-surface live-feature--empty">
-          <p class="live-card__title">등록된 방송이 없습니다.</p>
-          <p class="live-card__meta">새 방송을 등록해보세요.</p>
+          <p class="live-card__title">현재 진행 중인 방송이 없습니다.</p>
+          <p class="live-card__meta">라이브를 시작하면 여기에서 실시간 상태를 볼 수 있어요.</p>
         </article>
 
         <article class="live-products ds-surface">
@@ -475,14 +709,47 @@ const openVodDetail = (item: LiveItem) => {
 
     <section v-if="visibleScheduled" class="live-section">
       <div class="live-section__head">
-        <h3>예약된 방송</h3>
-        <p class="ds-section-sub">예정된 라이브 스케줄을 관리하세요.</p>
+        <div class="live-section__title">
+          <h3>예약된 방송</h3>
+        </div>
+        <div class="live-section__desc">
+          <p v-if="activeTab !== 'all'" class="ds-section-sub">예정된 라이브 스케줄을 관리하세요.</p>
+          <button v-else class="link-more" type="button" @click="setTab('scheduled')">+ 더보기</button>
+        </div>
+      </div>
+
+      <div v-if="activeTab === 'scheduled'" class="filter-bar">
+        <label class="filter-field">
+          <span class="filter-label">상태</span>
+          <select v-model="scheduledStatus">
+            <option value="all">전체</option>
+            <option value="reserved">예약 중</option>
+            <option value="canceled">취소됨</option>
+          </select>
+        </label>
+        <label class="filter-field">
+          <span class="filter-label">카테고리</span>
+          <select v-model="scheduledCategory">
+            <option value="all">전체</option>
+            <option v-for="category in scheduledCategories" :key="category" :value="category">
+              {{ category }}
+            </option>
+          </select>
+        </label>
+        <label class="filter-field">
+          <span class="filter-label">정렬</span>
+          <select v-model="scheduledSort">
+            <option value="nearest">방송 시간이 가까운 순</option>
+            <option value="latest">최신 순</option>
+            <option value="oldest">오래된 순</option>
+          </select>
+        </label>
       </div>
 
       <div v-if="activeTab === 'scheduled'" class="scheduled-grid" aria-label="예약 방송 목록">
-        <template v-if="scheduledItems.length">
+        <template v-if="visibleScheduledItems.length">
           <article
-            v-for="item in scheduledItems"
+            v-for="item in visibleScheduledItems"
             :key="item.id"
             class="live-card ds-surface live-card--clickable"
             @click="openReservationDetail(item)"
@@ -490,19 +757,34 @@ const openVodDetail = (item: LiveItem) => {
             <div class="live-thumb">
               <img class="live-thumb__img" :src="item.thumb" :alt="item.title" loading="lazy" />
               <div class="live-badges">
-                <span class="badge badge--scheduled">예약</span>
+                <span class="badge badge--scheduled" :class="{ 'badge--cancelled': item.status === '취소됨' }">{{ item.status ?? '예약' }}</span>
               </div>
             </div>
             <div class="live-body">
               <div class="live-meta">
                 <p class="live-title">{{ item.title }}</p>
                 <p class="live-date">{{ item.datetime }}</p>
+                <p class="live-seller">{{ item.category }}</p>
               </div>
-              <button type="button" class="live-cta live-cta--ghost" @click.stop="handleCta('scheduled', item)">
+              <button
+                v-if="canStartNow(item)"
+                type="button"
+                class="live-cta live-cta--ghost"
+                @click.stop="handleCta('scheduled', item)"
+              >
                 {{ item.ctaLabel }}
               </button>
             </div>
           </article>
+
+          <button
+            v-if="filteredScheduledItems.length > visibleScheduledItems.length"
+            type="button"
+            class="live-more"
+            @click="scheduledVisibleCount += 6"
+          >
+            더 보기
+          </button>
         </template>
 
         <article v-else class="live-card ds-surface live-card--empty">
@@ -512,30 +794,41 @@ const openVodDetail = (item: LiveItem) => {
       </div>
 
       <div v-else class="carousel-wrap">
-        <button type="button" class="carousel-btn carousel-btn--left" aria-label="예약 방송 왼쪽 이동" @click="scrollCarousel('scheduled', -1)">
+        <button
+          type="button"
+          class="carousel-btn carousel-btn--left"
+          aria-label="예약 방송 왼쪽 이동"
+          @click="scrollCarousel('scheduled', -1)"
+        >
           ‹
         </button>
 
-        <div class="live-carousel" ref="setCarouselRef('scheduled')" aria-label="예약 방송 목록">
-          <template v-if="scheduledItems.length">
+        <div class="live-carousel live-carousel--loop" :ref="setCarouselRef('scheduled')" aria-label="예약 방송 목록">
+          <template v-if="scheduledLoop.length">
             <article
-              v-for="item in scheduledItems"
-              :key="item.id"
+              v-for="(item, idx) in scheduledLoop"
+              :key="`${item.id}-${idx}`"
               class="live-card ds-surface live-card--clickable"
               @click="openReservationDetail(item)"
             >
               <div class="live-thumb">
                 <img class="live-thumb__img" :src="item.thumb" :alt="item.title" loading="lazy" />
                 <div class="live-badges">
-                  <span class="badge badge--scheduled">예약</span>
+                  <span class="badge badge--scheduled" :class="{ 'badge--cancelled': item.status === '취소됨' }">{{ item.status ?? '예약' }}</span>
                 </div>
               </div>
               <div class="live-body">
                 <div class="live-meta">
                   <p class="live-title">{{ item.title }}</p>
                   <p class="live-date">{{ item.datetime }}</p>
+                  <p class="live-seller">{{ item.category }}</p>
                 </div>
-                <button type="button" class="live-cta live-cta--ghost" @click.stop="handleCta('scheduled', item)">
+                <button
+                  v-if="canStartNow(item)"
+                  type="button"
+                  class="live-cta live-cta--ghost"
+                  @click.stop="handleCta('scheduled', item)"
+                >
                   {{ item.ctaLabel }}
                 </button>
               </div>
@@ -548,7 +841,12 @@ const openVodDetail = (item: LiveItem) => {
           </article>
         </div>
 
-        <button type="button" class="carousel-btn carousel-btn--right" aria-label="예약 방송 오른쪽 이동" @click="scrollCarousel('scheduled', 1)">
+        <button
+          type="button"
+          class="carousel-btn carousel-btn--right"
+          aria-label="예약 방송 오른쪽 이동"
+          @click="scrollCarousel('scheduled', 1)"
+        >
           ›
         </button>
       </div>
@@ -556,8 +854,13 @@ const openVodDetail = (item: LiveItem) => {
 
     <section v-if="visibleVod" class="live-section">
       <div class="live-section__head">
-        <h3>VOD</h3>
-        <p class="ds-section-sub">저장된 다시보기 콘텐츠를 확인합니다.</p>
+        <div class="live-section__title">
+          <h3>VOD</h3>
+        </div>
+        <div class="live-section__desc">
+          <p v-if="activeTab !== 'all'" class="ds-section-sub">저장된 다시보기 콘텐츠를 확인합니다.</p>
+          <button v-else class="link-more" type="button" @click="setTab('vod')">+ 더보기</button>
+        </div>
       </div>
 
       <div v-if="activeTab === 'vod'" class="vod-filters">
@@ -578,6 +881,13 @@ const openVodDetail = (item: LiveItem) => {
           </select>
         </label>
         <label class="filter-field">
+          <span class="filter-label">카테고리</span>
+          <select v-model="vodCategory">
+            <option value="all">전체</option>
+            <option v-for="category in vodCategories" :key="category" :value="category">{{ category }}</option>
+          </select>
+        </label>
+        <label class="filter-field">
           <span class="filter-label">정렬</span>
           <select v-model="vodSort">
             <option value="latest">최신 순</option>
@@ -586,14 +896,16 @@ const openVodDetail = (item: LiveItem) => {
             <option value="likes_asc">좋아요 낮은 순</option>
             <option value="viewers_desc">시청자 수 높은 순</option>
             <option value="viewers_asc">시청자 수 낮은 순</option>
+            <option value="revenue_desc">매출 높은 순</option>
+            <option value="revenue_asc">매출 낮은 순</option>
           </select>
         </label>
       </div>
 
       <div v-if="activeTab === 'vod'" class="vod-grid" aria-label="VOD 목록">
-        <template v-if="filteredVodItems.length">
+        <template v-if="visibleVodItems.length">
             <article
-              v-for="item in filteredVodItems"
+              v-for="item in visibleVodItems"
               :key="item.id"
               class="live-card ds-surface live-card--clickable"
               @click="openVodDetail(item)"
@@ -601,19 +913,26 @@ const openVodDetail = (item: LiveItem) => {
             <div class="live-thumb">
               <img class="live-thumb__img" :src="item.thumb" :alt="item.title" loading="lazy" />
               <div class="live-badges">
-                <span class="badge badge--vod">VOD</span>
+                <span class="badge badge--vod">{{ item.statusBadge ?? 'VOD' }}</span>
               </div>
             </div>
             <div class="live-body">
               <div class="live-meta">
                 <p class="live-title">{{ item.title }}</p>
                 <p class="live-date">{{ item.datetime }}</p>
+                <p class="live-seller">{{ item.category }}</p>
               </div>
-                <button type="button" class="live-cta live-cta--ghost" @click.stop="handleCta('vod', item)">
-                  {{ item.ctaLabel }}
-                </button>
             </div>
           </article>
+
+          <button
+            v-if="filteredVodItems.length > visibleVodItems.length"
+            type="button"
+            class="live-more"
+            @click="vodVisibleCount += 6"
+          >
+            더 보기
+          </button>
         </template>
 
         <article v-else class="live-card ds-surface live-card--empty">
@@ -627,28 +946,26 @@ const openVodDetail = (item: LiveItem) => {
           ‹
         </button>
 
-        <div class="live-carousel" ref="setCarouselRef('vod')" aria-label="VOD 목록">
+        <div class="live-carousel live-carousel--loop" :ref="setCarouselRef('vod')" aria-label="VOD 목록">
           <template v-if="filteredVodItems.length">
             <article
-              v-for="item in filteredVodItems"
-              :key="item.id"
+              v-for="(item, idx) in filteredVodItems"
+              :key="`${item.id}-${idx}`"
               class="live-card ds-surface live-card--clickable"
               @click="openVodDetail(item)"
             >
               <div class="live-thumb">
                 <img class="live-thumb__img" :src="item.thumb" :alt="item.title" loading="lazy" />
                 <div class="live-badges">
-                  <span class="badge badge--vod">VOD</span>
+                  <span class="badge badge--vod">{{ item.statusBadge ?? 'VOD' }}</span>
                 </div>
               </div>
               <div class="live-body">
                 <div class="live-meta">
                   <p class="live-title">{{ item.title }}</p>
                   <p class="live-date">{{ item.datetime }}</p>
+                  <p class="live-seller">{{ item.category }}</p>
                 </div>
-              <button type="button" class="live-cta live-cta--ghost" @click.stop="handleCta('vod', item)">
-                {{ item.ctaLabel }}
-              </button>
               </div>
             </article>
           </template>
@@ -664,6 +981,12 @@ const openVodDetail = (item: LiveItem) => {
         </button>
       </div>
     </section>
+
+    <DeviceSetupModal
+      v-model="showDeviceModal"
+      :broadcast-title="selectedScheduled?.title"
+      @start="handleDeviceStart"
+    />
   </div>
 </template>
 
@@ -683,6 +1006,25 @@ const openVodDetail = (item: LiveItem) => {
 .live-header__right {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+}
+
+.inline-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
+  color: var(--text-strong);
+}
+
+.inline-filter select {
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-weight: 700;
+  color: var(--text-strong);
+  background: var(--surface);
 }
 
 .live-tabs {
@@ -744,10 +1086,22 @@ const openVodDetail = (item: LiveItem) => {
 
 .live-section__head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 12px;
+}
+
+.live-section__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.live-section__desc {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .live-section__head h3 {
@@ -757,7 +1111,17 @@ const openVodDetail = (item: LiveItem) => {
   color: var(--text-strong);
 }
 
-.vod-filters {
+.link-more {
+  border: none;
+  background: transparent;
+  color: var(--primary-color);
+  font-weight: 900;
+  cursor: pointer;
+  padding: 4px 6px;
+}
+
+.vod-filters,
+.filter-bar {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
@@ -798,42 +1162,22 @@ const openVodDetail = (item: LiveItem) => {
 
 .live-feature {
   width: 100%;
-  max-width: none;
-  padding: 18px;
+  border-radius: 14px;
+  padding: 14px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
 .live-feature__top {
   display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.live-feature__thumb {
-  position: relative;
-  width: 100%;
-  height: auto;
-  aspect-ratio: 16 / 9;
-  max-width: 960px;
-  border-radius: 14px;
-  overflow: hidden;
-  flex: 0 0 auto;
-  background: var(--surface-weak);
-  margin: 0 auto 8px;
-}
-
-.live-feature__thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
+  gap: 12px;
 }
 
 .live-feature__content {
-  flex: 1;
-  min-width: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
 }
 
 .live-feature__title-row {
@@ -844,51 +1188,70 @@ const openVodDetail = (item: LiveItem) => {
 
 .live-feature__title-row h4 {
   margin: 0;
-  font-size: 1.05rem;
+  font-size: 1.4rem;
   font-weight: 900;
   color: var(--text-strong);
 }
 
 .live-feature__seller {
-  margin: 6px 0 0;
+  margin: 0;
   color: var(--text-muted);
-  font-weight: 700;
-}
-
-.live-feature__meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: flex-start;
-}
-
-.meta-pill {
-  border: 1px solid var(--border-color);
-  background: var(--surface-weak);
-  color: var(--text-strong);
-  border-radius: 999px;
-  padding: 5px 9px;
-  font-size: 0.8rem;
   font-weight: 800;
 }
 
-.live-feature__cta {
+.live-feature__thumb {
+  position: relative;
   width: 100%;
-  border: 1px solid var(--border-color);
-  background: #fff;
-  color: var(--text-strong);
+  aspect-ratio: 16 / 9;
   border-radius: 12px;
-  padding: 12px 14px;
-  margin-top: 4px;
+  overflow: hidden;
+  background: var(--surface-weak);
+}
+
+.live-feature__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.live-feature__badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+}
+
+.live-feature__meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.meta-pill {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(15, 23, 42, 0.06);
+  border-radius: 999px;
+  padding: 8px 10px;
+  font-weight: 800;
+  color: var(--text-muted);
+}
+
+.live-feature__cta {
+  align-self: flex-start;
+  border-radius: 10px;
+  padding: 10px 14px;
+  background: var(--primary-color);
+  color: #fff;
   font-weight: 900;
+  border: none;
   cursor: pointer;
-  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .live-feature__cta:hover {
-  border-color: var(--primary-color);
-  box-shadow: 0 8px 18px rgba(var(--primary-rgb), 0.12);
   transform: translateY(-1px);
+  box-shadow: 0 10px 22px rgba(var(--primary-rgb), 0.2);
 }
 
 .live-feature--empty {
@@ -896,16 +1259,238 @@ const openVodDetail = (item: LiveItem) => {
   text-align: center;
 }
 
-.live-feature__badge {
+.live-livegrid {
+  display: grid;
+  grid-template-columns: 2fr 1.2fr;
+  gap: 12px;
+}
+
+.live-products {
+  padding: 14px;
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.live-products__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.live-products__count {
+  font-weight: 900;
+  color: var(--text-muted);
+}
+
+.live-products__list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.product-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.product-thumb {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--surface-weak);
+}
+
+.product-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.product-pin {
   position: absolute;
-  top: 12px;
-  left: 12px;
-  background: rgba(229, 72, 77, 0.95);
-  box-shadow: 0 8px 18px rgba(229, 72, 77, 0.25);
+  top: 6px;
+  left: 6px;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 8px;
+  padding: 4px 6px;
+  font-size: 0.75rem;
+  font-weight: 900;
+  color: var(--text-strong);
+}
+
+.product-meta {
+  min-width: 0;
+}
+
+.product-title {
+  margin: 0 0 4px;
+  font-weight: 900;
+  color: var(--text-strong);
+}
+
+.product-option {
+  margin: 0 0 8px;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.product-badges {
+  display: flex;
+  gap: 8px;
+}
+
+.product-status {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: rgba(15, 23, 42, 0.06);
+  font-weight: 800;
+  color: var(--text-strong);
+}
+
+.product-status.is-soldout {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.product-right {
+  text-align: right;
+}
+
+.product-price {
+  margin: 0 0 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-end;
+}
+
+.product-sale {
+  font-weight: 900;
+  color: var(--text-strong);
+}
+
+.product-origin {
+  color: var(--text-muted);
+  font-weight: 700;
+  text-decoration: line-through;
+}
+
+.product-stock {
+  margin: 0;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.live-stats {
+  margin-top: 14px;
+}
+
+.live-stats__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.live-stats__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(34, 197, 94, 0.12);
+  color: #15803d;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-weight: 900;
+}
+
+.live-stats__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22c55e;
+  display: inline-block;
+  animation: pulse 1.4s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.65;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.live-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.live-stat-card {
+  padding: 14px;
+  border-radius: 12px;
+}
+
+.stat-label {
+  margin: 0 0 8px;
+  font-weight: 800;
+  color: var(--text-muted);
+}
+
+.stat-value {
+  margin: 0 0 4px;
+  font-weight: 900;
+  font-size: 1.4rem;
+  color: var(--text-strong);
+}
+
+.stat-sub {
+  margin: 0;
+  color: var(--text-muted);
+  font-weight: 700;
 }
 
 .carousel-wrap {
   position: relative;
+}
+
+.carousel-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--border-color);
+  background: #fff;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
+}
+
+.carousel-btn--left {
+  left: -6px;
+}
+
+.carousel-btn--right {
+  right: -6px;
 }
 
 .live-carousel {
@@ -914,18 +1499,22 @@ const openVodDetail = (item: LiveItem) => {
   grid-auto-columns: minmax(280px, 320px);
   gap: 14px;
   overflow-x: auto;
-  padding: 10px 44px;
+  padding: 10px 10px;
   scroll-snap-type: x mandatory;
   -webkit-overflow-scrolling: touch;
 }
 
 .live-carousel::-webkit-scrollbar {
-  height: 10px;
+  height: 0px;
 }
 
 .live-carousel::-webkit-scrollbar-thumb {
-  background: rgba(15, 23, 42, 0.12);
+  background: transparent;
   border-radius: 999px;
+}
+
+.live-carousel--loop {
+  grid-auto-columns: minmax(260px, 280px);
 }
 
 .live-card {
@@ -934,7 +1523,7 @@ const openVodDetail = (item: LiveItem) => {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  min-height: 280px;
+  min-height: 260px;
 }
 
 .live-card--clickable {
@@ -975,7 +1564,7 @@ const openVodDetail = (item: LiveItem) => {
 }
 
 .badge--viewer {
-  background: #ef4444;
+  background: rgba(15, 23, 42, 0.85);
   color: #fff;
 }
 
@@ -987,6 +1576,12 @@ const openVodDetail = (item: LiveItem) => {
 .badge--scheduled {
   background: rgba(15, 23, 42, 0.8);
   color: #fff;
+}
+
+.badge--cancelled {
+  background: var(--surface-weak);
+  color: var(--text-muted);
+  border: 1px solid var(--border-color);
 }
 
 .badge--vod {
@@ -1015,32 +1610,17 @@ const openVodDetail = (item: LiveItem) => {
 }
 
 .live-date {
-  margin: 0;
+  margin: 0 0 6px;
   color: var(--text-soft);
   font-weight: 700;
   font-size: 0.95rem;
 }
 
-.live-cta {
-  border: 1px solid var(--border-color);
-  background: #fff;
-  color: var(--text-strong);
-  border-radius: 10px;
-  padding: 10px 12px;
-  font-weight: 900;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.live-cta:hover {
-  border-color: var(--primary-color);
-  box-shadow: 0 8px 18px rgba(var(--primary-rgb), 0.12);
-  transform: translateY(-1px);
-}
-
-.live-cta--ghost {
-  background: transparent;
+.live-seller {
+  margin: 0;
+  color: var(--text-muted);
+  font-weight: 800;
+  font-size: 0.9rem;
 }
 
 .live-card--empty {
@@ -1056,290 +1636,46 @@ const openVodDetail = (item: LiveItem) => {
 
 .live-card__meta {
   margin: 8px 0 0;
-  color: var(--text-soft);
+  color: var(--text-muted);
   font-weight: 700;
 }
 
-.carousel-btn {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 34px;
-  height: 34px;
-  border-radius: 12px;
+.live-cta {
+  border-radius: 10px;
+  padding: 10px 12px;
   border: 1px solid var(--border-color);
   background: #fff;
-  color: var(--text-strong);
   font-weight: 900;
   cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
-  z-index: 1;
 }
 
-.carousel-btn--left {
-  left: 8px;
+.live-cta--ghost {
+  background: var(--surface);
 }
 
-.carousel-btn--right {
-  right: 8px;
-}
-
-.scheduled-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
-}
-
+.live-grid,
+.scheduled-grid,
 .vod-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
 }
 
-.live-livegrid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 380px;
-  gap: 18px;
-  align-items: start;
-}
-
-.live-products {
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.live-products__head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.live-products__head h4 {
-  margin: 0;
-  font-size: 1.05rem;
-  font-weight: 900;
-  color: var(--text-strong);
-}
-
-.live-products__count {
-  border: 1px solid var(--border-color);
-  background: var(--surface-weak);
-  color: var(--text-strong);
-  padding: 6px 10px;
-  border-radius: 999px;
-  font-weight: 800;
-  font-size: 0.85rem;
-}
-
-.live-products__list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.product-row {
-  display: grid;
-  grid-template-columns: 56px minmax(0, 1fr) auto;
-  gap: 12px;
-  align-items: center;
-  padding: 10px;
+.live-more {
+  grid-column: 1 / -1;
+  padding: 12px;
   border-radius: 12px;
-  background: var(--surface-weak);
-}
-
-.product-thumb {
-  width: 56px;
-  height: 56px;
-  border-radius: 12px;
-  overflow: hidden;
-  position: relative;
-  flex: 0 0 auto;
-}
-
-.product-thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-.product-pin {
-  position: absolute;
-  top: 6px;
-  left: 6px;
-  background: rgba(15, 23, 42, 0.85);
-  color: #fff;
-  font-size: 0.7rem;
+  border: 1px dashed var(--border-color);
+  background: var(--surface);
   font-weight: 900;
-  padding: 3px 6px;
-  border-radius: 8px;
-}
-
-.product-meta {
-  min-width: 0;
-}
-
-.product-title {
-  margin: 0;
-  font-weight: 800;
-  color: var(--text-strong);
-  font-size: 0.95rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.product-option {
-  margin: 4px 0 6px;
-  color: var(--text-muted);
-  font-weight: 700;
-  font-size: 0.85rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.product-badges {
-  display: flex;
-  gap: 6px;
-}
-
-.product-status {
-  padding: 4px 8px;
-  border-radius: 999px;
-  background: rgba(16, 185, 129, 0.12);
-  color: #0f766e;
-  font-size: 0.75rem;
-  font-weight: 800;
-}
-
-.product-status.is-soldout {
-  background: rgba(239, 68, 68, 0.12);
-  color: #b91c1c;
-}
-
-.product-right {
-  text-align: right;
-}
-
-.product-price {
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
-}
-
-.product-sale {
-  font-weight: 900;
-  color: var(--text-strong);
-}
-
-.product-origin {
-  font-size: 0.75rem;
-  color: var(--text-soft);
-  text-decoration: line-through;
-}
-
-.product-stock {
-  margin: 6px 0 0;
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  font-weight: 700;
-}
-
-.live-stats {
-  margin-top: 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.live-stats__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.live-stats__head h4 {
-  margin: 0;
-  font-size: 1.1rem;
-  font-weight: 900;
-  color: var(--text-strong);
-}
-
-.live-stats__badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--text-muted);
-  font-weight: 700;
-  font-size: 0.85rem;
-}
-
-.live-stats__dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #22c55e;
-}
-
-.live-stats-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-}
-
-.live-stat-card {
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.stat-label {
-  margin: 0;
-  color: var(--text-muted);
-  font-weight: 700;
-}
-
-.stat-value {
-  margin: 0;
-  font-size: 1.2rem;
-  font-weight: 900;
-  color: var(--text-strong);
-}
-
-.stat-sub {
-  margin: 0;
-  color: var(--text-soft);
-  font-size: 0.85rem;
+  cursor: pointer;
 }
 
 @media (max-width: 1200px) {
-  .scheduled-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
+  .live-grid,
+  .scheduled-grid,
   .vod-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 960px) {
-  .scheduled-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .vod-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .live-livegrid {
@@ -1347,13 +1683,11 @@ const openVodDetail = (item: LiveItem) => {
   }
 }
 
-@media (max-width: 600px) {
-  .scheduled-grid {
-    grid-template-columns: 1fr;
-  }
-
+@media (max-width: 960px) {
+  .live-grid,
+  .scheduled-grid,
   .vod-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -1363,20 +1697,13 @@ const openVodDetail = (item: LiveItem) => {
     justify-items: start;
   }
 
-  .live-header__right {
-    width: 100%;
-    justify-content: flex-end;
-  }
-
   .live-carousel {
     padding: 10px 10px;
   }
 
-  .carousel-btn {
-    display: none;
-  }
-
-  .live-stats-grid {
+  .live-grid,
+  .scheduled-grid,
+  .vod-grid {
     grid-template-columns: 1fr;
   }
 }
