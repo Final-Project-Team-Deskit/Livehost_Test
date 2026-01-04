@@ -228,6 +228,7 @@ const cancel = () => {
 
 const openProductModal = () => {
   modalProducts.value = draft.value.products.map((p) => ({ ...p }))
+  productSearch.value = ''
   showProductModal.value = true
 }
 
@@ -444,12 +445,12 @@ watch(
                 v-for="product in filteredProducts"
                 :key="product.id"
                 class="product-card"
-                :class="{ checked: isSelected(product.id, modalProducts.value) }"
+                :class="{ checked: isSelected(product.id, modalProducts) }"
               >
                 <input
                   type="checkbox"
-                  :checked="isSelected(product.id, modalProducts.value)"
-                  @change="toggleProduct(product, modalProducts.value)"
+                  :checked="isSelected(product.id, modalProducts)"
+                  @change="toggleProduct(product, modalProducts)"
                 />
                 <div class="product-thumb" v-if="product.thumb">
                   <img :src="product.thumb" :alt="product.name" />

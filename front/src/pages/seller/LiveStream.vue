@@ -59,6 +59,7 @@ const showQCards = ref(false)
 const showBasicInfo = ref(false)
 const showSanctionModal = ref(false)
 const isLoadingStream = ref(true)
+const qCardIndex = ref(0)
 const handleFullscreenChange = () => {
   isFullscreen.value = Boolean(document.fullscreenElement)
 }
@@ -298,7 +299,7 @@ const toggleFullscreen = async () => {
       </div>
       <div class="stream-actions">
         <button type="button" class="stream-btn" :disabled="!stream" @click="showBasicInfo = true">기본정보 수정</button>
-        <button type="button" class="stream-btn" :disabled="!stream" @click="showQCards = true">큐카드 보기</button>
+        <button type="button" class="stream-btn" :disabled="!stream || !qCards.length" @click="showQCards = true">큐카드 보기</button>
         <button type="button" class="stream-btn stream-btn--danger" :disabled="!stream" @click="requestEndBroadcast">
           방송 종료
         </button>
@@ -553,7 +554,7 @@ const toggleFullscreen = async () => {
       :cancel-text="confirmState.cancelText"
       @confirm="handleConfirmAction"
     />
-    <QCardModal v-model="showQCards" :q-cards="qCards" />
+    <QCardModal v-model="showQCards" :q-cards="qCards" :initial-index="qCardIndex" @update:initialIndex="qCardIndex = $event" />
     <BasicInfoEditModal v-if="broadcastInfo" v-model="showBasicInfo" :broadcast="broadcastInfo" @save="handleBasicInfoSave" />
     <ChatSanctionModal v-model="showSanctionModal" :username="sanctionTarget" @save="applySanction" />
   </PageContainer>

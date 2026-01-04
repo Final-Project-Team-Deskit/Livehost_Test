@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PageContainer from '../../../components/PageContainer.vue'
+import QCardModal from '../../../components/QCardModal.vue'
 import { getSellerReservationDetail, type SellerReservationDetail } from '../../../lib/mocks/sellerReservations'
 
 const route = useRoute()
@@ -9,6 +10,7 @@ const router = useRouter()
 
 const reservationId = computed(() => (typeof route.params.reservationId === 'string' ? route.params.reservationId : ''))
 const detail = ref<SellerReservationDetail>(getSellerReservationDetail(reservationId.value))
+const qCardIndex = ref(0)
 
 const goBack = () => {
   router.back()
@@ -144,16 +146,12 @@ const displayedCancelReason = computed(() =>
       </div>
     </div>
 
-    <div v-if="showCueCard" class="modal">
-      <div class="modal__backdrop" @click="showCueCard = false"></div>
-      <div class="modal__card ds-surface">
-        <header class="modal__head">
-          <h3>큐카드</h3>
-          <button type="button" class="btn ghost" @click="showCueCard = false">닫기</button>
-        </header>
-        <p class="modal__content">방송 흐름과 안내 멘트를 확인하세요. (데모 화면)</p>
-      </div>
-    </div>
+    <QCardModal
+      v-model="showCueCard"
+      :q-cards="detail.cueQuestions || []"
+      :initial-index="qCardIndex"
+      @update:initialIndex="qCardIndex = $event"
+    />
   </PageContainer>
 </template>
 
