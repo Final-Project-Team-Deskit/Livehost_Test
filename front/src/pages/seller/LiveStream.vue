@@ -372,8 +372,8 @@ const toggleFullscreen = async () => {
             :aria-label="showProducts ? '상품 패널 닫기' : '상품 패널 열기'"
             @click="showProducts = !showProducts"
           >
-            <span aria-hidden="true">{{ showProducts ? '✕' : '🛍' }}</span>
-            <span class="sr-only">{{ showProducts ? '상품 패널 닫기' : '상품 패널 열기' }}</span>
+            <span aria-hidden="true">🛍</span>
+            <span>상품</span>
           </button>
           <button
             type="button"
@@ -382,8 +382,8 @@ const toggleFullscreen = async () => {
             :aria-label="showChat ? '채팅 패널 닫기' : '채팅 패널 열기'"
             @click="showChat = !showChat"
           >
-            <span aria-hidden="true">{{ showChat ? '✕' : '💬' }}</span>
-            <span class="sr-only">{{ showChat ? '채팅 패널 닫기' : '채팅 패널 열기' }}</span>
+            <span aria-hidden="true">💬</span>
+            <span>채팅</span>
           </button>
           <button
             type="button"

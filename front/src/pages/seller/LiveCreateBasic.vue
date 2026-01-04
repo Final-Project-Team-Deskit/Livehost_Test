@@ -25,6 +25,7 @@ const standbyError = ref('')
 const error = ref('')
 const showTermsModal = ref(false)
 const showProductModal = ref(false)
+const modalProducts = ref<LiveCreateProduct[]>([])
 
 const reservationId = computed(() => (typeof route.query.reservationId === 'string' ? route.query.reservationId : ''))
 const isEditMode = computed(() => route.query.mode === 'edit' && !!reservationId.value)
@@ -52,18 +53,29 @@ const filteredProducts = computed(() => {
   })
 })
 
-const isSelected = (productId: string) => draft.value.products.some((item) => item.id === productId)
+const isSelected = (productId: string, source: LiveCreateProduct[] = draft.value.products) =>
+  source.some((item) => item.id === productId)
 
-const toggleProduct = (product: LiveCreateProduct) => {
-  if (!isSelected(product.id) && draft.value.products.length >= 10) {
+const toggleProduct = (product: LiveCreateProduct, target: LiveCreateProduct[] = draft.value.products) => {
+  if (!isSelected(product.id, target) && target.length >= 10) {
     error.value = '상품은 최대 10개까지 등록할 수 있습니다.'
     return
   }
-  if (isSelected(product.id)) {
-    draft.value.products = draft.value.products.filter((item) => item.id !== product.id)
+  if (isSelected(product.id, target)) {
+    const next = target.filter((item) => item.id !== product.id)
+    if (target === draft.value.products) {
+      draft.value.products = next
+    } else {
+      modalProducts.value = next
+    }
     return
   }
-  draft.value.products.push({ ...product })
+  const next = [...target, { ...product }]
+  if (target === draft.value.products) {
+    draft.value.products = next
+  } else {
+    modalProducts.value = next
+  }
 }
 
 const updateProductPrice = (productId: string, value: number) => {
@@ -208,6 +220,21 @@ const cancel = () => {
   router.push(redirect).catch(() => {})
 }
 
+const openProductModal = () => {
+  modalProducts.value = draft.value.products.map((p) => ({ ...p }))
+  showProductModal.value = true
+}
+
+const cancelProductSelection = () => {
+  showProductModal.value = false
+}
+
+const saveProductSelection = () => {
+  draft.value.products = modalProducts.value.map((p) => ({ ...p }))
+  showProductModal.value = false
+  alert('상품 선택이 저장되었습니다.')
+}
+
 const timeOptions = computed(() => {
   const options: string[] = []
   for (let hour = 0; hour < 24; hour += 1) {
@@ -238,10 +265,8 @@ watch(
       <PageHeader :eyebrow="isEditMode ? 'DESKIT' : 'DESKIT'" :title="isEditMode ? '예약 수정 - 기본 정보' : '방송 등록 - 기본 정보'" />
     <section class="create-card ds-surface">
       <div class="step-meta">
-        <div class="step-actions">
-          <button type="button" class="btn ghost" @click="goPrev">이전</button>
-          <span class="step-indicator">2 / 2 단계</span>
-        </div>
+        <span class="step-indicator">2 / 2 단계</span>
+        <button type="button" class="btn ghost" @click="goPrev">이전</button>
       </div>
       <label class="field">
         <span class="field__label">방송 제목</span>
@@ -290,7 +315,7 @@ watch(
           <span class="count-pill">선택 {{ draft.products.length }}개</span>
         </div>
         <div class="product-search-bar">
-          <button type="button" class="btn" @click="showProductModal = true">상품 선택</button>
+          <button type="button" class="btn" @click="openProductModal">상품 선택</button>
           <span class="search-hint">최소 1개, 최대 10개 선택</span>
         </div>
         <div v-if="draft.products.length" class="product-table-wrap">
@@ -339,7 +364,18 @@ watch(
                 </td>
                 <td class="numeric">{{ product.stock }}</td>
                 <td>
-                  <button type="button" class="btn ghost" @click="toggleProduct(product)">제거</button>
+                  <button
+                    type="button"
+                    class="btn ghost"
+                    @click="
+                      () => {
+                        const ok = window.confirm('이 상품을 리스트에서 제거하시겠어요?')
+                        if (ok) toggleProduct(product)
+                      }
+                    "
+                  >
+                    제거
+                  </button>
                 </td>
               </tr>
             </tbody>
@@ -388,24 +424,21 @@ watch(
         <div class="modal__content">
           <div class="modal__header">
             <h3>상품 선택</h3>
-            <button type="button" class="btn ghost" @click="showProductModal = false">닫기</button>
+            <button type="button" class="btn ghost" aria-label="닫기" @click="cancelProductSelection">×</button>
           </div>
           <div class="modal__body">
             <div class="product-search-bar modal-search">
-              <div class="search-input">
-                <span class="search-icon">🔍</span>
-                <input v-model="productSearch" type="text" placeholder="상품명을 검색하세요" />
-              </div>
-              <span class="search-hint">체크박스로 선택 후 닫기를 누르면 반영됩니다.</span>
+              <input v-model="productSearch" class="search-input__plain" type="text" placeholder="상품명을 검색하세요" />
+              <span class="search-hint">체크박스로 선택 후 저장을 누르면 반영됩니다.</span>
             </div>
             <div class="product-grid">
               <label
                 v-for="product in filteredProducts"
                 :key="product.id"
                 class="product-card"
-                :class="{ checked: isSelected(product.id) }"
+                :class="{ checked: isSelected(product.id, modalProducts) }"
               >
-                <input type="checkbox" :checked="isSelected(product.id)" @change="toggleProduct(product)" />
+                <input type="checkbox" :checked="isSelected(product.id, modalProducts)" @change="toggleProduct(product, modalProducts)" />
                 <div class="product-thumb" v-if="product.thumb">
                   <img :src="product.thumb" :alt="product.name" />
                 </div>
@@ -418,6 +451,13 @@ watch(
                   </div>
                 </div>
               </label>
+            </div>
+          </div>
+          <div class="modal__footer">
+            <span class="modal__count">선택 {{ modalProducts.length }}개</span>
+            <div class="modal__actions">
+              <button type="button" class="btn ghost" @click="cancelProductSelection">취소</button>
+              <button type="button" class="btn primary" @click="saveProductSelection">저장</button>
             </div>
           </div>
         </div>
@@ -452,12 +492,6 @@ watch(
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-}
-
-.step-actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
 }
 
 .step-indicator {
@@ -656,6 +690,25 @@ input[type='file'] {
   overflow: auto;
 }
 
+.modal__footer {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.modal__count {
+  font-weight: 800;
+  color: var(--text-strong);
+}
+
+.modal__actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
 .btn {
   border-radius: 999px;
   padding: 10px 18px;
@@ -691,6 +744,16 @@ input[type='file'] {
 .search-input {
   position: relative;
   flex: 1 1 320px;
+}
+
+.search-input__plain {
+  width: 100%;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-weight: 700;
+  color: var(--text-strong);
+  background: var(--surface);
 }
 
 .search-input input {
