@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PageContainer from '../../../components/PageContainer.vue'
 import { getSellerVodDetail } from '../../../lib/mocks/sellerVods'
@@ -7,10 +7,8 @@ import { getSellerVodDetail } from '../../../lib/mocks/sellerVods'
 const route = useRoute()
 const router = useRouter()
 
-const detail = computed(() => {
-  const id = typeof route.params.vodId === 'string' ? route.params.vodId : ''
-  return getSellerVodDetail(id)
-})
+const vodId = typeof route.params.vodId === 'string' ? route.params.vodId : ''
+const detail = ref(getSellerVodDetail(vodId))
 
 const goBack = () => {
   router.back()
@@ -21,15 +19,52 @@ const goToList = () => {
 }
 
 const toggleVisibility = () => {
-  console.log('[vod] toggle visibility', detail.value.id)
+  const next = detail.value.vod.visibility === '공개' ? '비공개' : '공개'
+  detail.value = { ...detail.value, vod: { ...detail.value.vod, visibility: next } }
 }
 
 const handleDownload = () => {
-  console.log('[vod] download', detail.value.id)
+  window.alert('VOD 파일을 다운로드합니다. (데모)')
 }
 
 const handleDelete = () => {
-  console.log('[vod] delete', detail.value.id)
+  const ok = window.confirm('해당 VOD를 삭제하시겠습니까?')
+  if (!ok) return
+  window.alert('VOD가 삭제되었습니다. (데모)')
+}
+
+const showChat = ref(false)
+const chatText = ref('')
+const chatMessages = ref([
+  { id: 'c1', user: '시청자A', text: '잘 봤어요!', time: '오후 2:10' },
+  { id: 'c2', user: '관리자', text: '채팅은 보관용입니다.', time: '오후 2:12' },
+])
+
+const sendChat = () => {
+  if (!chatText.value.trim()) return
+  chatMessages.value = [...chatMessages.value, { id: `c-${Date.now()}`, user: '관리자', text: chatText.value, time: '방금' }]
+  chatText.value = ''
+}
+
+const videoRef = ref<HTMLVideoElement | null>(null)
+
+const requestFullscreen = () => {
+  const el = videoRef.value
+  if (!el) return
+  if (document.fullscreenElement) {
+    document.exitFullscreen().catch(() => {})
+    return
+  }
+  el.requestFullscreen?.()
+}
+
+const requestMini = () => {
+  const el = videoRef.value
+  if (!el) return
+  if ('requestPictureInPicture' in el) {
+    // @ts-ignore
+    el.requestPictureInPicture().catch(() => {})
+  }
 }
 </script>
 
@@ -85,17 +120,43 @@ const handleDelete = () => {
         <div class="vod-actions">
           <label class="toggle">
             <input type="checkbox" :checked="detail.vod.visibility === '공개'" @change="toggleVisibility" />
-            <span>{{ detail.vod.visibility }}</span>
+            <span>{{ detail.vod.visibility === '공개' ? '공개' : '비공개' }}</span>
           </label>
-          <button type="button" class="icon-btn" @click="handleDownload">다운로드</button>
-          <button type="button" class="icon-btn danger" @click="handleDelete">삭제</button>
+          <button type="button" class="icon-btn" @click="handleDownload">⬇ 다운로드</button>
+          <button type="button" class="icon-btn danger" @click="handleDelete">🗑 삭제</button>
         </div>
       </div>
       <div class="vod-player">
-        <video v-if="detail.vod.url" :src="detail.vod.url" controls />
-        <div v-else class="vod-placeholder">
-          <span>재생할 VOD가 없습니다.</span>
+        <div class="player-shell">
+          <video v-if="detail.vod.url" ref="videoRef" :src="detail.vod.url" controls></video>
+          <div v-else class="vod-placeholder">
+            <span>재생할 VOD가 없습니다.</span>
+          </div>
+          <div class="player-controls">
+            <button type="button" class="icon-btn" @click="requestFullscreen">⛶ 전체화면</button>
+            <button type="button" class="icon-btn" @click="requestMini">▣ 축소화면</button>
+            <button type="button" class="icon-btn" @click="showChat = !showChat">{{ showChat ? '채팅 닫기' : '채팅 보기' }}</button>
+          </div>
         </div>
+        <aside v-if="showChat" class="chat-panel ds-surface">
+          <header class="chat-head">
+            <h4>채팅</h4>
+            <button type="button" class="icon-btn" @click="showChat = false">✕</button>
+          </header>
+          <div class="chat-list">
+            <div v-for="msg in chatMessages" :key="msg.id" class="chat-row">
+              <div class="chat-meta">
+                <span class="chat-user">{{ msg.user }}</span>
+                <span class="chat-time">{{ msg.time }}</span>
+              </div>
+              <p class="chat-text">{{ msg.text }}</p>
+            </div>
+          </div>
+          <div class="chat-input">
+            <input v-model="chatText" type="text" placeholder="메시지 입력" />
+            <button type="button" class="btn primary" @click="sendChat">전송</button>
+          </div>
+        </aside>
       </div>
     </section>
 
@@ -298,21 +359,95 @@ const handleDelete = () => {
   border-radius: 14px;
   border: 1px solid var(--border-color);
   background: var(--surface-weak);
-  aspect-ratio: 16 / 9;
   display: grid;
-  place-items: center;
+  grid-template-columns: 2fr 1fr;
+  gap: 12px;
   overflow: hidden;
+  align-items: start;
+}
+
+.player-shell {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .vod-player video {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  border-radius: 12px;
 }
 
 .vod-placeholder {
   color: var(--text-muted);
   font-weight: 700;
+  display: grid;
+  place-items: center;
+  min-height: 260px;
+  border-radius: 12px;
+}
+
+.player-controls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.chat-panel {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-radius: 0 12px 12px 0;
+}
+
+.chat-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.chat-list {
+  max-height: 240px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chat-row {
+  background: var(--surface-weak);
+  border-radius: 10px;
+  padding: 8px;
+}
+
+.chat-meta {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-weight: 800;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.chat-text {
+  margin: 0;
+  font-weight: 700;
+  color: var(--text-strong);
+}
+
+.chat-input {
+  display: flex;
+  gap: 6px;
+}
+
+.chat-input input {
+  flex: 1;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 8px 10px;
 }
 
 .table-wrap {
@@ -342,6 +477,10 @@ const handleDelete = () => {
 @media (max-width: 960px) {
   .kpi-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .vod-player {
+    grid-template-columns: 1fr;
   }
 }
 

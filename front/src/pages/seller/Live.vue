@@ -52,11 +52,6 @@ const vodVisibleCount = ref(8)
 const showDeviceModal = ref(false)
 const selectedScheduled = ref<LiveItem | null>(null)
 
-const navSelection = computed<'list' | 'stats'>(() => {
-  if (route.path.includes('/seller/live/stats')) return 'stats'
-  return 'list'
-})
-
 const liveItems = ref<LiveItem[]>([])
 const liveProducts = ref(
   [
@@ -352,6 +347,8 @@ const scheduledCategories = computed(() =>
   Array.from(new Set(filteredScheduledItems.value.map((item) => item.category ?? '기타'))),
 )
 
+const scheduledLoop = computed(() => (filteredScheduledItems.value.length ? [...filteredScheduledItems.value, ...filteredScheduledItems.value] : []))
+
 const visibleScheduledItems = computed(() => filteredScheduledItems.value.slice(0, scheduledVisibleCount.value))
 const visibleVodItems = computed(() => filteredVodItems.value.slice(0, vodVisibleCount.value))
 
@@ -546,13 +543,6 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="live-header__right">
-        <label class="inline-filter">
-          <span>섹션</span>
-          <select :value="navSelection" @change="handleNavChange(($event.target as HTMLSelectElement).value as any)">
-            <option value="list">방송 목록</option>
-            <option value="stats">방송 통계</option>
-          </select>
-        </label>
         <label v-if="activeTab === 'live'" class="inline-filter">
           <span>정렬</span>
           <select v-model="liveSort">
@@ -567,7 +557,10 @@ onBeforeUnmount(() => {
 
     <section v-if="visibleLive" class="live-section">
       <div class="live-section__head">
-        <h3>방송 중</h3>
+        <div class="live-section__title">
+          <h3>방송 중</h3>
+          <button class="link-more" type="button" @click="setTab('live')">+ 더보기</button>
+        </div>
         <p class="ds-section-sub">현재 진행 중인 라이브 방송입니다.</p>
       </div>
 
@@ -595,8 +588,8 @@ onBeforeUnmount(() => {
           <button type="button" class="live-feature__cta" @click="handleCta('live', currentLive!)">방송 입장</button>
         </article>
         <article v-else class="live-feature ds-surface live-feature--empty">
-          <p class="live-card__title">등록된 방송이 없습니다.</p>
-          <p class="live-card__meta">새 방송을 등록해보세요.</p>
+          <p class="live-card__title">현재 진행 중인 방송이 없습니다.</p>
+          <p class="live-card__meta">라이브를 시작하면 여기에서 실시간 상태를 볼 수 있어요.</p>
         </article>
 
         <article class="live-products ds-surface">
@@ -696,7 +689,10 @@ onBeforeUnmount(() => {
 
     <section v-if="visibleScheduled" class="live-section">
       <div class="live-section__head">
-        <h3>예약된 방송</h3>
+        <div class="live-section__title">
+          <h3>예약된 방송</h3>
+          <button class="link-more" type="button" @click="setTab('scheduled')">+ 더보기</button>
+        </div>
         <p class="ds-section-sub">예정된 라이브 스케줄을 관리하세요.</p>
       </div>
 
@@ -748,7 +744,12 @@ onBeforeUnmount(() => {
                 <p class="live-date">{{ item.datetime }}</p>
                 <p class="live-seller">{{ item.category }}</p>
               </div>
-              <button type="button" class="live-cta live-cta--ghost" @click.stop="handleCta('scheduled', item)">
+              <button
+                v-if="canStartNow(item)"
+                type="button"
+                class="live-cta live-cta--ghost"
+                @click.stop="handleCta('scheduled', item)"
+              >
                 {{ item.ctaLabel }}
               </button>
             </div>
@@ -771,15 +772,11 @@ onBeforeUnmount(() => {
       </div>
 
       <div v-else class="carousel-wrap">
-        <button type="button" class="carousel-btn carousel-btn--left" aria-label="예약 방송 왼쪽 이동" @click="scrollCarousel('scheduled', -1)">
-          ‹
-        </button>
-
-        <div class="live-carousel" :ref="setCarouselRef('scheduled')" aria-label="예약 방송 목록">
-          <template v-if="filteredScheduledItems.length">
+        <div class="live-carousel live-carousel--loop" :ref="setCarouselRef('scheduled')" aria-label="예약 방송 목록">
+          <template v-if="scheduledLoop.length">
             <article
-              v-for="item in filteredScheduledItems"
-              :key="item.id"
+              v-for="(item, idx) in scheduledLoop"
+              :key="`${item.id}-${idx}`"
               class="live-card ds-surface live-card--clickable"
               @click="openReservationDetail(item)"
             >
@@ -795,7 +792,12 @@ onBeforeUnmount(() => {
                   <p class="live-date">{{ item.datetime }}</p>
                   <p class="live-seller">{{ item.category }}</p>
                 </div>
-                <button type="button" class="live-cta live-cta--ghost" @click.stop="handleCta('scheduled', item)">
+                <button
+                  v-if="canStartNow(item)"
+                  type="button"
+                  class="live-cta live-cta--ghost"
+                  @click.stop="handleCta('scheduled', item)"
+                >
                   {{ item.ctaLabel }}
                 </button>
               </div>
@@ -807,16 +809,15 @@ onBeforeUnmount(() => {
             <p class="live-card__meta">예약 방송을 추가해보세요.</p>
           </article>
         </div>
-
-        <button type="button" class="carousel-btn carousel-btn--right" aria-label="예약 방송 오른쪽 이동" @click="scrollCarousel('scheduled', 1)">
-          ›
-        </button>
       </div>
     </section>
 
     <section v-if="visibleVod" class="live-section">
       <div class="live-section__head">
-        <h3>VOD</h3>
+        <div class="live-section__title">
+          <h3>VOD</h3>
+          <button class="link-more" type="button" @click="setTab('vod')">+ 더보기</button>
+        </div>
         <p class="ds-section-sub">저장된 다시보기 콘텐츠를 확인합니다.</p>
       </div>
 
@@ -879,9 +880,6 @@ onBeforeUnmount(() => {
                 <p class="live-date">{{ item.datetime }}</p>
                 <p class="live-seller">{{ item.category }}</p>
               </div>
-                <button type="button" class="live-cta live-cta--ghost" @click.stop="handleCta('vod', item)">
-                  {{ item.ctaLabel }}
-                </button>
             </div>
           </article>
 
@@ -902,15 +900,11 @@ onBeforeUnmount(() => {
       </div>
 
       <div v-else class="carousel-wrap">
-        <button type="button" class="carousel-btn carousel-btn--left" aria-label="VOD 왼쪽 이동" @click="scrollCarousel('vod', -1)">
-          ‹
-        </button>
-
-        <div class="live-carousel" :ref="setCarouselRef('vod')" aria-label="VOD 목록">
+        <div class="live-carousel live-carousel--loop" :ref="setCarouselRef('vod')" aria-label="VOD 목록">
           <template v-if="filteredVodItems.length">
             <article
-              v-for="item in filteredVodItems"
-              :key="item.id"
+              v-for="(item, idx) in filteredVodItems"
+              :key="`${item.id}-${idx}`"
               class="live-card ds-surface live-card--clickable"
               @click="openVodDetail(item)"
             >
@@ -926,9 +920,6 @@ onBeforeUnmount(() => {
                   <p class="live-date">{{ item.datetime }}</p>
                   <p class="live-seller">{{ item.category }}</p>
                 </div>
-              <button type="button" class="live-cta live-cta--ghost" @click.stop="handleCta('vod', item)">
-                {{ item.ctaLabel }}
-              </button>
               </div>
             </article>
           </template>
@@ -938,10 +929,6 @@ onBeforeUnmount(() => {
             <p class="live-card__meta">방송이 종료되면 자동 등록됩니다.</p>
           </article>
         </div>
-
-        <button type="button" class="carousel-btn carousel-btn--right" aria-label="VOD 오른쪽 이동" @click="scrollCarousel('vod', 1)">
-          ›
-        </button>
       </div>
     </section>
 
@@ -1055,11 +1042,26 @@ onBeforeUnmount(() => {
   margin-bottom: 12px;
 }
 
+.live-section__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .live-section__head h3 {
   margin: 0;
   font-size: 1.3rem;
   font-weight: 900;
   color: var(--text-strong);
+}
+
+.link-more {
+  border: none;
+  background: transparent;
+  color: var(--primary-color);
+  font-weight: 900;
+  cursor: pointer;
+  padding: 4px 6px;
 }
 
 .vod-filters,
@@ -1453,6 +1455,10 @@ onBeforeUnmount(() => {
 .live-carousel::-webkit-scrollbar-thumb {
   background: rgba(15, 23, 42, 0.12);
   border-radius: 999px;
+}
+
+.live-carousel--loop {
+  grid-auto-columns: minmax(260px, 280px);
 }
 
 .live-card {
