@@ -65,6 +65,8 @@ const saveCancel = () => {
     cancelError.value = '기타 사유를 입력해주세요.'
     return
   }
+  const ok = window.confirm('예약을 취소하시겠습니까?')
+  if (!ok) return
   if (!detail.value) return
   cancelAdminReservation(detail.value.id)
   detail.value = {

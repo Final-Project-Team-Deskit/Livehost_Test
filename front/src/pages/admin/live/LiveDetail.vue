@@ -88,6 +88,8 @@ const handleStopSave = () => {
     error.value = '중지 사유를 입력해주세요.'
     return
   }
+  const ok = window.confirm('방송 송출을 중지하시겠습니까?')
+  if (!ok) return
   stopAdminLiveBroadcast(detail.value.id, {
     reason: stopReason.value,
     detail: stopReason.value === '기타' ? stopDetail.value.trim() : undefined,
@@ -164,6 +166,8 @@ const saveModeration = () => {
     window.alert('제재 사유를 입력해주세요.')
     return
   }
+  const confirmModeration = window.confirm('입력한 내용으로 시청자를 제재하시겠습니까?')
+  if (!confirmModeration) return
   const target = moderationTarget.value
   if (!target) return
   const now = new Date()
@@ -493,8 +497,9 @@ watch(liveId, loadDetail, { immediate: true })
   right: 14px;
   bottom: 14px;
   display: inline-flex;
+  flex-direction: column;
   gap: 10px;
-  align-items: center;
+  align-items: flex-end;
 }
 
 .icon-circle {
