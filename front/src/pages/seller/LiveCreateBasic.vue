@@ -56,26 +56,25 @@ const filteredProducts = computed(() => {
 const isSelected = (productId: string, source: LiveCreateProduct[] = draft.value.products) =>
   source.some((item) => item.id === productId)
 
-const toggleProduct = (product: LiveCreateProduct, target: LiveCreateProduct[] = draft.value.products) => {
+const addProduct = (product: LiveCreateProduct, target: LiveCreateProduct[]) => {
   if (!isSelected(product.id, target) && target.length >= 10) {
     error.value = '상품은 최대 10개까지 등록할 수 있습니다.'
-    return
+    return target
   }
-  if (isSelected(product.id, target)) {
-    const next = target.filter((item) => item.id !== product.id)
-    if (target === draft.value.products) {
-      draft.value.products = next
-    } else {
-      modalProducts.value = next
-    }
-    return
-  }
-  const next = [...target, { ...product }]
-  if (target === draft.value.products) {
-    draft.value.products = next
-  } else {
-    modalProducts.value = next
-  }
+  if (isSelected(product.id, target)) return target
+  return [...target, { ...product }]
+}
+
+const removeProduct = (productId: string, target: LiveCreateProduct[]) => target.filter((item) => item.id !== productId)
+
+const toggleProductInDraft = (product: LiveCreateProduct) => {
+  draft.value.products = isSelected(product.id) ? removeProduct(product.id, draft.value.products) : addProduct(product, draft.value.products)
+}
+
+const toggleProductInModal = (product: LiveCreateProduct) => {
+  modalProducts.value = isSelected(product.id, modalProducts.value)
+    ? removeProduct(product.id, modalProducts.value)
+    : addProduct(product, modalProducts.value)
 }
 
 const updateProductPrice = (productId: string, value: number) => {
@@ -375,15 +374,15 @@ watch(
                   <button
                     type="button"
                     class="btn ghost"
-                    @click="
-                      () => {
-                        const ok = window.confirm('이 상품을 리스트에서 제거하시겠어요?')
-                        if (ok) toggleProduct(product)
-                      }
-                    "
-                  >
-                    제거
-                  </button>
+                  @click="
+                    () => {
+                      const ok = window.confirm('이 상품을 리스트에서 제거하시겠어요?')
+                      if (ok) draft.value.products = removeProduct(product.id, draft.value.products)
+                    }
+                  "
+                >
+                  제거
+                </button>
                 </td>
               </tr>
             </tbody>
@@ -440,34 +439,34 @@ watch(
               <input v-model="productSearch" class="search-input__plain" type="text" placeholder="상품명을 검색하세요" />
               <span class="search-hint">체크박스로 선택 후 저장을 누르면 반영됩니다.</span>
             </div>
-            <div class="product-grid">
-              <label
-                v-for="product in filteredProducts"
-                :key="product.id"
-                class="product-card"
-                :class="{ checked: isSelected(product.id, modalProducts) }"
-              >
-                <input
-                  type="checkbox"
-                  :checked="isSelected(product.id, modalProducts)"
-                  @change="toggleProduct(product, modalProducts)"
-                />
-                <div class="product-thumb" v-if="product.thumb">
-                  <img :src="product.thumb" :alt="product.name" />
-                </div>
-                <div class="product-content">
-                  <div class="product-name">{{ product.name }}</div>
-                  <div class="product-meta">
-                    <span>{{ product.option }}</span>
-                    <span>정가 {{ product.price.toLocaleString() }}원</span>
-                    <span>재고 {{ product.stock }}</span>
-                  </div>
-                </div>
-              </label>
+        <div class="product-grid">
+          <label
+            v-for="product in filteredProducts"
+            :key="product.id"
+            class="product-card"
+            :class="{ checked: isSelected(product.id, modalProducts.value) }"
+          >
+            <input
+              type="checkbox"
+              :checked="isSelected(product.id, modalProducts.value)"
+              @change="toggleProductInModal(product)"
+            />
+            <div class="product-thumb" v-if="product.thumb">
+              <img :src="product.thumb" :alt="product.name" />
             </div>
+            <div class="product-content">
+              <div class="product-name">{{ product.name }}</div>
+              <div class="product-meta">
+                <span>{{ product.option }}</span>
+                <span>정가 {{ product.price.toLocaleString() }}원</span>
+                <span>재고 {{ product.stock }}</span>
+              </div>
+            </div>
+          </label>
+        </div>
           </div>
           <div class="modal__footer">
-            <span class="modal__count">선택 {{ modalProducts.length }}개</span>
+            <span class="modal__count">선택 {{ modalProducts.value.length }}개</span>
             <div class="modal__actions">
               <button type="button" class="btn ghost" @click="cancelProductSelection">취소</button>
               <button type="button" class="btn primary" @click="saveProductSelection">저장</button>
