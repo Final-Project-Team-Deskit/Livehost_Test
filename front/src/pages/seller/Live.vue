@@ -35,7 +35,6 @@ type LiveItem = {
 }
 
 const activeTab = ref<LiveTab>('all')
-const liveSort = ref<'viewers_desc' | 'likes_desc' | 'latest'>('viewers_desc')
 
 const scheduledStatus = ref<'all' | 'reserved' | 'canceled'>('all')
 const scheduledCategory = ref<string>('all')
@@ -277,13 +276,7 @@ const buildLiveItems = () => {
 
 const liveItemsSorted = computed(() => {
   const sorted = [...liveItems.value]
-  if (liveSort.value === 'viewers_desc') {
-    sorted.sort((a, b) => (b.viewers ?? 0) - (a.viewers ?? 0))
-  } else if (liveSort.value === 'likes_desc') {
-    sorted.sort((a, b) => (b.likes ?? 0) - (a.likes ?? 0))
-  } else if (liveSort.value === 'latest') {
-    sorted.sort((a, b) => toDateMs(b) - toDateMs(a))
-  }
+  sorted.sort((a, b) => (b.viewers ?? 0) - (a.viewers ?? 0))
   return sorted
 })
 
@@ -715,14 +708,6 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="live-header__right">
-        <label v-if="activeTab === 'all'" class="inline-filter">
-          <span>정렬</span>
-          <select v-model="liveSort">
-            <option value="viewers_desc">시청자 많은 순</option>
-            <option value="likes_desc">좋아요 많은 순</option>
-            <option value="latest">최신 순</option>
-          </select>
-        </label>
         <button type="button" class="live-create-btn" @click="handleCreate">방송 등록</button>
       </div>
     </header>

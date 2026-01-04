@@ -24,6 +24,7 @@ const thumbError = ref('')
 const standbyError = ref('')
 const error = ref('')
 const showTermsModal = ref(false)
+const showProductModal = ref(false)
 
 const reservationId = computed(() => (typeof route.query.reservationId === 'string' ? route.query.reservationId : ''))
 const isEditMode = computed(() => route.query.mode === 'edit' && !!reservationId.value)
@@ -79,14 +80,16 @@ const updateProductQuantity = (productId: string, value: number) => {
 }
 
 const syncDraft = () => {
+  const trimmedQuestions = draft.value.questions.map((q) => ({ ...q, text: q.text.trim() })).filter((q) => q.text.length > 0)
   saveDraft({
     ...draft.value,
     title: draft.value.title.trim(),
     subtitle: draft.value.subtitle?.trim() ?? '',
     category: draft.value.category.trim(),
     notice: draft.value.notice.trim(),
-    questions: draft.value.questions.map((q) => ({ ...q, text: q.text.trim() })),
+    questions: trimmedQuestions,
   })
+  draft.value.questions = trimmedQuestions
 }
 
 const restoreDraft = () => {
@@ -146,11 +149,8 @@ const submit = () => {
   thumbError.value = ''
   standbyError.value = ''
 
-  if (draft.value.questions.some((q) => !isQuestionValid(q.text))) {
-    error.value = '큐카드 질문을 모두 등록해주세요.'
-    router.push({ path: '/seller/live/create', query: route.query }).catch(() => {})
-    return
-  }
+  const trimmedQuestions = draft.value.questions.map((q) => ({ ...q, text: q.text.trim() })).filter((q) => q.text.length > 0)
+  draft.value.questions = trimmedQuestions
 
   if (!draft.value.title.trim() || !draft.value.category || !draft.value.date || !draft.value.time) {
     error.value = '방송 제목, 카테고리, 일정을 입력해주세요.'
@@ -166,6 +166,9 @@ const submit = () => {
     error.value = '약관에 동의해주세요.'
     return
   }
+
+  const confirmed = window.confirm(isEditMode.value ? '예약 수정을 진행할까요?' : '방송 등록을 진행할까요?')
+  if (!confirmed) return
 
   const id = draft.value.reservationId || `schedule-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
   const datetime = `${draft.value.date} ${draft.value.time}`
@@ -197,6 +200,8 @@ const goPrev = () => {
 }
 
 const cancel = () => {
+  const ok = window.confirm('작성 중인 내용을 취소하시겠어요?')
+  if (!ok) return
   const redirect = isEditMode.value && reservationId.value
     ? `/seller/broadcasts/reservations/${reservationId.value}`
     : '/seller/live?tab=scheduled'
@@ -229,13 +234,13 @@ watch(
 </script>
 
 <template>
-  <PageContainer>
-    <PageHeader :eyebrow="isEditMode ? 'DESKIT' : 'DESKIT'" :title="isEditMode ? '예약 수정 - 기본 정보' : '방송 등록 - 기본 정보'" />
+    <PageContainer>
+      <PageHeader :eyebrow="isEditMode ? 'DESKIT' : 'DESKIT'" :title="isEditMode ? '예약 수정 - 기본 정보' : '방송 등록 - 기본 정보'" />
     <section class="create-card ds-surface">
       <div class="step-meta">
         <div class="step-actions">
           <button type="button" class="btn ghost" @click="goPrev">이전</button>
-          <button type="button" class="btn ghost" @click="cancel">취소</button>
+          <span class="step-indicator">2 / 2 단계</span>
         </div>
       </div>
       <label class="field">
@@ -285,27 +290,8 @@ watch(
           <span class="count-pill">선택 {{ draft.products.length }}개</span>
         </div>
         <div class="product-search-bar">
-          <div class="search-input">
-            <span class="search-icon">🔍</span>
-            <input v-model="productSearch" type="text" placeholder="상품명을 검색하세요" />
-          </div>
+          <button type="button" class="btn" @click="showProductModal = true">상품 선택</button>
           <span class="search-hint">최소 1개, 최대 10개 선택</span>
-        </div>
-        <div class="product-grid">
-          <label v-for="product in filteredProducts" :key="product.id" class="product-card" :class="{ checked: isSelected(product.id) }">
-            <input type="checkbox" :checked="isSelected(product.id)" @change="toggleProduct(product)" />
-            <div class="product-thumb" v-if="product.thumb">
-              <img :src="product.thumb" :alt="product.name" />
-            </div>
-            <div class="product-content">
-              <div class="product-name">{{ product.name }}</div>
-              <div class="product-meta">
-                <span>{{ product.option }}</span>
-                <span>정가 {{ product.price.toLocaleString() }}원</span>
-                <span>재고 {{ product.stock }}</span>
-              </div>
-            </div>
-          </label>
         </div>
         <div v-if="draft.products.length" class="product-table-wrap">
           <table>
@@ -398,6 +384,44 @@ watch(
           <button type="button" class="btn primary" @click="submit">{{ isEditMode ? '저장' : '방송 등록' }}</button>
         </div>
       </div>
+      <div v-if="showProductModal" class="modal">
+        <div class="modal__content">
+          <div class="modal__header">
+            <h3>상품 선택</h3>
+            <button type="button" class="btn ghost" @click="showProductModal = false">닫기</button>
+          </div>
+          <div class="modal__body">
+            <div class="product-search-bar modal-search">
+              <div class="search-input">
+                <span class="search-icon">🔍</span>
+                <input v-model="productSearch" type="text" placeholder="상품명을 검색하세요" />
+              </div>
+              <span class="search-hint">체크박스로 선택 후 닫기를 누르면 반영됩니다.</span>
+            </div>
+            <div class="product-grid">
+              <label
+                v-for="product in filteredProducts"
+                :key="product.id"
+                class="product-card"
+                :class="{ checked: isSelected(product.id) }"
+              >
+                <input type="checkbox" :checked="isSelected(product.id)" @change="toggleProduct(product)" />
+                <div class="product-thumb" v-if="product.thumb">
+                  <img :src="product.thumb" :alt="product.name" />
+                </div>
+                <div class="product-content">
+                  <div class="product-name">{{ product.name }}</div>
+                  <div class="product-meta">
+                    <span>{{ product.option }}</span>
+                    <span>정가 {{ product.price.toLocaleString() }}원</span>
+                    <span>재고 {{ product.stock }}</span>
+                  </div>
+                </div>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
       <div v-if="showTermsModal" class="modal">
         <div class="modal__content">
           <div class="modal__header">
@@ -426,13 +450,19 @@ watch(
 .step-meta {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: 12px;
 }
 
 .step-actions {
   display: flex;
   gap: 8px;
+  align-items: center;
+}
+
+.step-indicator {
+  color: var(--text-muted);
+  font-weight: 800;
 }
 
 .field {
@@ -621,6 +651,11 @@ input[type='file'] {
   gap: 8px;
 }
 
+.modal__body {
+  max-height: 520px;
+  overflow: auto;
+}
+
 .btn {
   border-radius: 999px;
   padding: 10px 18px;
@@ -646,6 +681,11 @@ input[type='file'] {
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+.modal-search {
+  align-items: flex-start;
+  flex-direction: column;
 }
 
 .search-input {
