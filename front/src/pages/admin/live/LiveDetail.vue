@@ -16,7 +16,7 @@ const showStopModal = ref(false)
 const stopReason = ref('')
 const stopDetail = ref('')
 const error = ref('')
-const showChat = ref(false)
+const showChat = ref(true)
 const chatText = ref('')
 const chatMessages = ref<{ id: string; user: string; text: string; time: string }[]>([])
 const chatListRef = ref<HTMLDivElement | null>(null)
@@ -67,8 +67,6 @@ const loadDetail = () => {
 
 const openStopConfirm = () => {
   if (!detail.value || detail.value.status === '송출중지') return
-  const ok = window.confirm('해당 방송의 송출을 중지하시겠습니까?\n시청자에게는 대기 화면이 노출됩니다.')
-  if (!ok) return
   showStopModal.value = true
   error.value = ''
 }
@@ -90,6 +88,8 @@ const handleStopSave = () => {
     error.value = '중지 사유를 입력해주세요.'
     return
   }
+  const ok = window.confirm('방송 송출을 중지하시겠습니까?')
+  if (!ok) return
   stopAdminLiveBroadcast(detail.value.id, {
     reason: stopReason.value,
     detail: stopReason.value === '기타' ? stopDetail.value.trim() : undefined,
@@ -166,6 +166,8 @@ const saveModeration = () => {
     window.alert('제재 사유를 입력해주세요.')
     return
   }
+  const confirmModeration = window.confirm('입력한 내용으로 시청자를 제재하시겠습니까?')
+  if (!confirmModeration) return
   const target = moderationTarget.value
   if (!target) return
   const now = new Date()
@@ -214,9 +216,6 @@ watch(liveId, loadDetail, { immediate: true })
         <button type="button" class="btn danger" :disabled="detail.status === '송출중지'" @click="openStopConfirm">
           {{ detail.status === '송출중지' ? '송출 중지됨' : '방송 송출 중지' }}
         </button>
-        <button type="button" class="btn primary" @click="toggleFullscreen">
-          {{ isFullscreen ? '전체화면 종료' : '전체화면' }}
-        </button>
       </div>
     </header>
 
@@ -228,6 +227,7 @@ watch(liveId, loadDetail, { immediate: true })
         <p><span>판매자</span>{{ detail.sellerName }}</p>
         <p><span>방송 시작</span>{{ detail.startedAt }}</p>
         <p><span>시청자 수</span>{{ detail.viewers }}명</p>
+        <p><span>신고 건수</span>{{ detail.reports ?? 0 }}건</p>
         <p><span>상태</span>{{ detail.status }}</p>
       </div>
     </section>
@@ -240,10 +240,29 @@ watch(liveId, loadDetail, { immediate: true })
               <div class="overlay-item">⏱ {{ detail.elapsed }}</div>
               <div class="overlay-item">👥 {{ detail.viewers }}명</div>
               <div class="overlay-item">❤ {{ detail.likes }}</div>
+              <div class="overlay-item">🚩 {{ detail.reports ?? 0 }}건</div>
             </div>
-            <button type="button" class="chat-toggle" @click="toggleChat">
-              {{ showChat ? '채팅 닫기' : '채팅' }}
-            </button>
+            <div class="overlay-actions">
+              <button type="button" class="icon-circle" :class="{ active: showChat }" @click="toggleChat" :title="showChat ? '채팅 닫기' : '채팅 보기'">
+                <svg aria-hidden="true" class="icon" viewBox="0 0 24 24" focusable="false">
+                  <path d="M3 20l1.62-3.24A2 2 0 0 1 6.42 16H20a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v15z" />
+                </svg>
+              </button>
+              <button type="button" class="icon-circle ghost" :class="{ active: isFullscreen }" @click="toggleFullscreen" :title="isFullscreen ? '전체화면 종료' : '전체화면'">
+                <svg v-if="!isFullscreen" aria-hidden="true" class="icon" viewBox="0 0 24 24" focusable="false">
+                  <path d="M15 3h6v6" />
+                  <path d="M9 21H3v-6" />
+                  <path d="M21 3 14 10" />
+                  <path d="M3 21 10 14" />
+                </svg>
+                <svg v-else aria-hidden="true" class="icon" viewBox="0 0 24 24" focusable="false">
+                  <path d="M9 9H3V3" />
+                  <path d="m3 9 6-6" />
+                  <path d="M15 15h6v6" />
+                  <path d="m21 15-6 6" />
+                </svg>
+              </button>
+            </div>
             <div class="player-label">송출 화면</div>
           </div>
         </div>
@@ -471,6 +490,49 @@ watch(liveId, loadDetail, { immediate: true })
   padding: 8px 12px;
   font-weight: 800;
   cursor: pointer;
+}
+
+.overlay-actions {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.icon-circle {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  cursor: pointer;
+}
+
+.icon-circle.ghost {
+  background: rgba(255, 255, 255, 0.16);
+  color: #0f172a;
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.icon-circle.active {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+  background: rgba(var(--primary-rgb), 0.12);
+}
+
+.icon {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8px;
 }
 
 .chat-panel {
