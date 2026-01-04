@@ -81,6 +81,7 @@ const vodVisibleCount = ref(8)
 const liveItems = ref<AdminLiveSummary[]>([])
 const scheduledItems = ref<ReservationItem[]>([])
 const vodItems = ref<AdminVodItem[]>([])
+const liveAutoTimer = ref<number | null>(null)
 
 const visibleLive = computed(() => activeTab.value === 'all' || activeTab.value === 'live')
 const visibleScheduled = computed(() => activeTab.value === 'all' || activeTab.value === 'scheduled')
@@ -97,18 +98,20 @@ const toDateMs = (raw: string) => {
 
 const syncScheduled = () => {
   const items = getAdminReservationSummaries()
-  scheduledItems.value = items.map((item: AdminReservationSummary) => ({
-    id: item.id,
-    title: item.title,
-    subtitle: item.subtitle,
-    thumb: item.thumb,
-    datetime: item.datetime,
-    ctaLabel: item.ctaLabel,
-    sellerName: item.sellerName,
-    status: item.status,
-    category: (item as any).category ?? '기타',
-    startAtMs: toDateMs(item.datetime),
-  }))
+  scheduledItems.value = items
+    .filter((item) => item.status !== '취소됨')
+    .map((item: AdminReservationSummary) => ({
+      id: item.id,
+      title: item.title,
+      subtitle: item.subtitle,
+      thumb: item.thumb,
+      datetime: item.datetime,
+      ctaLabel: item.ctaLabel,
+      sellerName: item.sellerName,
+      status: item.status,
+      category: (item as any).category ?? '기타',
+      startAtMs: toDateMs(item.datetime),
+    }))
 }
 
 const syncLives = () => {
@@ -223,6 +226,18 @@ const openVodDetail = (id: string) => {
   router.push(`/admin/live/vods/${id}`).catch(() => {})
 }
 
+const formatDDay = (item: { startAtMs?: number }) => {
+  if (!item.startAtMs) return ''
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const start = new Date(item.startAtMs)
+  start.setHours(0, 0, 0, 0)
+  const diffDays = Math.round((start.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+  if (diffDays === 0) return 'D-Day'
+  if (diffDays > 0) return `D-${diffDays}`
+  return `D+${Math.abs(diffDays)}`
+}
+
 const refreshTabFromQuery = () => {
   const tab = route.query.tab
   if (tab === 'scheduled' || tab === 'live' || tab === 'vod' || tab === 'all') {
@@ -237,6 +252,19 @@ const scrollLiveCarousel = (dir: 'prev' | 'next') => {
   el.scrollBy({ left: dir === 'next' ? offset : -offset, behavior: 'smooth' })
 }
 
+const stopLiveAutoSlide = () => {
+  if (liveAutoTimer.value) {
+    window.clearInterval(liveAutoTimer.value)
+    liveAutoTimer.value = null
+  }
+}
+
+const startLiveAutoSlide = () => {
+  stopLiveAutoSlide()
+  if (!liveCarouselItems.value.length) return
+  liveAutoTimer.value = window.setInterval(() => scrollLiveCarousel('next'), 3200)
+}
+
 watch(
   () => route.query.tab,
   () => refreshTabFromQuery(),
@@ -244,6 +272,7 @@ watch(
 
 watch([liveCategory, liveSort], () => {
   liveVisibleCount.value = 5
+  startLiveAutoSlide()
 })
 
 watch([scheduledStatus, scheduledCategory, scheduledSort], () => {
@@ -259,6 +288,7 @@ onMounted(() => {
   syncLives()
   syncScheduled()
   syncVods()
+  startLiveAutoSlide()
   window.addEventListener(ADMIN_LIVES_EVENT, syncLives)
   window.addEventListener(ADMIN_RESERVATIONS_EVENT, syncScheduled)
   window.addEventListener(ADMIN_VODS_EVENT, syncVods)
@@ -268,6 +298,7 @@ onBeforeUnmount(() => {
   window.removeEventListener(ADMIN_LIVES_EVENT, syncLives)
   window.removeEventListener(ADMIN_RESERVATIONS_EVENT, syncScheduled)
   window.removeEventListener(ADMIN_VODS_EVENT, syncVods)
+  stopLiveAutoSlide()
 })
 </script>
 
@@ -417,11 +448,11 @@ onBeforeUnmount(() => {
             </label>
           </div>
           <div v-else class="more-row">
-            <button
-              class="link-more"
-              type="button"
-              @click="setTab('scheduled')"
-            >
+          <button
+            class="link-more"
+            type="button"
+            @click="setTab('scheduled')"
+          >
               + 더보기
             </button>
           </div>
@@ -436,12 +467,15 @@ onBeforeUnmount(() => {
             class="live-card ds-surface live-card--clickable"
             @click="openReservationDetail(item.id)"
           >
-            <div class="live-thumb">
-              <img class="live-thumb__img" :src="item.thumb" :alt="item.title" loading="lazy" />
-              <div class="live-badges">
-                <span class="badge badge--scheduled" :class="{ 'badge--cancelled': item.status === '취소됨' }">{{ item.status }}</span>
+              <div class="live-thumb">
+                <img class="live-thumb__img" :src="item.thumb" :alt="item.title" loading="lazy" />
+                <div class="live-badges">
+                  <span class="badge badge--scheduled" :class="{ 'badge--cancelled': item.status === '취소됨' }">
+                    {{ item.status }}
+                  </span>
+                  <span class="badge badge--viewer">{{ formatDDay(item) }}</span>
+                </div>
               </div>
-            </div>
             <div class="live-body">
               <div class="live-meta">
                 <p class="live-title">{{ item.title }}</p>
@@ -756,6 +790,32 @@ onBeforeUnmount(() => {
   gap: 16px;
 }
 
+.carousel-btn {
+  border: 1px solid var(--border-color);
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  background: var(--surface);
+  font-weight: 900;
+  color: var(--text-strong);
+  cursor: pointer;
+}
+
+.carousel-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.live-grid,
+.scheduled-grid,
+.vod-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
 .live-card {
   scroll-snap-align: start;
   border-radius: 14px;
@@ -891,6 +951,10 @@ onBeforeUnmount(() => {
   text-align: center;
   color: var(--text-muted);
   font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 160px;
 }
 
 @media (max-width: 1200px) {
