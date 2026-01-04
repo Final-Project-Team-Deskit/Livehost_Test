@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PageContainer from '../../../components/PageContainer.vue'
+import ConfirmModal from '../../../components/ConfirmModal.vue'
 import { getSellerVodDetail } from '../../../lib/mocks/sellerVods'
 
 const route = useRoute()
@@ -11,6 +12,9 @@ const vodId = typeof route.params.vodId === 'string' ? route.params.vodId : ''
 const detail = ref(getSellerVodDetail(vodId))
 const isVodPlayable = computed(() => !!detail.value?.vod?.url)
 const isVodPublic = computed(() => detail.value.vod.visibility === '공개')
+const isPlaying = ref(false)
+const isFullscreen = ref(false)
+const showDeleteConfirm = ref(false)
 
 const goBack = () => {
   router.back()
@@ -26,12 +30,14 @@ const toggleVisibility = () => {
 }
 
 const handleDownload = () => {
-  window.alert('VOD 파일을 다운로드합니다. (데모)')
+  window.alert('VOD 파일 다운로드를 시작합니다. (데모)')
 }
 
 const handleDelete = () => {
-  const ok = window.confirm('해당 VOD를 삭제하시겠습니까?')
-  if (!ok) return
+  showDeleteConfirm.value = true
+}
+
+const confirmDelete = () => {
   window.alert('VOD가 삭제되었습니다. (데모)')
 }
 
@@ -49,17 +55,44 @@ const sendChat = () => {
 }
 
 const videoRef = ref<HTMLVideoElement | null>(null)
+const playerContainerRef = ref<HTMLElement | null>(null)
 
-const requestFullscreen = () => {
-  const el = videoRef.value
-  if (!el) return
+const startPlayback = () => {
+  if (!isVodPlayable.value) return
+  isPlaying.value = true
+  nextTick(() => {
+    videoRef.value?.play?.()
+  })
+}
+
+const toggleFullscreen = () => {
+  const target = playerContainerRef.value
+  if (!target) return
   if (document.fullscreenElement) {
     document.exitFullscreen().catch(() => {})
     return
   }
-  el.requestFullscreen?.()
+  target.requestFullscreen?.()
 }
 
+const handleFullscreenChange = () => {
+  isFullscreen.value = !!document.fullscreenElement
+}
+
+onMounted(() => {
+  document.addEventListener('fullscreenchange', handleFullscreenChange)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('fullscreenchange', handleFullscreenChange)
+})
+
+watch(isVodPlayable, (playable) => {
+  if (!playable) {
+    showChat.value = false
+    isPlaying.value = false
+  }
+})
 </script>
 
 <template>
@@ -114,34 +147,35 @@ const requestFullscreen = () => {
         <h3>VOD</h3>
         <div class="vod-actions" v-if="isVodPlayable">
           <div class="visibility-toggle" aria-label="VOD 공개 설정">
-            <svg aria-hidden="true" class="icon" viewBox="0 0 24 24" focusable="false">
+            <svg aria-hidden="true" class="icon muted" viewBox="0 0 24 24" focusable="false">
               <path
-                d="M9.88 9.88a3 3 0 0 0 4.24 4.24M10.73 5.08A9.28 9.28 0 0 1 12 5c5 0 9 4 9 7 0 1.15-.48 2.38-1.36 3.57m-3.41 2.7A8.76 8.76 0 0 1 12 19c-5 0-9-4-9-7 0-.77.22-1.61.63-2.47"
+                d="M14.12 14.12a3 3 0 0 1-4.24-4.24m6.83 6.83A9.6 9.6 0 0 1 12 17c-5 0-9-5-9-5a15.63 15.63 0 0 1 5.12-4.88m3.41-1.5A9.4 9.4 0 0 1 12 7c5 0 9 5 9 5a15.78 15.78 0 0 1-2.6 2.88"
               />
               <path d="m3 3 18 18" />
             </svg>
+            <span class="visibility-label">비공개</span>
             <label class="vod-switch">
               <input type="checkbox" :checked="isVodPublic" @change="toggleVisibility" />
               <span class="switch-track"><span class="switch-thumb"></span></span>
             </label>
-            <svg aria-hidden="true" class="icon" viewBox="0 0 24 24" focusable="false">
-              <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z" />
-              <circle cx="12" cy="12" r="3" />
+            <span class="visibility-label">공개</span>
+            <svg aria-hidden="true" class="icon muted" viewBox="0 0 24 24" focusable="false">
+              <path d="M1 12s4.5-7 11-7 11 7 11 7-4.5 7-11 7S1 12 1 12Z" />
+              <circle cx="12" cy="12" r="3.5" />
             </svg>
-            <span class="visibility-label">{{ isVodPublic ? '공개' : '비공개' }}</span>
           </div>
           <div class="vod-icon-actions">
-            <button type="button" class="icon-circle" @click="handleDownload" title="다운로드">
+            <button type="button" class="icon-pill" @click="handleDownload" title="다운로드">
               <svg aria-hidden="true" class="icon" viewBox="0 0 24 24" focusable="false">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <path d="M7 10l5 5 5-5" />
-                <path d="M12 15V3" />
+                <path d="M12 3v12" />
+                <path d="m6 11 6 6 6-6" />
+                <path d="M5 19h14" />
               </svg>
             </button>
-            <button type="button" class="icon-circle danger" @click="handleDelete" title="삭제">
+            <button type="button" class="icon-pill danger" @click="handleDelete" title="삭제">
               <svg aria-hidden="true" class="icon" viewBox="0 0 24 24" focusable="false">
                 <path d="M3 6h18" />
-                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                <path d="M19 6v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
                 <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                 <line x1="10" x2="10" y1="11" y2="17" />
                 <line x1="14" x2="14" y1="11" y2="17" />
@@ -150,29 +184,62 @@ const requestFullscreen = () => {
           </div>
         </div>
       </div>
-      <div class="vod-player">
-        <div class="player-shell">
+      <div class="vod-player" :class="{ 'with-chat': showChat && isVodPlayable }">
+        <div ref="playerContainerRef" class="player-shell">
           <div class="player-frame">
-            <video v-if="isVodPlayable" ref="videoRef" :src="detail.vod.url" controls></video>
+            <video
+              v-if="isVodPlayable"
+              v-show="isPlaying"
+              ref="videoRef"
+              :src="detail.vod.url"
+              controls
+              :poster="detail.thumb"
+            ></video>
             <div v-else class="vod-placeholder">
               <span>재생할 VOD가 없습니다.</span>
             </div>
+            <div v-if="isVodPlayable && !isPlaying" class="player-poster">
+              <img :src="detail.thumb" :alt="detail.title" />
+              <button type="button" class="play-toggle" @click="startPlayback" title="재생">
+                <svg aria-hidden="true" class="icon" viewBox="0 0 24 24" focusable="false">
+                  <polygon points="8 5 19 12 8 19 8 5" fill="currentColor" />
+                </svg>
+              </button>
+            </div>
             <div v-if="isVodPlayable" class="player-overlay">
-              <div class="overlay-controls">
-                <button type="button" class="icon-circle ghost" @click="requestFullscreen" title="전체화면">
-                  <svg aria-hidden="true" class="icon" viewBox="0 0 24 24" focusable="false">
+              <div class="overlay-left">
+                <button
+                  type="button"
+                  class="icon-circle ghost"
+                  :class="{ active: isFullscreen }"
+                  @click="toggleFullscreen"
+                  :title="isFullscreen ? '전체화면 종료' : '전체화면'"
+                >
+                  <svg v-if="!isFullscreen" aria-hidden="true" class="icon" viewBox="0 0 24 24" focusable="false">
                     <path d="M15 3h6v6" />
                     <path d="M9 21H3v-6" />
                     <path d="M21 3 14 10" />
                     <path d="M3 21 10 14" />
                   </svg>
+                  <svg v-else aria-hidden="true" class="icon" viewBox="0 0 24 24" focusable="false">
+                    <path d="M9 9H3V3" />
+                    <path d="m3 9 6-6" />
+                    <path d="M15 15h6v6" />
+                    <path d="m21 15-6 6" />
+                  </svg>
                 </button>
+              </div>
+              <div class="overlay-right">
+                <div class="chat-pill">
+                  <span class="chat-count">{{ chatMessages.length }}</span>
+                  <span class="chat-label">채팅 기록</span>
+                </div>
                 <button
                   type="button"
                   class="icon-circle"
                   :class="{ active: showChat }"
                   @click="showChat = !showChat"
-                  :title="showChat ? '채팅 닫기' : '채팅 보기'"
+                  :title="showChat ? '채팅 닫기' : '채팅 열기'"
                 >
                   <svg aria-hidden="true" class="icon" viewBox="0 0 24 24" focusable="false">
                     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z" />
@@ -182,7 +249,7 @@ const requestFullscreen = () => {
             </div>
           </div>
         </div>
-        <aside v-if="showChat" class="chat-panel ds-surface">
+        <aside v-if="showChat && isVodPlayable" class="chat-panel ds-surface">
           <header class="chat-head">
             <h4>채팅</h4>
             <button type="button" class="icon-circle ghost" @click="showChat = false" title="채팅 닫기">
@@ -234,6 +301,13 @@ const requestFullscreen = () => {
         </table>
       </div>
     </section>
+    <ConfirmModal
+      v-model="showDeleteConfirm"
+      title="VOD 삭제"
+      description="VOD를 삭제하시겠습니까? 영구 삭제되어 복구할 수 없습니다."
+      confirm-text="삭제"
+      @confirm="confirmDelete"
+    />
   </PageContainer>
 </template>
 
@@ -378,16 +452,17 @@ const requestFullscreen = () => {
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .visibility-toggle {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px;
+  padding: 8px 14px;
   border: 1px solid var(--border-color);
   border-radius: 999px;
-  background: var(--surface-weak);
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.08), rgba(15, 23, 42, 0.02));
 }
 
 .vod-switch input {
@@ -428,14 +503,38 @@ const requestFullscreen = () => {
 }
 
 .visibility-label {
-  font-weight: 800;
+  font-weight: 900;
   color: var(--text-strong);
+  font-size: 0.9rem;
 }
 
 .vod-icon-actions {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+}
+
+.icon-pill {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  background: var(--surface);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.1s ease, background 0.2s ease, border-color 0.2s ease;
+}
+
+.icon-pill:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.12);
+}
+
+.icon-pill.danger {
+  border-color: rgba(239, 68, 68, 0.28);
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.05);
 }
 
 .icon-circle {
@@ -481,37 +580,51 @@ const requestFullscreen = () => {
   stroke-linejoin: round;
 }
 
+.icon.muted {
+  color: var(--text-muted);
+}
+
+.play-toggle .icon {
+  fill: currentColor;
+  stroke: none;
+}
+
 .vod-player {
   border-radius: 14px;
   border: 1px solid var(--border-color);
   background: var(--surface-weak);
   display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 12px;
-  overflow: hidden;
-  align-items: start;
-  position: relative;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  align-items: stretch;
+}
+
+.vod-player.with-chat {
+  grid-template-columns: minmax(0, 1.65fr) 340px;
 }
 
 .player-shell {
-  padding: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  position: relative;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #000;
+  aspect-ratio: 16 / 9;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.18);
 }
 
 .player-frame {
   position: relative;
-  border-radius: 12px;
-  overflow: hidden;
-  background: #000;
-  min-height: 260px;
+  width: 100%;
+  height: 100%;
 }
 
 .vod-player video {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
+  background: #000;
 }
 
 .vod-placeholder {
@@ -519,62 +632,134 @@ const requestFullscreen = () => {
   font-weight: 700;
   display: grid;
   place-items: center;
-  min-height: 260px;
-  border-radius: 12px;
+  height: 100%;
+  background: linear-gradient(135deg, #0b1220, #0f172a);
+}
+
+.player-poster {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.player-poster img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: brightness(0.75);
+}
+
+.play-toggle {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.9);
+  color: #111827;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.2s ease;
+}
+
+.play-toggle:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.45);
+}
+
+.play-toggle .icon {
+  width: 26px;
+  height: 26px;
+  stroke: none;
 }
 
 .player-overlay {
   position: absolute;
   inset: 0;
   pointer-events: none;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 14px;
 }
 
-.overlay-controls {
-  position: absolute;
-  bottom: 12px;
-  right: 12px;
+.overlay-left,
+.overlay-right {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  z-index: 2;
+  align-items: center;
+  gap: 10px;
   pointer-events: auto;
 }
 
+.chat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-weight: 800;
+}
+
+.chat-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.chat-label {
+  font-size: 0.85rem;
+}
+
 .chat-panel {
-  padding: 10px;
+  padding: 14px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  border-radius: 0 12px 12px 0;
+  gap: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
 }
 
 .chat-head {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 10px;
 }
 
 .chat-list {
-  max-height: 240px;
+  max-height: 320px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
+  padding-right: 4px;
 }
 
 .chat-row {
   background: var(--surface-weak);
   border-radius: 10px;
-  padding: 8px;
+  padding: 10px;
+  border: 1px solid var(--border-color);
 }
 
 .chat-meta {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   align-items: center;
   font-weight: 800;
   color: var(--text-muted);
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 
 .chat-text {
@@ -585,7 +770,7 @@ const requestFullscreen = () => {
 
 .chat-input {
   display: flex;
-  gap: 6px;
+  gap: 8px;
 }
 
 .chat-input input {
