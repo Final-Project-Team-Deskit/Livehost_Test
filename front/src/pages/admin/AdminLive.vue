@@ -340,8 +340,10 @@ onBeforeUnmount(() => {
               </select>
             </label>
           </div>
-          <p v-else class="ds-section-sub">신고 순으로 최대 5개까지 보여집니다.</p>
-          <button v-else class="link-more" type="button" @click="setTab('live')">+ 더보기</button>
+          <template v-else>
+            <p class="ds-section-sub">신고 순으로 최대 5개까지 보여집니다.</p>
+            <button class="link-more" type="button" @click="setTab('live')">+ 더보기</button>
+          </template>
         </div>
       </div>
 
@@ -375,10 +377,7 @@ onBeforeUnmount(() => {
             </article>
           </template>
 
-          <article v-else class="live-card ds-surface live-card--empty">
-            <p class="live-card__title">진행 중인 방송이 없습니다.</p>
-            <p class="live-card__meta">현재 라이브 방송이 비어 있습니다.</p>
-          </article>
+          <p v-else class="empty-section">진행 중인 방송이 없습니다.</p>
         </div>
         <button v-if="liveCarouselItems.length" type="button" class="carousel-btn next" @click="scrollLiveCarousel('next')" aria-label="다음">
           ›
@@ -454,10 +453,7 @@ onBeforeUnmount(() => {
           </article>
         </template>
 
-        <article v-else class="live-card ds-surface live-card--empty">
-          <p class="live-card__title">등록된 방송이 없습니다.</p>
-          <p class="live-card__meta">예약 방송이 비어 있습니다.</p>
-        </article>
+        <p v-else class="empty-section">예약된 방송이 없습니다.</p>
       </div>
     </section>
 
@@ -544,10 +540,7 @@ onBeforeUnmount(() => {
           </article>
         </template>
 
-        <article v-else class="live-card ds-surface live-card--empty">
-          <p class="live-card__title">등록된 VOD가 없습니다.</p>
-          <p class="live-card__meta">방송이 종료되면 자동 등록됩니다.</p>
-        </article>
+        <p v-else class="empty-section">등록된 VOD가 없습니다.</p>
       </div>
     </section>
   </div>
@@ -737,6 +730,32 @@ onBeforeUnmount(() => {
   gap: 16px;
 }
 
+.carousel-btn {
+  border: 1px solid var(--border-color);
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  background: var(--surface);
+  font-weight: 900;
+  color: var(--text-strong);
+  cursor: pointer;
+}
+
+.carousel-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.live-grid,
+.scheduled-grid,
+.vod-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
 .live-card {
   scroll-snap-align: start;
   border-radius: 14px;
@@ -865,6 +884,13 @@ onBeforeUnmount(() => {
   margin: 8px 0 0;
   color: var(--text-muted);
   font-weight: 700;
+}
+
+.empty-section {
+  margin: 12px auto;
+  text-align: center;
+  color: var(--text-muted);
+  font-weight: 800;
 }
 
 @media (max-width: 1200px) {
