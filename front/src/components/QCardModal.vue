@@ -3,17 +3,49 @@ const props = withDefaults(
   defineProps<{
     modelValue: boolean
     qCards?: string[]
+    initialIndex?: number
   }>(),
   {
     qCards: () => [],
+    initialIndex: 0,
   },
 )
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void
+  (e: 'update:initialIndex', value: number): void
 }>()
 
 const close = () => emit('update:modelValue', false)
+const currentIndex = ref(props.initialIndex ?? 0)
+
+watch(
+  () => props.modelValue,
+  (open) => {
+    if (open) {
+      currentIndex.value = props.initialIndex ?? 0
+    }
+  },
+)
+
+watch(
+  () => props.initialIndex,
+  (next) => {
+    currentIndex.value = next ?? 0
+  },
+)
+
+const goPrev = () => {
+  if (!props.qCards.length) return
+  currentIndex.value = (currentIndex.value - 1 + props.qCards.length) % props.qCards.length
+  emit('update:initialIndex', currentIndex.value)
+}
+
+const goNext = () => {
+  if (!props.qCards.length) return
+  currentIndex.value = (currentIndex.value + 1) % props.qCards.length
+  emit('update:initialIndex', currentIndex.value)
+}
 </script>
 
 <template>
@@ -30,13 +62,18 @@ const close = () => emit('update:modelValue', false)
 
       <div class="ds-modal__body">
         <div v-if="qCards.length > 0" class="qcard-list">
-          <article v-for="(card, index) in qCards" :key="index" class="qcard-item">
-            <p class="qcard-label">질문 {{ index + 1 }}</p>
-            <p class="qcard-text">{{ card || '(내용 없음)' }}</p>
+          <article class="qcard-item">
+            <p class="qcard-label">질문 {{ currentIndex + 1 }}</p>
+            <p class="qcard-text">{{ qCards[currentIndex] || '(내용 없음)' }}</p>
           </article>
         </div>
         <p v-else class="qcard-empty">등록된 큐카드가 없습니다.</p>
       </div>
+      <footer v-if="qCards.length > 1" class="qcard-footer">
+        <button type="button" class="ds-modal__close" aria-label="이전" @click="goPrev">‹</button>
+        <span class="qcard-progress">{{ currentIndex + 1 }} / {{ qCards.length }}</span>
+        <button type="button" class="ds-modal__close" aria-label="다음" @click="goNext">›</button>
+      </footer>
     </div>
   </div>
 </template>
@@ -146,5 +183,17 @@ const close = () => emit('update:modelValue', false)
   text-align: center;
   color: var(--text-muted);
   font-weight: 800;
+}
+
+.qcard-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.qcard-progress {
+  font-weight: 800;
+  color: var(--text-strong);
 }
 </style>

@@ -19,6 +19,7 @@ const goToList = () => {
 }
 
 const openCueCard = () => {
+  if (!detail.value.cueQuestions?.length) return
   showCueCard.value = true
 }
 
@@ -51,7 +52,7 @@ const cancelReason = computed(() => (detail.value as any).cancelReason ?? '사�
 const isCancelled = computed(() => detail.value.status === '취소됨')
 const standbyImage = computed(() => (detail.value as any).standbyThumb || detail.value.thumb)
 const displayedCancelReason = computed(() =>
-  isCancelled.value ? cancelReason.value : '취소되지 않은 예약입니다.',
+  isCancelled.value ? cancelReason.value : '',
 )
 </script>
 
@@ -61,7 +62,9 @@ const displayedCancelReason = computed(() =>
     <header class="detail-header">
       <button type="button" class="back-link" @click="goBack">← 뒤로 가기</button>
       <div class="detail-actions">
-        <button type="button" class="btn ghost" @click="openCueCard">큐카드 보기</button>
+        <button type="button" class="btn ghost" :disabled="!(detail.cueQuestions?.length)" @click="openCueCard">
+          큐카드 보기
+        </button>
         <button type="button" class="btn" @click="goToList">목록으로</button>
       </div>
     </header>
@@ -74,7 +77,7 @@ const displayedCancelReason = computed(() =>
       <div class="detail-meta">
         <p><span>방송 예정 시간</span>{{ scheduledWindow }}</p>
         <p><span>카테고리</span>{{ detail.category }}</p>
-        <p class="cancel-row">
+        <p v-if="isCancelled" class="cancel-row">
           <span>취소 사유</span>
           <span :class="['cancel-value', { cancelled: isCancelled }]">{{ displayedCancelReason }}</span>
         </p>
