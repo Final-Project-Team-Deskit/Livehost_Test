@@ -37,7 +37,7 @@ const mapQuestions = (seeds: string[]) => (seeds.length ? seeds : ['']).map((tex
 export const createDefaultQuestions = () => mapQuestions([])
 
 export const createEmptyDraft = (): LiveCreateDraft => ({
-  questions: defaultQuestions.map((text) => ({ id: createId(), text })),
+  questions: createDefaultQuestions(),
   title: '',
   subtitle: '',
   category: '',
