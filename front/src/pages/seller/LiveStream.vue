@@ -1,9 +1,45 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import BasicInfoEditModal from '../../components/BasicInfoEditModal.vue'
+import ChatSanctionModal from '../../components/ChatSanctionModal.vue'
+import ConfirmModal from '../../components/ConfirmModal.vue'
 import PageContainer from '../../components/PageContainer.vue'
+import QCardModal from '../../components/QCardModal.vue'
+
+type StreamProduct = {
+  id: string
+  title: string
+  option: string
+  status: string
+  pinned?: boolean
+}
+
+type StreamChat = {
+  id: string
+  name: string
+  message: string
+}
+
+type StreamData = {
+  title: string
+  datetime: string
+  category: string
+  notice: string
+  products: StreamProduct[]
+  chat: StreamChat[]
+  qCards: string[]
+  thumbnail?: string
+  waitingScreen?: string
+}
+
+type BroadcastInfo = Pick<StreamData, 'title' | 'category' | 'notice' | 'thumbnail' | 'waitingScreen' | 'qCards'>
+
+const defaultNotice = '판매 상품 외 다른 상품 문의는 받지 않습니다.'
 
 const route = useRoute()
+const router = useRouter()
+
 const showProducts = ref(true)
 const showChat = ref(true)
 const showSettings = ref(false)
@@ -16,17 +52,39 @@ const volume = ref(43)
 const selectedMic = ref('기본 마이크')
 const selectedCamera = ref('기본 카메라')
 const micInputLevel = ref(70)
+
+const showQCards = ref(false)
+const showBasicInfo = ref(false)
+const showSanctionModal = ref(false)
+
+const confirmState = reactive({
+  open: false,
+  title: '',
+  description: '',
+  confirmText: '확인',
+  cancelText: '취소',
+})
+const confirmAction = ref<() => void>(() => {})
+
+const pinnedProductId = ref<string | null>(null)
+const sanctionTarget = ref<string | null>(null)
+const sanctionedUsers = ref<Record<string, { type: string; reason: string }>>({})
+const broadcastInfo = ref<BroadcastInfo | null>(null)
+
 const streamId = computed(() => {
   const id = route.params.id
   return typeof id === 'string' && id.trim() ? id : null
 })
 
-const streamMap = {
+const streamMap: Record<string, StreamData> = {
   'live-1': {
     title: '홈오피스 라이브 스냅',
     datetime: '오늘 14:00 - 15:00',
+    category: '홈오피스',
+    notice: defaultNotice,
+    qCards: ['오늘의 대표 상품은 무엇인가요?', '배송 스케줄과 사은품 안내 부탁드립니다.'],
     products: [
-      { id: 'lp-1', title: '모던 스탠딩 데스크', option: '1200mm · 오프화이트', status: '판매중' },
+      { id: 'lp-1', title: '모던 스탠딩 데스크', option: '1200mm · 오프화이트', status: '판매중', pinned: true },
       { id: 'lp-2', title: '로우 프로파일 키보드', option: '무선 · 베이지', status: '판매중' },
       { id: 'lp-3', title: '미니멀 데스크 매트', option: '900mm · 샌드', status: '품절' },
       { id: 'lp-4', title: '알루미늄 모니터암', option: '싱글 · 블랙', status: '판매중' },
@@ -41,8 +99,11 @@ const streamMap = {
   'live-2': {
     title: '게이밍 데스크 셋업',
     datetime: '오늘 16:30 - 17:10',
+    category: '주변기기',
+    notice: defaultNotice,
+    qCards: ['방송 순서와 할인 적용 시점을 안내해주세요.', '특정 색상 재입고 일정이 궁금합니다.'],
     products: [
-      { id: 'lp-5', title: '게이밍 데스크 패드', option: 'XL · 블랙', status: '판매중' },
+      { id: 'lp-5', title: '게이밍 데스크 패드', option: 'XL · 블랙', status: '판매중', pinned: true },
       { id: 'lp-6', title: 'RGB 데스크 램프', option: 'USB · 네온', status: '판매중' },
       { id: 'lp-7', title: '헤드셋 스탠드', option: '알루미늄', status: '품절' },
     ],
@@ -56,11 +117,47 @@ const streamMap = {
 
 const stream = computed(() => {
   if (!streamId.value) return null
-  return streamMap[streamId.value as keyof typeof streamMap] ?? null
+  return streamMap[streamId.value] ?? null
 })
 
 const productItems = computed(() => stream.value?.products ?? [])
 const chatItems = computed(() => stream.value?.chat ?? [])
+const sortedProducts = computed(() => {
+  const items = [...productItems.value]
+  if (!pinnedProductId.value) return items
+  return items.sort((a, b) => {
+    if (a.id === pinnedProductId.value) return -1
+    if (b.id === pinnedProductId.value) return 1
+    return 0
+  })
+})
+
+const qCards = computed(() => broadcastInfo.value?.qCards ?? [])
+const displayTitle = computed(() => broadcastInfo.value?.title ?? stream.value?.title ?? '방송 진행')
+const displayDatetime = computed(
+  () => stream.value?.datetime ?? '실시간 송출 화면과 판매 상품, 채팅을 관리합니다.',
+)
+
+watch(
+  () => stream.value,
+  (next) => {
+    if (!next) {
+      pinnedProductId.value = null
+      broadcastInfo.value = null
+      return
+    }
+    pinnedProductId.value = next.products.find((item) => item.pinned)?.id ?? null
+    broadcastInfo.value = {
+      title: next.title,
+      category: next.category,
+      notice: next.notice ?? defaultNotice,
+      qCards: next.qCards,
+      thumbnail: next.thumbnail,
+      waitingScreen: next.waitingScreen,
+    }
+  },
+  { immediate: true },
+)
 
 const handleKeydown = (event: KeyboardEvent) => {
   if (event.key === 'Escape' && showSettings.value) {
@@ -75,21 +172,97 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleKeydown)
 })
+
+const openConfirm = (options: Partial<typeof confirmState>, onConfirm: () => void) => {
+  confirmState.title = options.title ?? ''
+  confirmState.description = options.description ?? ''
+  confirmState.confirmText = options.confirmText ?? '확인'
+  confirmState.cancelText = options.cancelText ?? '취소'
+  confirmAction.value = onConfirm
+  confirmState.open = true
+}
+
+const handleConfirmAction = () => {
+  confirmAction.value?.()
+  confirmAction.value = () => {}
+}
+
+const setPinnedProduct = (productId: string | null) => {
+  pinnedProductId.value = productId
+}
+
+const handlePinProduct = (productId: string) => {
+  if (pinnedProductId.value && pinnedProductId.value !== productId) {
+    openConfirm(
+      {
+        title: '상품 PIN 변경',
+        description: 'PIN 상품을 변경하시겠습니까?',
+        confirmText: '변경',
+      },
+      () => setPinnedProduct(productId),
+    )
+    return
+  }
+  setPinnedProduct(pinnedProductId.value === productId ? null : productId)
+}
+
+const openSanction = (username: string) => {
+  sanctionTarget.value = username
+  showSanctionModal.value = true
+}
+
+const applySanction = (payload: { type: string; reason: string }) => {
+  if (!sanctionTarget.value) return
+  sanctionedUsers.value = {
+    ...sanctionedUsers.value,
+    [sanctionTarget.value]: { type: payload.type, reason: payload.reason },
+  }
+  alert(`${sanctionTarget.value}님에게 제재가 적용되었습니다.`)
+  sanctionTarget.value = null
+}
+
+watch(showSanctionModal, (open) => {
+  if (!open) {
+    sanctionTarget.value = null
+  }
+})
+
+const handleBasicInfoSave = (payload: BroadcastInfo) => {
+  if (!broadcastInfo.value) return
+  broadcastInfo.value = { ...broadcastInfo.value, ...payload }
+}
+
+const handleEndBroadcast = () => {
+  alert('방송이 종료되었습니다.')
+  router.push({ name: 'seller-live' })
+}
+
+const requestEndBroadcast = () => {
+  openConfirm(
+    {
+      title: '방송 종료',
+      description: '방송 종료 시 송출이 중단되며, 시청자 화면은 대기화면으로 전환됩니다. VOD 인코딩이 자동으로 시작됩니다.',
+      confirmText: '종료',
+      cancelText: '취소',
+    },
+    handleEndBroadcast,
+  )
+}
 </script>
 
 <template>
   <PageContainer>
     <header class="stream-header">
       <div>
-        <h2 class="section-title">{{ stream ? stream.title : '방송 진행' }}</h2>
-        <p class="ds-section-sub">
-          {{ stream ? stream.datetime : '실시간 송출 화면과 판매 상품, 채팅을 관리합니다.' }}
-        </p>
+        <h2 class="section-title">{{ displayTitle }}</h2>
+        <p class="ds-section-sub">{{ displayDatetime }}</p>
       </div>
       <div class="stream-actions">
-        <button type="button" class="stream-btn">기본정보 수정</button>
-        <button type="button" class="stream-btn">큐카드 보기</button>
-        <button type="button" class="stream-btn stream-btn--danger">방송 종료</button>
+        <button type="button" class="stream-btn" :disabled="!stream" @click="showBasicInfo = true">기본정보 수정</button>
+        <button type="button" class="stream-btn" :disabled="!stream" @click="showQCards = true">큐카드 보기</button>
+        <button type="button" class="stream-btn stream-btn--danger" :disabled="!stream" @click="requestEndBroadcast">
+          방송 종료
+        </button>
       </div>
     </header>
 
@@ -109,17 +282,31 @@ onBeforeUnmount(() => {
       <aside v-if="showProducts" class="stream-panel ds-surface">
         <div class="panel-head">
           <h3>상품 관리</h3>
-          <span class="panel-count">{{ productItems.length }}개</span>
+          <span class="panel-count">{{ sortedProducts.length }}개</span>
         </div>
         <div class="panel-list">
-          <div v-for="item in productItems" :key="item.id" class="panel-item">
+          <div
+            v-for="item in sortedProducts"
+            :key="item.id"
+            class="panel-item"
+            :class="{ 'is-pinned': pinnedProductId === item.id }"
+          >
             <div class="panel-thumb" aria-hidden="true"></div>
             <div class="panel-meta">
-              <p class="panel-title">{{ item.title }}</p>
+              <p class="panel-title">
+                {{ item.title }}
+                <span v-if="pinnedProductId === item.id" class="pin-badge">PIN</span>
+              </p>
               <p class="panel-sub">{{ item.option }}</p>
               <span class="panel-status" :class="{ 'is-soldout': item.status === '품절' }">{{ item.status }}</span>
             </div>
-            <button type="button" class="pin-btn" aria-label="고정">
+            <button
+              type="button"
+              class="pin-btn"
+              :class="{ 'is-active': pinnedProductId === item.id }"
+              aria-label="고정"
+              @click="handlePinProduct(item.id)"
+            >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <path
                   d="M9 4h6l1 5-2 2v6l-2-1-2 1v-6l-2-2 1-5z"
@@ -364,15 +551,33 @@ onBeforeUnmount(() => {
           <span class="panel-count">{{ chatItems.length }}명</span>
         </div>
         <div class="panel-chat">
-          <div v-for="item in chatItems" :key="item.id" class="chat-item">
-            <span class="chat-name">{{ item.name }}</span>
+          <div
+            v-for="item in chatItems"
+            :key="item.id"
+            class="chat-item"
+            :class="{ 'chat-item--muted': sanctionedUsers[item.name] }"
+            @contextmenu.prevent="openSanction(item.name)"
+          >
+            <div class="chat-item__header">
+              <span class="chat-name">{{ item.name }}</span>
+              <span v-if="sanctionedUsers[item.name]" class="chat-badge">{{ sanctionedUsers[item.name].type }}</span>
+            </div>
             <span class="chat-message">{{ item.message }}</span>
           </div>
         </div>
       </aside>
     </section>
-
-
+    <ConfirmModal
+      v-model="confirmState.open"
+      :title="confirmState.title"
+      :description="confirmState.description"
+      :confirm-text="confirmState.confirmText"
+      :cancel-text="confirmState.cancelText"
+      @confirm="handleConfirmAction"
+    />
+    <QCardModal v-model="showQCards" :q-cards="qCards" />
+    <BasicInfoEditModal v-if="broadcastInfo" v-model="showBasicInfo" :broadcast="broadcastInfo" @save="handleBasicInfoSave" />
+    <ChatSanctionModal v-model="showSanctionModal" :username="sanctionTarget" @save="applySanction" />
   </PageContainer>
 </template>
 
@@ -399,6 +604,11 @@ onBeforeUnmount(() => {
   padding: 10px 16px;
   font-weight: 800;
   cursor: pointer;
+}
+
+.stream-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .stream-btn--danger {
@@ -469,6 +679,11 @@ onBeforeUnmount(() => {
   background: var(--surface-weak);
 }
 
+.panel-item.is-pinned {
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.4);
+  background: rgba(59, 130, 246, 0.08);
+}
+
 .panel-thumb {
   width: 46px;
   height: 46px;
@@ -488,6 +703,9 @@ onBeforeUnmount(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  display: flex;
+  gap: 6px;
+  align-items: center;
 }
 
 .panel-sub {
@@ -515,11 +733,26 @@ onBeforeUnmount(() => {
   background: rgba(239, 68, 68, 0.12);
 }
 
+.pin-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: var(--primary-color);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 900;
+}
+
 .pin-btn {
   border: none;
   background: transparent;
   font-size: 1rem;
   cursor: pointer;
+}
+
+.pin-btn.is-active {
+  color: var(--primary-color);
 }
 
 .stream-center {
@@ -645,6 +878,17 @@ onBeforeUnmount(() => {
   align-self: stretch;
 }
 
+.chat-item--muted {
+  opacity: 0.85;
+  border: 1px dashed var(--border-color);
+}
+
+.chat-item__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .chat-name {
   font-weight: 800;
   color: var(--text-strong);
@@ -657,6 +901,15 @@ onBeforeUnmount(() => {
   font-weight: 700;
   font-size: 0.85rem;
   line-height: 1.35;
+}
+
+.chat-badge {
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(239, 68, 68, 0.12);
+  color: #b91c1c;
+  font-weight: 800;
+  font-size: 0.75rem;
 }
 
 
