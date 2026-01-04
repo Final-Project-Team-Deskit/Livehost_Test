@@ -422,53 +422,55 @@ watch(
           <button type="button" class="btn primary" @click="submit">{{ isEditMode ? '저장' : '방송 등록' }}</button>
         </div>
       </div>
-      <div v-if="showProductModal" class="modal">
-        <div class="modal__backdrop" @click="cancelProductSelection"></div>
-        <div class="modal__content">
-          <div class="modal__header">
-            <h3>상품 선택</h3>
-            <button type="button" class="btn ghost" aria-label="닫기" @click="cancelProductSelection">×</button>
-          </div>
-          <div class="modal__body">
-            <div class="product-search-bar modal-search">
-              <input v-model="productSearch" class="search-input__plain" type="text" placeholder="상품명을 검색하세요" />
-              <span class="search-hint">체크박스로 선택 후 저장을 누르면 반영됩니다.</span>
+      <Teleport to="body">
+        <div v-if="showProductModal" class="modal">
+          <div class="modal__backdrop" @click="cancelProductSelection"></div>
+          <div class="modal__content">
+            <div class="modal__header">
+              <h3>상품 선택</h3>
+              <button type="button" class="btn ghost" aria-label="닫기" @click="cancelProductSelection">×</button>
             </div>
-        <div class="product-grid">
-          <label
-            v-for="product in filteredProducts"
-            :key="product.id"
-            class="product-card"
-            :class="{ checked: isSelected(product.id, modalProducts.value) }"
-          >
-            <input
-              type="checkbox"
-              :checked="isSelected(product.id, modalProducts.value)"
-              @change="toggleProductInModal(product)"
-            />
-            <div class="product-thumb" v-if="product.thumb">
-              <img :src="product.thumb" :alt="product.name" />
-            </div>
-            <div class="product-content">
-              <div class="product-name">{{ product.name }}</div>
-              <div class="product-meta">
-                <span>{{ product.option }}</span>
-                <span>정가 {{ product.price.toLocaleString() }}원</span>
-                <span>재고 {{ product.stock }}</span>
+            <div class="modal__body">
+              <div class="product-search-bar modal-search">
+                <input v-model="productSearch" class="search-input__plain" type="text" placeholder="상품명을 검색하세요" />
+                <span class="search-hint">체크박스로 선택 후 저장을 누르면 반영됩니다.</span>
+              </div>
+              <div class="product-grid">
+                <label
+                  v-for="product in filteredProducts"
+                  :key="product.id"
+                  class="product-card"
+                  :class="{ checked: isSelected(product.id, modalProducts.value) }"
+                >
+                  <input
+                    type="checkbox"
+                    :checked="isSelected(product.id, modalProducts.value)"
+                    @change="toggleProductInModal(product)"
+                  />
+                  <div class="product-thumb" v-if="product.thumb">
+                    <img :src="product.thumb" :alt="product.name" />
+                  </div>
+                  <div class="product-content">
+                    <div class="product-name">{{ product.name }}</div>
+                    <div class="product-meta">
+                      <span>{{ product.option }}</span>
+                      <span>정가 {{ product.price.toLocaleString() }}원</span>
+                      <span>재고 {{ product.stock }}</span>
+                    </div>
+                  </div>
+                </label>
               </div>
             </div>
-          </label>
-        </div>
-          </div>
-          <div class="modal__footer">
-            <span class="modal__count">선택 {{ modalProducts.value.length }}개</span>
-            <div class="modal__actions">
-              <button type="button" class="btn ghost" @click="cancelProductSelection">취소</button>
-              <button type="button" class="btn primary" @click="saveProductSelection">저장</button>
+            <div class="modal__footer">
+              <span class="modal__count">선택 {{ modalProducts.value.length }}개</span>
+              <div class="modal__actions">
+                <button type="button" class="btn ghost" @click="cancelProductSelection">취소</button>
+                <button type="button" class="btn primary" @click="saveProductSelection">저장</button>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </Teleport>
       <div v-if="showTermsModal" class="modal">
         <div class="modal__content">
           <div class="modal__header">
