@@ -87,6 +87,7 @@ const requestMini = () => {
           <p><span>방송 시작 시간</span>{{ detail.startedAt }}</p>
           <p><span>방송 종료 시간</span>{{ detail.endedAt }}</p>
           <p><span>상태</span>{{ detail.statusLabel }}</p>
+          <p v-if="detail.statusLabel === 'STOPPED' && (detail as any).stopReason"><span>중지 사유</span>{{ (detail as any).stopReason }}</p>
         </div>
       </div>
     </section>
@@ -122,8 +123,10 @@ const requestMini = () => {
             <input type="checkbox" :checked="detail.vod.visibility === '공개'" @change="toggleVisibility" />
             <span>{{ detail.vod.visibility === '공개' ? '공개' : '비공개' }}</span>
           </label>
-          <button type="button" class="icon-btn" @click="handleDownload">⬇ 다운로드</button>
-          <button type="button" class="icon-btn danger" @click="handleDelete">🗑 삭제</button>
+          <template v-if="detail.vod.url">
+            <button type="button" class="icon-btn" @click="handleDownload">⬇ 다운로드</button>
+            <button type="button" class="icon-btn danger" @click="handleDelete">🗑 삭제</button>
+          </template>
         </div>
       </div>
       <div class="vod-player">
@@ -132,9 +135,8 @@ const requestMini = () => {
           <div v-else class="vod-placeholder">
             <span>재생할 VOD가 없습니다.</span>
           </div>
-          <div class="player-controls">
+          <div class="player-controls" v-if="detail.vod.url">
             <button type="button" class="icon-btn" @click="requestFullscreen">⛶ 전체화면</button>
-            <button type="button" class="icon-btn" @click="requestMini">▣ 축소화면</button>
             <button type="button" class="icon-btn" @click="showChat = !showChat">{{ showChat ? '채팅 닫기' : '채팅 보기' }}</button>
           </div>
         </div>
@@ -364,6 +366,7 @@ const requestMini = () => {
   gap: 12px;
   overflow: hidden;
   align-items: start;
+  position: relative;
 }
 
 .player-shell {
@@ -390,9 +393,12 @@ const requestMini = () => {
 }
 
 .player-controls {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
   display: flex;
+  flex-direction: column;
   gap: 8px;
-  flex-wrap: wrap;
 }
 
 .chat-panel {

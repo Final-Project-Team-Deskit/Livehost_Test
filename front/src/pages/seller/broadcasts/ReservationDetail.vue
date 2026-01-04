@@ -25,7 +25,7 @@ const openCueCard = () => {
 const showCueCard = ref(false)
 
 const handleEdit = () => {
-  window.alert('예약 정보가 수정되었습니다. (데모)')
+  router.push({ path: '/seller/live/create', query: { mode: 'edit', reservationId: reservationId.value } }).catch(() => {})
 }
 
 const handleCancel = () => {
@@ -46,6 +46,8 @@ const scheduledWindow = computed(() => {
     `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`
   return `${raw} ~ ${fmt(end)}`
 })
+
+const cancelReason = computed(() => (detail.value as any).cancelReason ?? '사유가 등록되지 않았습니다.')
 </script>
 
 <template>
@@ -67,6 +69,7 @@ const scheduledWindow = computed(() => {
       <div class="detail-meta">
         <p><span>방송 예정 시간</span>{{ scheduledWindow }}</p>
         <p><span>카테고리</span>{{ detail.category }}</p>
+        <p v-if="detail.status === '취소됨'"><span>취소 사유</span>{{ cancelReason }}</p>
       </div>
     </section>
 
@@ -77,7 +80,7 @@ const scheduledWindow = computed(() => {
 
     <section class="detail-card ds-surface">
       <div class="card-head">
-        <h3>방송 준비</h3>
+        <h3>방송 이미지</h3>
       </div>
       <div class="upload-grid">
         <div class="upload-col">
@@ -85,14 +88,12 @@ const scheduledWindow = computed(() => {
           <div class="upload-preview">
             <img :src="detail.thumb" :alt="detail.title" />
           </div>
-          <p class="upload-help">상세에서는 변경할 수 없습니다.</p>
         </div>
         <div class="upload-col">
           <p class="upload-label">대기화면</p>
           <div class="upload-preview">
             <img :src="detail.standbyThumb || detail.thumb" :alt="`${detail.title} 대기화면`" />
           </div>
-          <p class="upload-help">상세에서는 변경할 수 없습니다.</p>
         </div>
       </div>
     </section>

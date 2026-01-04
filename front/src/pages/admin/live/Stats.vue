@@ -58,21 +58,6 @@ onMounted(() => {
   <div>
     <PageHeader eyebrow="DESKIT" title="방송 통계" />
 
-    <header class="live-header">
-      <div class="live-header__spacer" aria-hidden="true"></div>
-      <div></div>
-      <div class="live-header__right">
-        <label class="inline-filter">
-          <span>섹션</span>
-          <select value="stats" @change="goSection(($event.target as HTMLSelectElement).value as any)">
-            <option value="list">방송 목록</option>
-            <option value="stats" selected>방송 통계</option>
-            <option value="sanctions">제재 통계</option>
-          </select>
-        </label>
-      </div>
-    </header>
-
     <section class="stat-grid">
       <article v-for="card in summaryCards" :key="card.label" class="ds-surface stat-card">
         <p class="stat-label">{{ card.label }}</p>
@@ -123,40 +108,6 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.live-header {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  gap: 14px;
-  margin: 12px 0 18px;
-}
-
-.live-header__spacer {
-  min-height: 1px;
-}
-
-.live-header__right {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.inline-filter {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 800;
-  color: var(--text-strong);
-}
-
-.inline-filter select {
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-  padding: 8px 10px;
-  font-weight: 700;
-  color: var(--text-strong);
-  background: var(--surface);
-}
-
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
