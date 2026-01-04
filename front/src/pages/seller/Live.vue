@@ -415,6 +415,14 @@ watch(
   },
 )
 
+const handleNavChange = (value: 'list' | 'stats') => {
+  if (value === 'stats') {
+    router.push('/seller/live/stats').catch(() => {})
+    return
+  }
+  router.push('/seller/live').catch(() => {})
+}
+
 const handleCta = (kind: CarouselKind, item: LiveItem) => {
   if (kind === 'live') {
     router.push(`/seller/live/stream/${item.id}`).catch(() => {})
