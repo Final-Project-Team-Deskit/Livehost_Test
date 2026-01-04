@@ -29,6 +29,7 @@ const modalProducts = ref<LiveCreateProduct[]>([])
 
 const reservationId = computed(() => (typeof route.query.reservationId === 'string' ? route.query.reservationId : ''))
 const isEditMode = computed(() => route.query.mode === 'edit' && !!reservationId.value)
+const modalCount = computed(() => modalProducts.value.length)
 
 const availableProducts = computed(() =>
   productsData.map<LiveCreateProduct>((product) => ({
@@ -111,10 +112,13 @@ const restoreDraft = () => {
   if (!isEditMode.value) {
     localStorage.removeItem(DRAFT_KEY)
     draft.value = createEmptyDraft()
+    modalProducts.value = []
     return
   }
 
-  draft.value = { ...createEmptyDraft(), ...buildDraftFromReservation(reservationId.value), reservationId: reservationId.value }
+  const reservationDraft = { ...createEmptyDraft(), ...buildDraftFromReservation(reservationId.value), reservationId: reservationId.value }
+  draft.value = reservationDraft
+  modalProducts.value = reservationDraft.products.map((p) => ({ ...p }))
 }
 
 const handleThumbUpload = (event: Event) => {
@@ -227,8 +231,8 @@ const openProductModal = () => {
 }
 
 const cancelProductSelection = () => {
-  showProductModal.value = false
   modalProducts.value = draft.value.products.map((p) => ({ ...p }))
+  showProductModal.value = false
 }
 
 const saveProductSelection = () => {
@@ -462,7 +466,7 @@ watch(
               </div>
             </div>
             <div class="modal__footer">
-              <span class="modal__count">선택 {{ modalProducts?.value?.length ?? 0 }}개</span>
+              <span class="modal__count">선택 {{ modalCount }}개</span>
               <div class="modal__actions">
                 <button type="button" class="btn ghost" @click="cancelProductSelection">취소</button>
                 <button type="button" class="btn primary" @click="saveProductSelection">저장</button>
