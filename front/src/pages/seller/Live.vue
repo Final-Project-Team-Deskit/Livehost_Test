@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type ComponentPublicInstance } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '../../components/PageHeader.vue'
 import DeviceSetupModal from '../../components/DeviceSetupModal.vue'
@@ -35,6 +35,21 @@ type LiveItem = {
 }
 
 const activeTab = ref<LiveTab>('all')
+const liveSort = ref<'viewers_desc' | 'likes_desc' | 'latest'>('viewers_desc')
+
+const scheduledStatus = ref<'all' | 'reserved' | 'canceled'>('all')
+const scheduledCategory = ref<string>('all')
+const scheduledSort = ref<'nearest' | 'latest' | 'oldest'>('nearest')
+const scheduledVisibleCount = ref(8)
+
+const vodStartDate = ref('')
+const vodEndDate = ref('')
+const vodVisibility = ref<'all' | 'public' | 'private'>('all')
+const vodSort = ref<'latest' | 'oldest' | 'likes_desc' | 'likes_asc' | 'viewers_desc' | 'viewers_asc' | 'revenue_desc' | 'revenue_asc'>(
+  'latest',
+)
+const vodCategory = ref<string>('all')
+const vodVisibleCount = ref(8)
 
 const showDeviceModal = ref(false)
 const selectedScheduled = ref<LiveItem | null>(null)
@@ -125,6 +140,38 @@ const autoTimers = ref<Record<LoopKind, number | null>>({
   scheduled: null,
   vod: null,
 })
+
+const toDateMs = (item: LiveItem) => {
+  const raw = item.createdAt || item.datetime || ''
+  const parsed = Date.parse(raw.replace(/\./g, '-').replace(' ', 'T'))
+  return Number.isNaN(parsed) ? 0 : parsed
+}
+
+const pickFromList = (list: readonly string[], index: number): string => list[index % list.length] ?? list[0] ?? ''
+
+const getLikes = (item: LiveItem) => (typeof item.likes === 'number' ? item.likes : 0)
+const getViewers = (item: LiveItem) => (typeof item.viewers === 'number' ? item.viewers : 0)
+const getVisibility = (item: LiveItem): 'public' | 'private' => {
+  if (typeof item.visibility === 'boolean') return item.visibility ? 'public' : 'private'
+  if (typeof item.visibility === 'string') {
+    if (item.visibility === 'public' || item.visibility === '공개') return 'public'
+    if (item.visibility === 'private' || item.visibility === '비공개') return 'private'
+  }
+  if ((item as any)?.isPublic === true) return 'public'
+  return 'public'
+}
+
+const formatDDay = (item: LiveItem) => {
+  if (!item.startAtMs) return ''
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const start = new Date(item.startAtMs)
+  start.setHours(0, 0, 0, 0)
+  const diffDays = Math.round((start.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+  if (diffDays === 0) return 'D-Day'
+  if (diffDays > 0) return `D-${diffDays}`
+  return `D+${Math.abs(diffDays)}`
+}
 
 const gradientPalette = ['111827', '0f172a', '1f2937', '334155'] as const
 
@@ -224,11 +271,23 @@ const buildLiveItems = () => {
 
   liveProducts.value = liveProducts.value.map((item, index) => ({
     ...item,
-    thumb: gradientThumb(gradientPalette[index % gradientPalette.length], '0f172a'),
+    thumb: gradientThumb(pickFromList(gradientPalette, index), '0f172a'),
   }))
 }
 
-const currentLive = computed(() => liveItems.value[0] ?? null)
+const liveItemsSorted = computed(() => {
+  const sorted = [...liveItems.value]
+  if (liveSort.value === 'viewers_desc') {
+    sorted.sort((a, b) => (b.viewers ?? 0) - (a.viewers ?? 0))
+  } else if (liveSort.value === 'likes_desc') {
+    sorted.sort((a, b) => (b.likes ?? 0) - (a.likes ?? 0))
+  } else if (liveSort.value === 'latest') {
+    sorted.sort((a, b) => toDateMs(b) - toDateMs(a))
+  }
+  return sorted
+})
+
+const currentLive = computed(() => liveItemsSorted.value[0] ?? null)
 
 const vodCategories = ['홈오피스', '주변기기', '정리/수납', '조명']
 
@@ -238,7 +297,7 @@ const loadScheduled = () => {
     const startAtMs = Date.parse(item.datetime.replace(/\./g, '-').replace(' ', 'T'))
     return {
       ...item,
-      category: detail?.category ?? liveCategories[index % liveCategories.length],
+      category: detail?.category ?? pickFromList(liveCategories, index),
       status: detail?.status ?? '예약됨',
       startAtMs: Number.isNaN(startAtMs) ? undefined : startAtMs,
     }
@@ -249,7 +308,7 @@ const loadScheduled = () => {
     const startAtMs = Date.parse(item.datetime.replace(/\./g, '-').replace(' ', 'T'))
     return {
       ...item,
-      category: detail?.category ?? liveCategories[index % liveCategories.length],
+      category: detail?.category ?? pickFromList(liveCategories, index),
       status: detail?.status ?? '예약됨',
       startAtMs: Number.isNaN(startAtMs) ? undefined : startAtMs,
     }
@@ -281,7 +340,7 @@ const loadVods = () => {
       likes: detail?.metrics?.likes ?? 0,
       viewers: detail?.metrics?.maxViewers ?? 0,
       revenue: detail?.metrics?.totalRevenue ?? 0,
-      category: vodCategories[index % vodCategories.length],
+      category: pickFromList(vodCategories, index),
       startAtMs: Number.isNaN(startMs) ? undefined : startMs,
       statusBadge: detail?.vod?.visibility === '비공개' ? '비공개' : 'VOD',
       viewerBadge: detail?.metrics?.maxViewers ? `${detail.metrics.maxViewers}명 시청` : undefined,
@@ -291,35 +350,104 @@ const loadVods = () => {
   }).sort((a, b) => (b.startAtMs ?? toDateMs(b)) - (a.startAtMs ?? toDateMs(a)))
 }
 
-const buildLoopItems = (items: LiveItem[]) => {
+const filteredVodItems = computed(() => {
+  const startMs = vodStartDate.value ? Date.parse(`${vodStartDate.value}T00:00:00`) : null
+  const endMs = vodEndDate.value ? Date.parse(`${vodEndDate.value}T23:59:59`) : null
+
+  let filtered = vodItems.value.filter((item) => {
+    const dateMs = item.startAtMs ?? toDateMs(item)
+    if (startMs && dateMs < startMs) return false
+    if (endMs && dateMs > endMs) return false
+    const visibility = getVisibility(item)
+    if (vodVisibility.value !== 'all' && vodVisibility.value !== visibility) return false
+    if (vodCategory.value !== 'all' && item.category !== vodCategory.value) return false
+    return true
+  })
+
+  filtered = filtered.slice().sort((a, b) => {
+    if (vodSort.value === 'latest') return toDateMs(b) - toDateMs(a)
+    if (vodSort.value === 'oldest') return toDateMs(a) - toDateMs(b)
+    if (vodSort.value === 'likes_desc') return getLikes(b) - getLikes(a)
+    if (vodSort.value === 'likes_asc') return getLikes(a) - getLikes(b)
+    if (vodSort.value === 'viewers_desc') return getViewers(b) - getViewers(a)
+    if (vodSort.value === 'viewers_asc') return getViewers(a) - getViewers(b)
+    if (vodSort.value === 'revenue_desc') return (b.revenue ?? 0) - (a.revenue ?? 0)
+    if (vodSort.value === 'revenue_asc') return (a.revenue ?? 0) - (b.revenue ?? 0)
+    return 0
+  })
+
+  return filtered
+})
+
+const filteredScheduledItems = computed(() => {
+  let filtered = scheduledItems.value
+
+  if (scheduledStatus.value === 'reserved') {
+    filtered = filtered.filter((item) => item.status !== '취소됨')
+  } else if (scheduledStatus.value === 'canceled') {
+    filtered = filtered.filter((item) => item.status === '취소됨')
+  }
+
+  if (scheduledCategory.value !== 'all') {
+    filtered = filtered.filter((item) => item.category === scheduledCategory.value)
+  }
+
+  filtered = filtered.slice().sort((a, b) => {
+    const aDate = a.startAtMs ?? toDateMs(a)
+    const bDate = b.startAtMs ?? toDateMs(b)
+    if (scheduledSort.value === 'latest') return bDate - aDate
+    if (scheduledSort.value === 'oldest') return aDate - bDate
+    return aDate - bDate
+  })
+
+  return filtered
+})
+
+const scheduledCategories = computed(() => Array.from(new Set(filteredScheduledItems.value.map((item) => item.category ?? '기타'))))
+
+const scheduledSummary = computed(() =>
+  scheduledItems.value
+    .filter((item) => item.status === '예약됨')
+    .slice()
+    .sort((a, b) => (a.startAtMs ?? toDateMs(a)) - (b.startAtMs ?? toDateMs(b)))
+    .slice(0, 5),
+)
+
+const vodSummary = computed(() =>
+  vodItems.value
+    .slice()
+    .sort((a, b) => (b.startAtMs ?? toDateMs(b)) - (a.startAtMs ?? toDateMs(a)))
+    .slice(0, 5),
+)
+
+const visibleScheduledItems = computed(() => filteredScheduledItems.value.slice(0, scheduledVisibleCount.value))
+const visibleVodItems = computed(() => filteredVodItems.value.slice(0, vodVisibleCount.value))
+
+const buildLoopItems = (items: LiveItem[]): LiveItem[] => {
   if (!items.length) return []
-  if (items.length === 1) return [items[0], items[0], items[0]]
-  const first = items[0]
-  const last = items[items.length - 1]
+  if (items.length === 1) {
+    const single = items[0]!
+    return [single, single, single]
+  }
+  const first = items[0]!
+  const last = items[items.length - 1]!
   return [last, ...items, first]
 }
 
-const scheduledList = computed(() => scheduledItems.value)
-const vodList = computed(() => vodItems.value)
-
-const scheduledLoopItems = computed(() => buildLoopItems(scheduledList.value))
-const vodLoopItems = computed(() => buildLoopItems(vodList.value))
-
-const toDateMs = (item: LiveItem) => {
-  const raw = item.createdAt || item.datetime || ''
-  const parsed = Date.parse(raw.replace(/\./g, '-').replace(' ', 'T'))
-  return Number.isNaN(parsed) ? 0 : parsed
-}
+const scheduledLoopItems = computed<LiveItem[]>(() => buildLoopItems(scheduledSummary.value))
+const vodLoopItems = computed<LiveItem[]>(() => buildLoopItems(vodSummary.value))
 
 const visibleLive = computed(() => activeTab.value === 'all' || activeTab.value === 'live')
 const visibleScheduled = computed(() => activeTab.value === 'all' || activeTab.value === 'scheduled')
 const visibleVod = computed(() => activeTab.value === 'all' || activeTab.value === 'vod')
 
 const loopItemsFor = (kind: LoopKind) => (kind === 'scheduled' ? scheduledLoopItems.value : vodLoopItems.value)
-const baseItemsFor = (kind: LoopKind) => (kind === 'scheduled' ? scheduledList.value : vodList.value)
+const baseItemsFor = (kind: LoopKind) => (kind === 'scheduled' ? scheduledSummary.value : vodSummary.value)
 
-const setCarouselRef = (kind: LoopKind) => (el: Element | null) => {
-  carouselRefs.value[kind] = (el as HTMLElement) || null
+const setCarouselRef = (kind: LoopKind) => (el: Element | ComponentPublicInstance | null) => {
+  const target =
+    el && typeof el === 'object' && '$el' in el ? ((el as ComponentPublicInstance).$el as HTMLElement | null) : ((el as HTMLElement) || null)
+  carouselRefs.value[kind] = target
   nextTick(() => updateSlideWidth(kind))
 }
 
@@ -359,9 +487,18 @@ const handleLoopTransitionEnd = (kind: LoopKind) => {
 }
 
 const stepCarousel = (kind: LoopKind, delta: -1 | 1) => {
-  if (loopItemsFor(kind).length <= 1) return
+  const items = loopItemsFor(kind)
+  if (items.length <= 1) return
+  const lastIndex = items.length - 1
   loopTransition.value[kind] = true
-  loopIndex.value[kind] += delta
+  const nextIndex = loopIndex.value[kind] + delta
+  if (nextIndex > lastIndex) {
+    loopIndex.value[kind] = lastIndex
+  } else if (nextIndex < 0) {
+    loopIndex.value[kind] = 0
+  } else {
+    loopIndex.value[kind] = nextIndex
+  }
   restartAutoLoop(kind)
 }
 
@@ -426,15 +563,29 @@ watch(
 )
 
 watch(
-  () => scheduledList.value,
+  () => scheduledSummary.value,
   () => resetLoop('scheduled'),
   { deep: true },
 )
 
 watch(
-  () => vodList.value,
+  () => vodSummary.value,
   () => resetLoop('vod'),
   { deep: true },
+)
+
+watch(
+  () => [scheduledStatus.value, scheduledCategory.value, scheduledSort.value],
+  () => {
+    scheduledVisibleCount.value = 8
+  },
+)
+
+watch(
+  () => [vodStartDate.value, vodEndDate.value, vodVisibility.value, vodCategory.value, vodSort.value],
+  () => {
+    vodVisibleCount.value = 8
+  },
 )
 
 const handleCta = (kind: CarouselKind, item: LiveItem) => {
@@ -564,6 +715,14 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="live-header__right">
+        <label v-if="activeTab === 'all'" class="inline-filter">
+          <span>정렬</span>
+          <select v-model="liveSort">
+            <option value="viewers_desc">시청자 많은 순</option>
+            <option value="likes_desc">좋아요 많은 순</option>
+            <option value="latest">최신 순</option>
+          </select>
+        </label>
         <button type="button" class="live-create-btn" @click="handleCreate">방송 등록</button>
       </div>
     </header>
@@ -573,7 +732,10 @@ onBeforeUnmount(() => {
         <div class="live-section__title">
           <h3>방송 중</h3>
         </div>
-        <button v-if="activeTab === 'all'" class="link-more" type="button" @click="setTab('live')">+ 더보기</button>
+        <div class="live-section__desc">
+          <p v-if="activeTab !== 'all'" class="ds-section-sub">현재 진행 중인 라이브 방송입니다.</p>
+          <button v-else class="link-more" type="button" @click="setTab('live')">+ 더보기</button>
+        </div>
       </div>
 
       <div v-if="activeTab === 'live'" class="live-livegrid">
@@ -704,10 +866,89 @@ onBeforeUnmount(() => {
         <div class="live-section__title">
           <h3>예약된 방송</h3>
         </div>
-        <button v-if="activeTab === 'all'" class="link-more" type="button" @click="setTab('scheduled')">+ 더보기</button>
+        <div class="live-section__desc">
+          <p v-if="activeTab !== 'all'" class="ds-section-sub">예정된 라이브 스케줄을 관리하세요.</p>
+          <button v-else class="link-more" type="button" @click="setTab('scheduled')">+ 더보기</button>
+        </div>
       </div>
 
-      <div class="carousel-wrap">
+      <div v-if="activeTab === 'scheduled'" class="filter-bar">
+        <label class="filter-field">
+          <span class="filter-label">상태</span>
+          <select v-model="scheduledStatus">
+            <option value="all">전체</option>
+            <option value="reserved">예약 중</option>
+            <option value="canceled">취소됨</option>
+          </select>
+        </label>
+        <label class="filter-field">
+          <span class="filter-label">카테고리</span>
+          <select v-model="scheduledCategory">
+            <option value="all">전체</option>
+            <option v-for="category in scheduledCategories" :key="category" :value="category">
+              {{ category }}
+            </option>
+          </select>
+        </label>
+        <label class="filter-field">
+          <span class="filter-label">정렬</span>
+          <select v-model="scheduledSort">
+            <option value="nearest">방송 시간이 가까운 순</option>
+            <option value="latest">최신 순</option>
+            <option value="oldest">오래된 순</option>
+          </select>
+        </label>
+      </div>
+
+      <div v-if="activeTab === 'scheduled'" class="scheduled-grid" aria-label="예약 방송 목록">
+        <template v-if="visibleScheduledItems.length">
+          <article
+            v-for="item in visibleScheduledItems"
+            :key="item.id"
+            class="live-card ds-surface live-card--clickable"
+            @click="openReservationDetail(item)"
+          >
+            <div class="live-thumb">
+              <img class="live-thumb__img" :src="item.thumb" :alt="item.title" loading="lazy" />
+              <div class="live-badges">
+                <span v-if="formatDDay(item)" class="badge badge--dday">{{ formatDDay(item) }}</span>
+                <span class="badge badge--scheduled" :class="{ 'badge--cancelled': item.status === '취소됨' }">{{ item.status ?? '예약' }}</span>
+              </div>
+            </div>
+            <div class="live-body">
+              <div class="live-meta">
+                <p class="live-title">{{ item.title }}</p>
+                <p class="live-date">{{ item.datetime }}</p>
+                <p class="live-seller">{{ item.category }}</p>
+              </div>
+              <button
+                v-if="canStartNow(item)"
+                type="button"
+                class="live-cta live-cta--ghost"
+                @click.stop="handleCta('scheduled', item)"
+              >
+                {{ item.ctaLabel }}
+              </button>
+            </div>
+          </article>
+
+          <button
+            v-if="filteredScheduledItems.length > visibleScheduledItems.length"
+            type="button"
+            class="live-more"
+            @click="scheduledVisibleCount += 6"
+          >
+            더 보기
+          </button>
+        </template>
+
+        <article v-else class="live-card ds-surface live-card--empty">
+          <p class="live-card__title">등록된 방송이 없습니다.</p>
+          <p class="live-card__meta">예약 방송을 추가해보세요.</p>
+        </article>
+      </div>
+
+      <div v-else class="carousel-wrap">
         <button
           type="button"
           class="carousel-btn carousel-btn--left"
@@ -735,6 +976,7 @@ onBeforeUnmount(() => {
                 <div class="live-thumb">
                   <img class="live-thumb__img" :src="item.thumb" :alt="item.title" loading="lazy" />
                   <div class="live-badges">
+                    <span v-if="formatDDay(item)" class="badge badge--dday">{{ formatDDay(item) }}</span>
                     <span class="badge badge--scheduled" :class="{ 'badge--cancelled': item.status === '취소됨' }">{{ item.status ?? '예약' }}</span>
                   </div>
                 </div>
@@ -779,10 +1021,91 @@ onBeforeUnmount(() => {
         <div class="live-section__title">
           <h3>VOD</h3>
         </div>
-        <button v-if="activeTab === 'all'" class="link-more" type="button" @click="setTab('vod')">+ 더보기</button>
+        <div class="live-section__desc">
+          <p v-if="activeTab !== 'all'" class="ds-section-sub">저장된 다시보기 콘텐츠를 확인합니다.</p>
+          <button v-else class="link-more" type="button" @click="setTab('vod')">+ 더보기</button>
+        </div>
       </div>
 
-      <div class="carousel-wrap">
+      <div v-if="activeTab === 'vod'" class="vod-filters">
+        <label class="filter-field">
+          <span class="filter-label">시작일</span>
+          <input v-model="vodStartDate" type="date" />
+        </label>
+        <label class="filter-field">
+          <span class="filter-label">종료일</span>
+          <input v-model="vodEndDate" type="date" />
+        </label>
+        <label class="filter-field">
+          <span class="filter-label">공개 여부</span>
+          <select v-model="vodVisibility">
+            <option value="all">전체</option>
+            <option value="public">공개</option>
+            <option value="private">비공개</option>
+          </select>
+        </label>
+        <label class="filter-field">
+          <span class="filter-label">카테고리</span>
+          <select v-model="vodCategory">
+            <option value="all">전체</option>
+            <option v-for="category in vodCategories" :key="category" :value="category">{{ category }}</option>
+          </select>
+        </label>
+        <label class="filter-field">
+          <span class="filter-label">정렬</span>
+          <select v-model="vodSort">
+            <option value="latest">최신 순</option>
+            <option value="oldest">오래된 순</option>
+            <option value="likes_desc">좋아요 높은 순</option>
+            <option value="likes_asc">좋아요 낮은 순</option>
+            <option value="viewers_desc">시청자 수 높은 순</option>
+            <option value="viewers_asc">시청자 수 낮은 순</option>
+            <option value="revenue_desc">매출 높은 순</option>
+            <option value="revenue_asc">매출 낮은 순</option>
+          </select>
+        </label>
+      </div>
+
+      <div v-if="activeTab === 'vod'" class="vod-grid" aria-label="VOD 목록">
+        <template v-if="visibleVodItems.length">
+            <article
+              v-for="item in visibleVodItems"
+              :key="item.id"
+              class="live-card ds-surface live-card--clickable"
+              @click="openVodDetail(item)"
+            >
+            <div class="live-thumb">
+              <img class="live-thumb__img" :src="item.thumb" :alt="item.title" loading="lazy" />
+              <div class="live-badges">
+                <span class="badge badge--vod">{{ item.statusBadge ?? 'VOD' }}</span>
+              </div>
+            </div>
+            <div class="live-body">
+              <div class="live-meta">
+                <p class="live-title">{{ item.title }}</p>
+                <p class="live-date">{{ item.datetime }}</p>
+                <p class="live-seller">{{ item.category }}</p>
+              </div>
+            </div>
+          </article>
+
+          <button
+            v-if="filteredVodItems.length > visibleVodItems.length"
+            type="button"
+            class="live-more"
+            @click="vodVisibleCount += 6"
+          >
+            더 보기
+          </button>
+        </template>
+
+        <article v-else class="live-card ds-surface live-card--empty">
+          <p class="live-card__title">등록된 VOD가 없습니다.</p>
+          <p class="live-card__meta">방송이 종료되면 자동 등록됩니다.</p>
+        </article>
+      </div>
+
+      <div v-else class="carousel-wrap">
         <button type="button" class="carousel-btn carousel-btn--left" aria-label="VOD 왼쪽 이동" @click="stepCarousel('vod', -1)">
           ‹
         </button>
@@ -859,6 +1182,23 @@ onBeforeUnmount(() => {
   gap: 10px;
 }
 
+.inline-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
+  color: var(--text-strong);
+}
+
+.inline-filter select {
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-weight: 700;
+  color: var(--text-strong);
+  background: var(--surface);
+}
+
 .live-tabs {
   display: inline-flex;
   gap: 10px;
@@ -930,6 +1270,12 @@ onBeforeUnmount(() => {
   gap: 8px;
 }
 
+.live-section__desc {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .live-section__head h3 {
   margin: 0;
   font-size: 1.3rem;
@@ -944,6 +1290,41 @@ onBeforeUnmount(() => {
   font-weight: 900;
   cursor: pointer;
   padding: 4px 6px;
+}
+
+.vod-filters,
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--surface);
+  margin-bottom: 12px;
+}
+
+.filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 140px;
+}
+
+.filter-label {
+  font-weight: 800;
+  color: var(--text-strong);
+  font-size: 0.85rem;
+}
+
+.filter-field input,
+.filter-field select {
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-weight: 700;
+  color: var(--text-strong);
+  background: var(--surface);
 }
 
 .live-feature-wrap {
@@ -1382,6 +1763,11 @@ onBeforeUnmount(() => {
   color: #fff;
 }
 
+.badge--dday {
+  background: rgba(15, 23, 42, 0.9);
+  color: #fff;
+}
+
 .live-body {
   padding: 14px;
   display: flex;
@@ -1446,7 +1832,31 @@ onBeforeUnmount(() => {
   background: var(--surface);
 }
 
+.live-grid,
+.scheduled-grid,
+.vod-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.live-more {
+  grid-column: 1 / -1;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px dashed var(--border-color);
+  background: var(--surface);
+  font-weight: 900;
+  cursor: pointer;
+}
+
 @media (max-width: 1200px) {
+  .live-grid,
+  .scheduled-grid,
+  .vod-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .live-livegrid {
     grid-template-columns: 1fr;
   }
@@ -1461,11 +1871,23 @@ onBeforeUnmount(() => {
   .live-carousel {
     padding: 10px 10px;
   }
+
+  .live-grid,
+  .scheduled-grid,
+  .vod-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 720px) {
   .carousel-wrap {
     padding: 0;
+  }
+
+  .live-grid,
+  .scheduled-grid,
+  .vod-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>
