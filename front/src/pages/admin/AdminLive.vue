@@ -44,6 +44,11 @@ type AdminLiveItem = LiveItem & {
 const router = useRouter()
 const route = useRoute()
 const activeTab = ref<LiveTab>('all')
+const navSelection = computed<'list' | 'stats' | 'sanctions'>(() => {
+  if (route.path.includes('/admin/live/sanctions')) return 'sanctions'
+  if (route.path.includes('/admin/live/stats')) return 'stats'
+  return 'list'
+})
 
 const liveItems = ref<AdminLiveItem[]>([])
 
@@ -200,7 +205,16 @@ onBeforeUnmount(() => {
         </button>
       </div>
 
-      <div class="live-header__right"></div>
+      <div class="live-header__right">
+        <label class="inline-filter">
+          <span>섹션</span>
+          <select :value="navSelection" @change="handleNavChange(($event.target as HTMLSelectElement).value as any)">
+            <option value="list">방송 목록</option>
+            <option value="stats">방송 통계</option>
+            <option value="sanctions">제재 통계</option>
+          </select>
+        </label>
+      </div>
     </header>
 
     <section v-if="visibleLive" class="live-section">

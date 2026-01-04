@@ -569,6 +569,14 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="live-header__right">
+        <label v-if="activeTab === 'all'" class="inline-filter">
+          <span>정렬</span>
+          <select v-model="liveSort">
+            <option value="viewers_desc">시청자 많은 순</option>
+            <option value="likes_desc">좋아요 많은 순</option>
+            <option value="latest">최신 순</option>
+          </select>
+        </label>
         <button type="button" class="live-create-btn" @click="handleCreate">방송 등록</button>
       </div>
     </header>
@@ -975,10 +983,6 @@ onBeforeUnmount(() => {
             <p class="live-card__meta">방송이 종료되면 자동 등록됩니다.</p>
           </article>
         </div>
-
-        <button type="button" class="carousel-btn carousel-btn--right" aria-label="VOD 오른쪽 이동" @click="scrollCarousel('vod', 1)">
-          ›
-        </button>
       </div>
     </section>
 
