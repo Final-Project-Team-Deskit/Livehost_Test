@@ -64,17 +64,31 @@ const removeQuestion = (id: string) => {
 const isQuestionValid = (text: string) => !!text.trim()
 
 const goNext = () => {
-  const hasInvalid = draft.value.questions.some((q) => !isQuestionValid(q.text))
+  const trimmed = draft.value.questions.map((q) => ({ ...q, text: q.text.trim() }))
+  const filled = trimmed.filter((q) => q.text.length > 0)
+
+  if (filled.length === 0 && draft.value.questions.length <= 1) {
+    draft.value.questions = []
+    error.value = ''
+    syncDraft()
+    router.push({ path: '/seller/live/create/basic', query: route.query }).catch(() => {})
+    return
+  }
+
+  const hasInvalid = filled.length !== trimmed.length
   if (hasInvalid) {
     error.value = '모든 질문을 입력해주세요.'
     return
   }
+  draft.value.questions = filled
   error.value = ''
   syncDraft()
   router.push({ path: '/seller/live/create/basic', query: route.query }).catch(() => {})
 }
 
 const cancel = () => {
+  const ok = window.confirm('작성 중인 내용을 취소하시겠어요?')
+  if (!ok) return
   const redirect = isEditMode.value && reservationId.value
     ? `/seller/broadcasts/reservations/${reservationId.value}`
     : '/seller/live?tab=scheduled'
@@ -99,15 +113,15 @@ watch(
     <PageHeader :eyebrow="isEditMode ? 'DESKIT' : 'DESKIT'" :title="isEditMode ? '예약 수정 - 큐 카드 편집' : '방송 등록 - 큐 카드 작성'" />
     <section class="create-card ds-surface">
       <div class="step-meta">
+        <span class="step-indicator">1 / 2 단계</span>
         <button type="button" class="btn ghost" @click="router.back()">이전</button>
-        <button type="button" class="btn ghost" @click="cancel">취소</button>
       </div>
       <div class="section-head">
         <h3>큐 카드 질문</h3>
         <span class="count-pill">{{ draft.questions.length }}/{{ maxQuestions }}</span>
       </div>
       <div class="question-list">
-        <div v-for="(item, index) in draft.questions" :key="item.id" class="question-card" :class="{ invalid: !isQuestionValid(item.text) }">
+        <div v-for="(item, index) in draft.questions" :key="item.id" class="question-card" :class="{ invalid: draft.questions.length > 1 && !isQuestionValid(item.text) }">
           <div class="question-head">
             <span class="question-title">질문 {{ index + 1 }}</span>
             <button type="button" class="btn ghost" :disabled="draft.questions.length <= 1" @click="removeQuestion(item.id)">
@@ -120,7 +134,7 @@ watch(
             placeholder="질문을 입력하세요."
             @input="error = ''"
           ></textarea>
-          <p v-if="!isQuestionValid(item.text)" class="inline-error">질문을 입력해주세요.</p>
+          <p v-if="draft.questions.length > 1 && !isQuestionValid(item.text)" class="inline-error">질문을 입력해주세요.</p>
         </div>
       </div>
       <div class="question-actions">
@@ -132,7 +146,10 @@ watch(
       <p v-if="error" class="error">{{ error }}</p>
       <div class="actions">
         <div class="step-hint">모든 질문을 입력하면 다음 단계로 이동할 수 있습니다.</div>
-        <button type="button" class="btn primary" @click="goNext">다음 단계</button>
+        <div class="action-buttons">
+          <button type="button" class="btn" @click="cancel">취소</button>
+          <button type="button" class="btn primary" @click="goNext">다음 단계</button>
+        </div>
       </div>
     </section>
   </PageContainer>
@@ -149,8 +166,14 @@ watch(
 .step-meta {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: 8px;
+}
+
+.step-indicator {
+  color: var(--text-muted);
+  font-weight: 800;
+  font-size: 0.95rem;
 }
 
 .field {
@@ -259,6 +282,11 @@ textarea {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 10px;
 }
 
 .btn {
