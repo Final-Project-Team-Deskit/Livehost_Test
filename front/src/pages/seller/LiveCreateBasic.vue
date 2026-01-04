@@ -105,16 +105,22 @@ const syncDraft = () => {
 }
 
 const restoreDraft = () => {
+  if (!isEditMode.value) {
+    localStorage.removeItem(DRAFT_KEY)
+    draft.value = createEmptyDraft()
+    return
+  }
+
   const saved = loadDraft()
-  if (saved && (!isEditMode.value || saved.reservationId === reservationId.value)) {
+  if (saved && saved.reservationId === reservationId.value) {
     draft.value = { ...draft.value, ...saved }
+  } else {
+    draft.value = createEmptyDraft()
   }
 
   if (isEditMode.value) {
     draft.value = { ...draft.value, ...buildDraftFromReservation(reservationId.value) }
   }
-
-  syncDraft()
 }
 
 const handleThumbUpload = (event: Event) => {
@@ -227,6 +233,7 @@ const openProductModal = () => {
 
 const cancelProductSelection = () => {
   showProductModal.value = false
+  modalProducts.value = draft.value.products.map((p) => ({ ...p }))
 }
 
 const saveProductSelection = () => {
@@ -421,6 +428,7 @@ watch(
         </div>
       </div>
       <div v-if="showProductModal" class="modal">
+        <div class="modal__backdrop" @click="cancelProductSelection"></div>
         <div class="modal__content">
           <div class="modal__header">
             <h3>상품 선택</h3>
@@ -436,9 +444,13 @@ watch(
                 v-for="product in filteredProducts"
                 :key="product.id"
                 class="product-card"
-                :class="{ checked: isSelected(product.id, modalProducts) }"
+                :class="{ checked: isSelected(product.id, modalProducts.value) }"
               >
-                <input type="checkbox" :checked="isSelected(product.id, modalProducts)" @change="toggleProduct(product, modalProducts)" />
+                <input
+                  type="checkbox"
+                  :checked="isSelected(product.id, modalProducts.value)"
+                  @change="toggleProduct(product, modalProducts.value)"
+                />
                 <div class="product-thumb" v-if="product.thumb">
                   <img :src="product.thumb" :alt="product.name" />
                 </div>
