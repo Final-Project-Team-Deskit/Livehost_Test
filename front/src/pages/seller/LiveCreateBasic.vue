@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { Teleport, computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PageContainer from '../../components/PageContainer.vue'
 import PageHeader from '../../components/PageHeader.vue'
@@ -422,7 +422,7 @@ watch(
           <button type="button" class="btn primary" @click="submit">{{ isEditMode ? '저장' : '방송 등록' }}</button>
         </div>
       </div>
-      <Teleport to="body">
+      <teleport to="body">
         <div v-if="showProductModal" class="modal">
           <div class="modal__backdrop" @click="cancelProductSelection"></div>
           <div class="modal__content">
@@ -462,7 +462,7 @@ watch(
               </div>
             </div>
             <div class="modal__footer">
-              <span class="modal__count">선택 {{ modalProducts.value.length }}개</span>
+              <span class="modal__count">선택 {{ modalProducts?.value?.length ?? 0 }}개</span>
               <div class="modal__actions">
                 <button type="button" class="btn ghost" @click="cancelProductSelection">취소</button>
                 <button type="button" class="btn primary" @click="saveProductSelection">저장</button>
@@ -470,7 +470,7 @@ watch(
             </div>
           </div>
         </div>
-      </Teleport>
+      </teleport>
       <div v-if="showTermsModal" class="modal">
         <div class="modal__content">
           <div class="modal__header">
