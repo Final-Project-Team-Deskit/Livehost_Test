@@ -101,6 +101,7 @@ const syncDraft = () => {
     notice: draft.value.notice.trim(),
     questions: trimmedQuestions,
   })
+  draft.value.questions = trimmedQuestions
 }
 
 const restoreDraft = () => {
