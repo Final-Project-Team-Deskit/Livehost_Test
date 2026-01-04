@@ -37,13 +37,10 @@ onMounted(() => {
   <div class="stats-page">
     <PageHeader eyebrow="DESKIT" title="방송 통계" />
 
-    <section class="stats-grid stats-grid--charts">
+    <section class="stats-section">
       <article class="ds-surface stats-card">
         <header class="stats-card__head">
-          <div>
-            <h3>매출 추이</h3>
-            <p class="stats-card__sub">기간별 매출 지표</p>
-          </div>
+          <h3 class="stats-card__title">매출 추이</h3>
           <div class="toggle-group" role="tablist" aria-label="매출 기간">
             <button
               type="button"
@@ -76,10 +73,7 @@ onMounted(() => {
 
       <article class="ds-surface stats-card">
         <header class="stats-card__head">
-          <div>
-            <h3>시청자 당 매출 추이</h3>
-            <p class="stats-card__sub">시청자 1명당 매출 흐름을 확인하세요.</p>
-          </div>
+          <h3 class="stats-card__title">시청자 당 매출 추이</h3>
           <div class="toggle-group" role="tablist" aria-label="시청자당 매출 기간">
             <button
               type="button"
@@ -111,13 +105,10 @@ onMounted(() => {
       </article>
     </section>
 
-    <section class="stats-grid stats-grid--lists">
+    <section class="stats-section stats-section--ranks">
       <article class="ds-surface stats-card">
         <header class="stats-card__head">
-          <div>
-            <h3>방송 매출 순위 TOP 5</h3>
-            <p class="stats-card__sub">최근 목록을 기준으로 베스트/워스트를 확인하세요.</p>
-          </div>
+          <h3 class="stats-card__title">방송 매출 순위 TOP 5</h3>
           <div class="toggle-group" role="tablist" aria-label="방송 매출 순위">
             <button
               type="button"
@@ -142,10 +133,7 @@ onMounted(() => {
 
       <article class="ds-surface stats-card">
         <header class="stats-card__head">
-          <div>
-            <h3>상품 매출 순위 TOP 5</h3>
-            <p class="stats-card__sub">판매된 상품 중 매출 상·하위 항목입니다.</p>
-          </div>
+          <h3 class="stats-card__title">상품 매출 순위 TOP 5</h3>
           <div class="toggle-group" role="tablist" aria-label="상품 매출 순위">
             <button
               type="button"
@@ -175,42 +163,39 @@ onMounted(() => {
 .stats-page {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
 }
 
-.stats-grid {
+.stats-section {
   display: grid;
-  gap: 14px;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
 }
 
-.stats-grid--charts {
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-}
-
-.stats-grid--lists {
-  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+.stats-section--ranks {
+  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
 }
 
 .stats-card {
-  padding: 16px;
-  border-radius: 14px;
+  padding: 18px;
+  border-radius: 16px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
 }
 
 .stats-card__head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  gap: 16px;
   flex-wrap: wrap;
 }
 
-.stats-card__sub {
-  margin: 4px 0 0;
-  color: var(--text-muted);
-  font-weight: 700;
+.stats-card__title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
 }
 
 .toggle-group {
