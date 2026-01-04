@@ -30,8 +30,6 @@ const createQuestion = () => ({
 const syncDraft = () => {
   saveDraft({
     ...draft.value,
-    cueTitle: draft.value.cueTitle.trim(),
-    cueNotes: draft.value.cueNotes.trim(),
     questions: draft.value.questions.map((q) => ({ ...q, text: q.text.trim() })),
   })
 }
