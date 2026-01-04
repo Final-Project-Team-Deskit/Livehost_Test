@@ -415,6 +415,14 @@ watch(
   },
 )
 
+const handleNavChange = (value: 'list' | 'stats') => {
+  if (value === 'stats') {
+    router.push('/seller/live/stats').catch(() => {})
+    return
+  }
+  router.push('/seller/live').catch(() => {})
+}
+
 const handleCta = (kind: CarouselKind, item: LiveItem) => {
   if (kind === 'live') {
     router.push(`/seller/live/stream/${item.id}`).catch(() => {})
@@ -716,6 +724,34 @@ onBeforeUnmount(() => {
         </label>
       </div>
 
+      <div v-if="activeTab === 'scheduled'" class="filter-bar">
+        <label class="filter-field">
+          <span class="filter-label">상태</span>
+          <select v-model="scheduledStatus">
+            <option value="all">전체</option>
+            <option value="reserved">예약 중</option>
+            <option value="canceled">취소됨</option>
+          </select>
+        </label>
+        <label class="filter-field">
+          <span class="filter-label">카테고리</span>
+          <select v-model="scheduledCategory">
+            <option value="all">전체</option>
+            <option v-for="category in scheduledCategories" :key="category" :value="category">
+              {{ category }}
+            </option>
+          </select>
+        </label>
+        <label class="filter-field">
+          <span class="filter-label">정렬</span>
+          <select v-model="scheduledSort">
+            <option value="nearest">방송 시간이 가까운 순</option>
+            <option value="latest">최신 순</option>
+            <option value="oldest">오래된 순</option>
+          </select>
+        </label>
+      </div>
+
       <div v-if="activeTab === 'scheduled'" class="scheduled-grid" aria-label="예약 방송 목록">
         <template v-if="visibleScheduledItems.length">
           <article
@@ -943,10 +979,6 @@ onBeforeUnmount(() => {
             <p class="live-card__meta">방송이 종료되면 자동 등록됩니다.</p>
           </article>
         </div>
-
-        <button type="button" class="carousel-btn carousel-btn--right" aria-label="VOD 오른쪽 이동" @click="scrollCarousel('vod', 1)">
-          ›
-        </button>
       </div>
     </section>
 
