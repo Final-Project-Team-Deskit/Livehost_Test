@@ -33,8 +33,6 @@ type LiveItem = {
 }
 
 const activeTab = ref<LiveTab>('all')
-const liveSort = ref<'viewers_desc' | 'likes_desc' | 'latest'>('viewers_desc')
-
 const scheduledStatus = ref<'all' | 'reserved' | 'canceled'>('all')
 const scheduledCategory = ref<string>('all')
 const scheduledSort = ref<'nearest' | 'latest' | 'oldest'>('nearest')
@@ -220,19 +218,7 @@ const buildLiveItems = () => {
   }))
 }
 
-const liveItemsSorted = computed(() => {
-  const sorted = [...liveItems.value]
-  if (liveSort.value === 'viewers_desc') {
-    sorted.sort((a, b) => (b.viewers ?? 0) - (a.viewers ?? 0))
-  } else if (liveSort.value === 'likes_desc') {
-    sorted.sort((a, b) => (b.likes ?? 0) - (a.likes ?? 0))
-  } else if (liveSort.value === 'latest') {
-    sorted.sort((a, b) => toDateMs(b) - toDateMs(a))
-  }
-  return sorted
-})
-
-const currentLive = computed(() => liveItemsSorted.value[0] ?? null)
+const currentLive = computed(() => liveItems.value[0] ?? null)
 
 const vodCategories = ['홈오피스', '주변기기', '정리/수납', '조명']
 
@@ -379,6 +365,7 @@ const carouselRefs = ref<Record<CarouselKind, HTMLElement | null>>({
   scheduled: null,
   vod: null,
 })
+const loopTimers = ref<Record<'scheduled' | 'vod', number | null>>({ scheduled: null, vod: null })
 
 const setCarouselRef = (kind: CarouselKind) => (el: Element | null) => {
   carouselRefs.value[kind] = (el as HTMLElement) || null
@@ -391,6 +378,37 @@ const scrollCarousel = (kind: CarouselKind, dir: -1 | 1) => {
   const gap = 14
   const cardW = first?.offsetWidth ?? 320
   el.scrollBy({ left: dir * (cardW + gap) * 2, behavior: 'smooth' })
+}
+
+const startLoop = (kind: 'scheduled' | 'vod') => {
+  const existing = loopTimers.value[kind]
+  if (existing) window.clearInterval(existing)
+  const el = carouselRefs.value[kind]
+  if (!el) {
+    loopTimers.value[kind] = null
+    return
+  }
+  const tick = () => {
+    const first = el.querySelector<HTMLElement>('.live-card')
+    const gap = 14
+    const cardW = first?.offsetWidth ?? 280
+    const delta = cardW + gap
+    const max = el.scrollWidth - el.clientWidth
+    if (el.scrollLeft + delta + 4 >= max) {
+      el.scrollTo({ left: 0 })
+    } else {
+      el.scrollBy({ left: delta, behavior: 'smooth' })
+    }
+  }
+  loopTimers.value[kind] = window.setInterval(tick, 3200)
+}
+
+const stopLoops = () => {
+  Object.keys(loopTimers.value).forEach((key) => {
+    const id = loopTimers.value[key as 'scheduled' | 'vod']
+    if (id) window.clearInterval(id)
+    loopTimers.value[key as 'scheduled' | 'vod'] = null
+  })
 }
 
 const setTab = (tab: LiveTab) => {
@@ -415,13 +433,21 @@ watch(
   },
 )
 
-const handleNavChange = (value: 'list' | 'stats') => {
-  if (value === 'stats') {
-    router.push('/seller/live/stats').catch(() => {})
-    return
-  }
-  router.push('/seller/live').catch(() => {})
-}
+watch(
+  () => [activeTab.value, scheduledLoop.value.length],
+  () => {
+    if (activeTab.value !== 'scheduled') startLoop('scheduled')
+    else stopLoops()
+  },
+)
+
+watch(
+  () => [activeTab.value, filteredVodItems.value.length],
+  () => {
+    if (activeTab.value !== 'vod') startLoop('vod')
+    else stopLoops()
+  },
+)
 
 const handleCta = (kind: CarouselKind, item: LiveItem) => {
   if (kind === 'live') {
@@ -447,11 +473,10 @@ const handleDeviceStart = () => {
 }
 
 const canStartNow = (item: LiveItem) => {
-  if (item.ctaLabel?.includes('시작')) return true
   if (!item.startAtMs) return false
   const now = Date.now()
-  const diff = item.startAtMs - now
-  return diff <= 1000 * 60 * 120 && diff >= -1000 * 60 * 30
+  const diff = now - item.startAtMs
+  return diff >= 0 && diff <= 1000 * 60 * 30
 }
 
 const openReservationDetail = (item: LiveItem) => {
@@ -498,6 +523,7 @@ onBeforeUnmount(() => {
   if (liveTicker.value) {
     window.clearInterval(liveTicker.value)
   }
+  stopLoops()
 })
 </script>
 
@@ -559,9 +585,11 @@ onBeforeUnmount(() => {
       <div class="live-section__head">
         <div class="live-section__title">
           <h3>방송 중</h3>
-          <button v-if="activeTab === 'all'" class="link-more" type="button" @click="setTab('live')">+ 더보기</button>
         </div>
-        <p v-if="activeTab !== 'all'" class="ds-section-sub">현재 진행 중인 라이브 방송입니다.</p>
+        <div class="live-section__desc">
+          <p v-if="activeTab !== 'all'" class="ds-section-sub">현재 진행 중인 라이브 방송입니다.</p>
+          <button v-else class="link-more" type="button" @click="setTab('live')">+ 더보기</button>
+        </div>
       </div>
 
       <div v-if="activeTab === 'live'" class="live-livegrid">
@@ -691,37 +719,11 @@ onBeforeUnmount(() => {
       <div class="live-section__head">
         <div class="live-section__title">
           <h3>예약된 방송</h3>
-          <button v-if="activeTab === 'all'" class="link-more" type="button" @click="setTab('scheduled')">+ 더보기</button>
         </div>
-        <p v-if="activeTab !== 'all'" class="ds-section-sub">예정된 라이브 스케줄을 관리하세요.</p>
-      </div>
-
-      <div v-if="activeTab === 'scheduled'" class="filter-bar">
-        <label class="filter-field">
-          <span class="filter-label">상태</span>
-          <select v-model="scheduledStatus">
-            <option value="all">전체</option>
-            <option value="reserved">예약 중</option>
-            <option value="canceled">취소됨</option>
-          </select>
-        </label>
-        <label class="filter-field">
-          <span class="filter-label">카테고리</span>
-          <select v-model="scheduledCategory">
-            <option value="all">전체</option>
-            <option v-for="category in scheduledCategories" :key="category" :value="category">
-              {{ category }}
-            </option>
-          </select>
-        </label>
-        <label class="filter-field">
-          <span class="filter-label">정렬</span>
-          <select v-model="scheduledSort">
-            <option value="nearest">방송 시간이 가까운 순</option>
-            <option value="latest">최신 순</option>
-            <option value="oldest">오래된 순</option>
-          </select>
-        </label>
+        <div class="live-section__desc">
+          <p v-if="activeTab !== 'all'" class="ds-section-sub">예정된 라이브 스케줄을 관리하세요.</p>
+          <button v-else class="link-more" type="button" @click="setTab('scheduled')">+ 더보기</button>
+        </div>
       </div>
 
       <div v-if="activeTab === 'scheduled'" class="filter-bar">
@@ -862,9 +864,11 @@ onBeforeUnmount(() => {
       <div class="live-section__head">
         <div class="live-section__title">
           <h3>VOD</h3>
-          <button v-if="activeTab === 'all'" class="link-more" type="button" @click="setTab('vod')">+ 더보기</button>
         </div>
-        <p v-if="activeTab !== 'all'" class="ds-section-sub">저장된 다시보기 콘텐츠를 확인합니다.</p>
+        <div class="live-section__desc">
+          <p v-if="activeTab !== 'all'" class="ds-section-sub">저장된 다시보기 콘텐츠를 확인합니다.</p>
+          <button v-else class="link-more" type="button" @click="setTab('vod')">+ 더보기</button>
+        </div>
       </div>
 
       <div v-if="activeTab === 'vod'" class="vod-filters">
@@ -1086,7 +1090,7 @@ onBeforeUnmount(() => {
 
 .live-section__head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 12px;
@@ -1096,6 +1100,12 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+}
+
+.live-section__desc {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .live-section__head h3 {
