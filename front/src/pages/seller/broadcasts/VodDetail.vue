@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PageContainer from '../../../components/PageContainer.vue'
 import { getSellerVodDetail } from '../../../lib/mocks/sellerVods'
@@ -9,6 +9,8 @@ const router = useRouter()
 
 const vodId = typeof route.params.vodId === 'string' ? route.params.vodId : ''
 const detail = ref(getSellerVodDetail(vodId))
+const isVodPlayable = computed(() => !!detail.value?.vod?.url)
+const isVodPublic = computed(() => detail.value.vod.visibility === '공개')
 
 const goBack = () => {
   router.back()
@@ -58,14 +60,6 @@ const requestFullscreen = () => {
   el.requestFullscreen?.()
 }
 
-const requestMini = () => {
-  const el = videoRef.value
-  if (!el) return
-  if ('requestPictureInPicture' in el) {
-    // @ts-ignore
-    el.requestPictureInPicture().catch(() => {})
-  }
-}
 </script>
 
 <template>
@@ -118,32 +112,85 @@ const requestMini = () => {
     <section class="detail-card ds-surface">
       <div class="card-head">
         <h3>VOD</h3>
-        <div class="vod-actions">
-          <label class="toggle">
-            <input type="checkbox" :checked="detail.vod.visibility === '공개'" @change="toggleVisibility" />
-            <span>{{ detail.vod.visibility === '공개' ? '공개' : '비공개' }}</span>
-          </label>
-          <template v-if="detail.vod.url">
-            <button type="button" class="icon-btn" @click="handleDownload">⬇ 다운로드</button>
-            <button type="button" class="icon-btn danger" @click="handleDelete">🗑 삭제</button>
-          </template>
+        <div class="vod-actions" v-if="isVodPlayable">
+          <div class="visibility-toggle" aria-label="VOD 공개 설정">
+            <svg aria-hidden="true" class="icon" viewBox="0 0 24 24" focusable="false">
+              <path
+                d="M9.88 9.88a3 3 0 0 0 4.24 4.24M10.73 5.08A9.28 9.28 0 0 1 12 5c5 0 9 4 9 7 0 1.15-.48 2.38-1.36 3.57m-3.41 2.7A8.76 8.76 0 0 1 12 19c-5 0-9-4-9-7 0-.77.22-1.61.63-2.47"
+              />
+              <path d="m3 3 18 18" />
+            </svg>
+            <label class="vod-switch">
+              <input type="checkbox" :checked="isVodPublic" @change="toggleVisibility" />
+              <span class="switch-track"><span class="switch-thumb"></span></span>
+            </label>
+            <svg aria-hidden="true" class="icon" viewBox="0 0 24 24" focusable="false">
+              <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+            <span class="visibility-label">{{ isVodPublic ? '공개' : '비공개' }}</span>
+          </div>
+          <div class="vod-icon-actions">
+            <button type="button" class="icon-circle" @click="handleDownload" title="다운로드">
+              <svg aria-hidden="true" class="icon" viewBox="0 0 24 24" focusable="false">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <path d="M7 10l5 5 5-5" />
+                <path d="M12 15V3" />
+              </svg>
+            </button>
+            <button type="button" class="icon-circle danger" @click="handleDelete" title="삭제">
+              <svg aria-hidden="true" class="icon" viewBox="0 0 24 24" focusable="false">
+                <path d="M3 6h18" />
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                <line x1="10" x2="10" y1="11" y2="17" />
+                <line x1="14" x2="14" y1="11" y2="17" />
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
       <div class="vod-player">
         <div class="player-shell">
-          <video v-if="detail.vod.url" ref="videoRef" :src="detail.vod.url" controls></video>
-          <div v-else class="vod-placeholder">
-            <span>재생할 VOD가 없습니다.</span>
-          </div>
-          <div class="player-controls" v-if="detail.vod.url">
-            <button type="button" class="icon-btn" @click="requestFullscreen">⛶ 전체화면</button>
-            <button type="button" class="icon-btn" @click="showChat = !showChat">{{ showChat ? '채팅 닫기' : '채팅 보기' }}</button>
+          <div class="player-frame">
+            <video v-if="isVodPlayable" ref="videoRef" :src="detail.vod.url" controls></video>
+            <div v-else class="vod-placeholder">
+              <span>재생할 VOD가 없습니다.</span>
+            </div>
+            <div v-if="isVodPlayable" class="player-overlay">
+              <div class="overlay-controls">
+                <button type="button" class="icon-circle ghost" @click="requestFullscreen" title="전체화면">
+                  <svg aria-hidden="true" class="icon" viewBox="0 0 24 24" focusable="false">
+                    <path d="M15 3h6v6" />
+                    <path d="M9 21H3v-6" />
+                    <path d="M21 3 14 10" />
+                    <path d="M3 21 10 14" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  class="icon-circle"
+                  :class="{ active: showChat }"
+                  @click="showChat = !showChat"
+                  :title="showChat ? '채팅 닫기' : '채팅 보기'"
+                >
+                  <svg aria-hidden="true" class="icon" viewBox="0 0 24 24" focusable="false">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z" />
+                  </svg>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
         <aside v-if="showChat" class="chat-panel ds-surface">
           <header class="chat-head">
             <h4>채팅</h4>
-            <button type="button" class="icon-btn" @click="showChat = false">✕</button>
+            <button type="button" class="icon-circle ghost" @click="showChat = false" title="채팅 닫기">
+              <svg aria-hidden="true" class="icon" viewBox="0 0 24 24" focusable="false">
+                <path d="M18 6 6 18" />
+                <path d="m6 6 12 12" />
+              </svg>
+            </button>
           </header>
           <div class="chat-list">
             <div v-for="msg in chatMessages" :key="msg.id" class="chat-row">
@@ -329,32 +376,109 @@ const requestMini = () => {
 .vod-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   flex-wrap: wrap;
 }
 
-.toggle {
+.visibility-toggle {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-weight: 700;
-  color: var(--text-muted);
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background: var(--surface-weak);
 }
 
-.icon-btn {
+.vod-switch input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.vod-switch .switch-track {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 44px;
+  height: 22px;
+  background: var(--border-color);
+  border-radius: 999px;
+  transition: background 0.2s ease;
+}
+
+.vod-switch .switch-thumb {
+  position: absolute;
+  left: 3px;
+  top: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s ease;
+}
+
+.vod-switch input:checked + .switch-track {
+  background: #22c55e;
+}
+
+.vod-switch input:checked + .switch-track .switch-thumb {
+  transform: translateX(22px);
+}
+
+.visibility-label {
+  font-weight: 800;
+  color: var(--text-strong);
+}
+
+.vod-icon-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.icon-circle {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
   border: 1px solid var(--border-color);
   background: var(--surface);
-  color: var(--text-strong);
-  border-radius: 999px;
-  padding: 6px 12px;
-  font-weight: 800;
+  display: grid;
+  place-items: center;
   cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.1s ease, background 0.2s ease;
 }
 
-.icon-btn.danger {
-  background: #ef4444;
-  border-color: transparent;
+.icon-circle.ghost {
+  background: rgba(0, 0, 0, 0.55);
+  border-color: rgba(255, 255, 255, 0.18);
   color: #fff;
+}
+
+.icon-circle.danger {
+  background: #fee2e2;
+  border-color: #fecdd3;
+}
+
+.icon-circle.active {
+  background: #e0f2fe;
+  border-color: #bae6fd;
+}
+
+.icon-circle:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+}
+
+.icon {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .vod-player {
@@ -376,11 +500,18 @@ const requestMini = () => {
   gap: 10px;
 }
 
+.player-frame {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #000;
+  min-height: 260px;
+}
+
 .vod-player video {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  border-radius: 12px;
 }
 
 .vod-placeholder {
@@ -392,13 +523,21 @@ const requestMini = () => {
   border-radius: 12px;
 }
 
-.player-controls {
+.player-overlay {
   position: absolute;
-  right: 10px;
-  bottom: 10px;
+  inset: 0;
+  pointer-events: none;
+}
+
+.overlay-controls {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  z-index: 2;
+  pointer-events: auto;
 }
 
 .chat-panel {
