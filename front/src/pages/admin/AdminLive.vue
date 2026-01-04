@@ -54,6 +54,7 @@ const activeTab = ref<LiveTab>('all')
 const liveCategory = ref<string>('all')
 const liveSort = ref<'reports_desc' | 'latest' | 'viewers_desc' | 'viewers_asc'>('reports_desc')
 const liveVisibleCount = ref(5)
+const liveCarouselRef = ref<HTMLElement | null>(null)
 
 const scheduledStatus = ref<'all' | 'reserved' | 'canceled'>('all')
 const scheduledCategory = ref<string>('all')
@@ -205,6 +206,8 @@ const liveCategories = computed(() => Array.from(new Set(liveItems.value.map((it
 const scheduledCategories = computed(() => Array.from(new Set(scheduledItems.value.map((item) => item.category ?? '기타'))))
 const vodCategories = computed(() => Array.from(new Set(vodItems.value.map((item) => item.category ?? '기타'))))
 
+const liveCarouselItems = computed(() => visibleLiveItems.value.slice(0, 5))
+
 const openReservationDetail = (id: string) => {
   if (!id) return
   router.push(`/admin/live/reservations/${id}`).catch(() => {})
@@ -225,6 +228,13 @@ const refreshTabFromQuery = () => {
   if (tab === 'scheduled' || tab === 'live' || tab === 'vod' || tab === 'all') {
     activeTab.value = tab
   }
+}
+
+const scrollLiveCarousel = (dir: 'prev' | 'next') => {
+  const el = liveCarouselRef.value
+  if (!el) return
+  const offset = el.clientWidth * 0.9
+  el.scrollBy({ left: dir === 'next' ? offset : -offset, behavior: 'smooth' })
 }
 
 watch(
@@ -312,41 +322,67 @@ onBeforeUnmount(() => {
           <h3>방송 중</h3>
         </div>
         <div class="live-section__controls">
-          <p v-if="activeTab !== 'all'" class="ds-section-sub">신고 순으로 최대 5개까지 보여집니다.</p>
+          <div v-if="activeTab === 'live'" class="filter-row">
+            <label class="inline-filter">
+              <span>카테고리</span>
+              <select v-model="liveCategory">
+                <option value="all">모든 카테고리</option>
+                <option v-for="category in liveCategories" :key="category" :value="category">{{ category }}</option>
+              </select>
+            </label>
+            <label class="inline-filter">
+              <span>정렬</span>
+              <select v-model="liveSort">
+                <option value="reports_desc">신고가 많은 순</option>
+                <option value="latest">최신순</option>
+                <option value="viewers_desc">시청자가 많은 순</option>
+                <option value="viewers_asc">시청자가 적은 순</option>
+              </select>
+            </label>
+          </div>
+          <p v-else class="ds-section-sub">신고 순으로 최대 5개까지 보여집니다.</p>
           <button v-else class="link-more" type="button" @click="setTab('live')">+ 더보기</button>
         </div>
       </div>
 
-      <div class="live-grid" aria-label="방송 중 목록">
-        <template v-if="visibleLiveItems.length">
-          <article
-            v-for="item in visibleLiveItems"
-            :key="item.id"
-            class="live-card ds-surface live-card--clickable"
-            @click="openLiveDetail(item.id)"
-          >
-            <div class="live-thumb">
-              <img class="live-thumb__img" :src="item.thumb" :alt="item.title" loading="lazy" />
-              <div class="live-badges">
-                <span class="badge badge--live">{{ item.status }}</span>
-                <span class="badge badge--viewer">시청자 {{ item.viewers }}명</span>
+      <div class="carousel-wrap">
+        <button v-if="liveCarouselItems.length" type="button" class="carousel-btn prev" @click="scrollLiveCarousel('prev')" aria-label="이전">
+          ‹
+        </button>
+        <div ref="liveCarouselRef" class="live-carousel" aria-label="방송 중 목록">
+          <template v-if="liveCarouselItems.length">
+            <article
+              v-for="item in liveCarouselItems"
+              :key="item.id"
+              class="live-card ds-surface live-card--clickable"
+              @click="openLiveDetail(item.id)"
+            >
+              <div class="live-thumb">
+                <img class="live-thumb__img" :src="item.thumb" :alt="item.title" loading="lazy" />
+                <div class="live-badges">
+                  <span class="badge badge--live">{{ item.status }}</span>
+                  <span class="badge badge--viewer">시청자 {{ item.viewers }}명</span>
+                </div>
               </div>
-            </div>
-            <div class="live-body">
-              <div class="live-meta">
-                <p class="live-title">{{ item.title }}</p>
-                <p class="live-date">시작: {{ item.startedAt }}</p>
-                <p class="live-seller">{{ item.sellerName }}</p>
-                <p class="live-viewers">신고 {{ item.reports ?? 0 }}건 · 좋아요 {{ item.likes }}</p>
+              <div class="live-body">
+                <div class="live-meta">
+                  <p class="live-title">{{ item.title }}</p>
+                  <p class="live-date">시작: {{ item.startedAt }}</p>
+                  <p class="live-seller">{{ item.sellerName }}</p>
+                  <p class="live-viewers">신고 {{ item.reports ?? 0 }}건 · 좋아요 {{ item.likes }}</p>
+                </div>
               </div>
-            </div>
-          </article>
-        </template>
+            </article>
+          </template>
 
-        <article v-else class="live-card ds-surface live-card--empty">
-          <p class="live-card__title">진행 중인 방송이 없습니다.</p>
-          <p class="live-card__meta">현재 라이브 방송이 비어 있습니다.</p>
-        </article>
+          <article v-else class="live-card ds-surface live-card--empty">
+            <p class="live-card__title">진행 중인 방송이 없습니다.</p>
+            <p class="live-card__meta">현재 라이브 방송이 비어 있습니다.</p>
+          </article>
+        </div>
+        <button v-if="liveCarouselItems.length" type="button" class="carousel-btn next" @click="scrollLiveCarousel('next')" aria-label="다음">
+          ›
+        </button>
       </div>
     </section>
 
@@ -356,15 +392,40 @@ onBeforeUnmount(() => {
           <h3>예약된 방송</h3>
         </div>
         <div class="live-section__controls">
-          <p v-if="activeTab !== 'all'" class="ds-section-sub">예약된 방송 전체 목록입니다.</p>
-          <button
-            v-else
-            class="link-more"
-            type="button"
-            @click="setTab('scheduled')"
-          >
-            + 더보기
-          </button>
+          <div v-if="activeTab === 'scheduled'" class="filter-row">
+            <label class="inline-filter">
+              <span>상태</span>
+              <select v-model="scheduledStatus">
+                <option value="all">전체</option>
+                <option value="reserved">예약중</option>
+                <option value="canceled">취소됨</option>
+              </select>
+            </label>
+            <label class="inline-filter">
+              <span>카테고리</span>
+              <select v-model="scheduledCategory">
+                <option value="all">모든 카테고리</option>
+                <option v-for="category in scheduledCategories" :key="category" :value="category">{{ category }}</option>
+              </select>
+            </label>
+            <label class="inline-filter">
+              <span>정렬</span>
+              <select v-model="scheduledSort">
+                <option value="nearest">방송 시간이 가까운 순</option>
+                <option value="latest">최신순</option>
+                <option value="oldest">오래된 순</option>
+              </select>
+            </label>
+          </div>
+          <div v-else class="more-row">
+            <button
+              class="link-more"
+              type="button"
+              @click="setTab('scheduled')"
+            >
+              + 더보기
+            </button>
+          </div>
         </div>
       </div>
 
@@ -406,15 +467,54 @@ onBeforeUnmount(() => {
           <h3>VOD</h3>
         </div>
         <div class="live-section__controls">
-          <p v-if="activeTab !== 'all'" class="ds-section-sub">저장된 다시보기 콘텐츠입니다.</p>
-          <button
-            v-else
-            class="link-more"
-            type="button"
-            @click="setTab('vod')"
-          >
-            + 더보기
-          </button>
+          <div v-if="activeTab === 'vod'" class="filter-row vod-filter-row">
+            <label class="inline-filter">
+              <span>날짜 시작</span>
+              <input v-model="vodStartDate" type="date" />
+            </label>
+            <label class="inline-filter">
+              <span>날짜 종료</span>
+              <input v-model="vodEndDate" type="date" />
+            </label>
+            <label class="inline-filter">
+              <span>공개 여부</span>
+              <select v-model="vodVisibility">
+                <option value="all">전체</option>
+                <option value="public">공개</option>
+                <option value="private">비공개</option>
+              </select>
+            </label>
+            <label class="inline-filter">
+              <span>카테고리</span>
+              <select v-model="vodCategory">
+                <option value="all">모든 카테고리</option>
+                <option v-for="category in vodCategories" :key="category" :value="category">{{ category }}</option>
+              </select>
+            </label>
+            <label class="inline-filter">
+              <span>정렬</span>
+              <select v-model="vodSort">
+                <option value="latest">최신순</option>
+                <option value="reports_desc">신고 건수가 많은 순</option>
+                <option value="oldest">오래된 순</option>
+                <option value="likes_desc">좋아요가 높은 순</option>
+                <option value="likes_asc">좋아요가 낮은 순</option>
+                <option value="revenue_desc">매출액이 높은 순</option>
+                <option value="revenue_asc">매출액이 낮은 순</option>
+                <option value="viewers_desc">총 시청자 수가 높은 순</option>
+                <option value="viewers_asc">총 시청자 수가 낮은 순</option>
+              </select>
+            </label>
+          </div>
+          <div v-else class="more-row">
+            <button
+              class="link-more"
+              type="button"
+              @click="setTab('vod')"
+            >
+              + 더보기
+            </button>
+          </div>
         </div>
       </div>
 
@@ -572,6 +672,61 @@ onBeforeUnmount(() => {
 
 .carousel-wrap {
   position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.live-carousel {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(280px, 320px);
+  gap: 14px;
+  overflow-x: auto;
+  padding: 10px 4px;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+.vod-filter-row {
+  align-items: flex-end;
+}
+
+.more-row {
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.carousel-wrap {
+  position: relative;
+}
+
+.live-grid,
+.scheduled-grid,
+.vod-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.carousel-btn {
+  border: 1px solid var(--border-color);
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  background: var(--surface);
+  font-weight: 900;
+  color: var(--text-strong);
+  cursor: pointer;
+}
+
+.carousel-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .live-grid,
