@@ -317,7 +317,6 @@ const toggleFullscreen = async () => {
         <div class="panel-head">
           <div class="panel-head__left">
             <h3>상품 관리</h3>
-            <span class="panel-count">{{ sortedProducts.length }}개</span>
           </div>
           <button type="button" class="panel-close" aria-label="상품 관리 닫기" @click="showProducts = false">×</button>
         </div>
@@ -340,6 +339,7 @@ const toggleFullscreen = async () => {
             <button
               type="button"
               class="pin-btn"
+              :disabled="item.status === '품절'"
               :class="{ 'is-active': pinnedProductId === item.id }"
               aria-label="고정"
               @click="handlePinProduct(item.id)"
@@ -372,7 +372,8 @@ const toggleFullscreen = async () => {
             :aria-label="showProducts ? '상품 패널 닫기' : '상품 패널 열기'"
             @click="showProducts = !showProducts"
           >
-            {{ showProducts ? '× 상품' : '상품' }}
+            <span aria-hidden="true">{{ showProducts ? '✕' : '🛍' }}</span>
+            <span class="sr-only">{{ showProducts ? '상품 패널 닫기' : '상품 패널 열기' }}</span>
           </button>
           <button
             type="button"
@@ -381,7 +382,8 @@ const toggleFullscreen = async () => {
             :aria-label="showChat ? '채팅 패널 닫기' : '채팅 패널 열기'"
             @click="showChat = !showChat"
           >
-            {{ showChat ? '× 채팅' : '채팅' }}
+            <span aria-hidden="true">{{ showChat ? '✕' : '💬' }}</span>
+            <span class="sr-only">{{ showChat ? '채팅 패널 닫기' : '채팅 패널 열기' }}</span>
           </button>
           <button
             type="button"
@@ -520,7 +522,6 @@ const toggleFullscreen = async () => {
         <div class="panel-head">
           <div class="panel-head__left">
             <h3>실시간 채팅</h3>
-            <span class="panel-count">{{ chatItems.length }}명</span>
           </div>
           <button type="button" class="panel-close" aria-label="채팅 패널 닫기" @click="showChat = false">×</button>
         </div>
@@ -740,6 +741,11 @@ const toggleFullscreen = async () => {
   background: transparent;
   font-size: 1rem;
   cursor: pointer;
+}
+
+.pin-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .pin-btn.is-active {

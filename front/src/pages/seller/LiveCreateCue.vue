@@ -64,11 +64,23 @@ const removeQuestion = (id: string) => {
 const isQuestionValid = (text: string) => !!text.trim()
 
 const goNext = () => {
-  const hasInvalid = draft.value.questions.some((q) => !isQuestionValid(q.text))
+  const trimmed = draft.value.questions.map((q) => ({ ...q, text: q.text.trim() }))
+  const filled = trimmed.filter((q) => q.text.length > 0)
+
+  if (filled.length === 0 && draft.value.questions.length <= 1) {
+    draft.value.questions = []
+    error.value = ''
+    syncDraft()
+    router.push({ path: '/seller/live/create/basic', query: route.query }).catch(() => {})
+    return
+  }
+
+  const hasInvalid = filled.length !== trimmed.length
   if (hasInvalid) {
     error.value = '모든 질문을 입력해주세요.'
     return
   }
+  draft.value.questions = filled
   error.value = ''
   syncDraft()
   router.push({ path: '/seller/live/create/basic', query: route.query }).catch(() => {})
@@ -101,10 +113,8 @@ watch(
     <PageHeader :eyebrow="isEditMode ? 'DESKIT' : 'DESKIT'" :title="isEditMode ? '예약 수정 - 큐 카드 편집' : '방송 등록 - 큐 카드 작성'" />
     <section class="create-card ds-surface">
       <div class="step-meta">
-        <div class="step-left">
-          <button type="button" class="btn ghost" @click="router.back()">이전</button>
-          <span class="step-indicator">1 / 2 단계</span>
-        </div>
+        <span class="step-indicator">1 / 2 단계</span>
+        <button type="button" class="btn ghost" @click="router.back()">이전</button>
       </div>
       <div class="section-head">
         <h3>큐 카드 질문</h3>
@@ -158,12 +168,6 @@ watch(
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-}
-
-.step-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
 }
 
 .step-indicator {

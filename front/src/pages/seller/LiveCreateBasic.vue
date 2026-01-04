@@ -80,14 +80,16 @@ const updateProductQuantity = (productId: string, value: number) => {
 }
 
 const syncDraft = () => {
+  const trimmedQuestions = draft.value.questions.map((q) => ({ ...q, text: q.text.trim() })).filter((q) => q.text.length > 0)
   saveDraft({
     ...draft.value,
     title: draft.value.title.trim(),
     subtitle: draft.value.subtitle?.trim() ?? '',
     category: draft.value.category.trim(),
     notice: draft.value.notice.trim(),
-    questions: draft.value.questions.map((q) => ({ ...q, text: q.text.trim() })),
+    questions: trimmedQuestions,
   })
+  draft.value.questions = trimmedQuestions
 }
 
 const restoreDraft = () => {
@@ -147,11 +149,8 @@ const submit = () => {
   thumbError.value = ''
   standbyError.value = ''
 
-  if (draft.value.questions.some((q) => !isQuestionValid(q.text))) {
-    error.value = '큐카드 질문을 모두 등록해주세요.'
-    router.push({ path: '/seller/live/create', query: route.query }).catch(() => {})
-    return
-  }
+  const trimmedQuestions = draft.value.questions.map((q) => ({ ...q, text: q.text.trim() })).filter((q) => q.text.length > 0)
+  draft.value.questions = trimmedQuestions
 
   if (!draft.value.title.trim() || !draft.value.category || !draft.value.date || !draft.value.time) {
     error.value = '방송 제목, 카테고리, 일정을 입력해주세요.'
@@ -650,6 +649,11 @@ input[type='file'] {
 .action-buttons {
   display: flex;
   gap: 8px;
+}
+
+.modal__body {
+  max-height: 520px;
+  overflow: auto;
 }
 
 .btn {
