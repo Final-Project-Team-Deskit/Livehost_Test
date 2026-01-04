@@ -9,6 +9,8 @@ export type AdminLiveSummary = {
   viewers: number
   likes: number
   elapsed: string
+  reports: number
+  category: string
   stopReason?: string
   stopReasonDetail?: string
   stoppedAt?: string
@@ -37,6 +39,7 @@ const gradientThumb = (from: string, to: string) =>
   `</svg>`
 
 const sellerNames = ['판매자 A', '판매자 B', '판매자 C']
+const categories = ['홈오피스', '주변기기', '정리/수납'] as const
 
 const seedLives = (): AdminLiveSummary[] => [
   {
@@ -50,6 +53,8 @@ const seedLives = (): AdminLiveSummary[] => [
     viewers: 328,
     likes: 124,
     elapsed: '00:15:20',
+    reports: 18,
+    category: categories[0],
   },
   {
     id: 'live-102',
@@ -62,6 +67,8 @@ const seedLives = (): AdminLiveSummary[] => [
     viewers: 512,
     likes: 210,
     elapsed: '00:42:10',
+    reports: 22,
+    category: categories[1],
   },
   {
     id: 'live-103',
@@ -74,6 +81,36 @@ const seedLives = (): AdminLiveSummary[] => [
     viewers: 214,
     likes: 86,
     elapsed: '00:08:34',
+    reports: 7,
+    category: categories[2],
+  },
+  {
+    id: 'live-104',
+    title: '홈카페 셋업',
+    subtitle: '소품/수납',
+    thumb: gradientThumb('0b1324', '0f172a'),
+    startedAt: '2025.12.12 18:10',
+    status: '방송중',
+    sellerName: sellerNames[0],
+    viewers: 140,
+    likes: 70,
+    elapsed: '00:05:12',
+    reports: 4,
+    category: categories[2],
+  },
+  {
+    id: 'live-105',
+    title: '듀얼 모니터 최적화',
+    subtitle: '암/주변기기',
+    thumb: gradientThumb('0f172a', '334155'),
+    startedAt: '2025.12.12 18:50',
+    status: '방송중',
+    sellerName: sellerNames[1],
+    viewers: 288,
+    likes: 120,
+    elapsed: '00:12:44',
+    reports: 13,
+    category: categories[1],
   },
 ]
 
