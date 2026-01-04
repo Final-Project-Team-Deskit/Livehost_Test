@@ -121,7 +121,7 @@ watch(
         <span class="count-pill">{{ draft.questions.length }}/{{ maxQuestions }}</span>
       </div>
       <div class="question-list">
-        <div v-for="(item, index) in draft.questions" :key="item.id" class="question-card" :class="{ invalid: !isQuestionValid(item.text) }">
+        <div v-for="(item, index) in draft.questions" :key="item.id" class="question-card" :class="{ invalid: draft.questions.length > 1 && !isQuestionValid(item.text) }">
           <div class="question-head">
             <span class="question-title">질문 {{ index + 1 }}</span>
             <button type="button" class="btn ghost" :disabled="draft.questions.length <= 1" @click="removeQuestion(item.id)">
@@ -134,7 +134,7 @@ watch(
             placeholder="질문을 입력하세요."
             @input="error = ''"
           ></textarea>
-          <p v-if="!isQuestionValid(item.text)" class="inline-error">질문을 입력해주세요.</p>
+          <p v-if="draft.questions.length > 1 && !isQuestionValid(item.text)" class="inline-error">질문을 입력해주세요.</p>
         </div>
       </div>
       <div class="question-actions">

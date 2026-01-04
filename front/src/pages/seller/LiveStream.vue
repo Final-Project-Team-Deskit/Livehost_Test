@@ -126,12 +126,17 @@ const productItems = computed(() => stream.value?.products ?? [])
 const chatItems = computed(() => stream.value?.chat ?? [])
 const sortedProducts = computed(() => {
   const items = [...productItems.value]
-  if (!pinnedProductId.value) return items
-  return items.sort((a, b) => {
-    if (a.id === pinnedProductId.value) return -1
-    if (b.id === pinnedProductId.value) return 1
+  items.sort((a, b) => {
+    const aSoldOut = a.status === '품절'
+    const bSoldOut = b.status === '품절'
+    if (aSoldOut !== bSoldOut) return aSoldOut ? 1 : -1
+    if (pinnedProductId.value) {
+      if (a.id === pinnedProductId.value) return -1
+      if (b.id === pinnedProductId.value) return 1
+    }
     return 0
   })
+  return items
 })
 
 const qCards = computed(() => broadcastInfo.value?.qCards ?? [])
@@ -373,7 +378,6 @@ const toggleFullscreen = async () => {
             @click="showProducts = !showProducts"
           >
             <span aria-hidden="true">🛍</span>
-            <span>상품</span>
           </button>
           <button
             type="button"
@@ -383,7 +387,6 @@ const toggleFullscreen = async () => {
             @click="showChat = !showChat"
           >
             <span aria-hidden="true">💬</span>
-            <span>채팅</span>
           </button>
           <button
             type="button"
