@@ -30,11 +30,11 @@ export const DRAFT_KEY = 'deskit_seller_broadcast_draft_v2'
 
 const createId = () => `q-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
-const defaultQuestions = [
-  '오늘의 주요 할인 상품은 무엇인가요?',
-  '배송은 언제 시작되나요?',
-  '교환/반품 안내를 다시 한번 알려주세요.',
-]
+const createQuestion = (text: string) => ({ id: createId(), text })
+
+const mapQuestions = (seeds: string[]) => (seeds.length ? seeds : ['']).map((text) => createQuestion(text))
+
+export const createDefaultQuestions = () => mapQuestions([])
 
 export const createEmptyDraft = (): LiveCreateDraft => ({
   questions: defaultQuestions.map((text) => ({ id: createId(), text })),
@@ -125,6 +125,7 @@ export const buildDraftFromReservation = (reservationId: string): LiveCreateDraf
       quantity: parseCurrency(item.qty) || 1,
       thumb: item.thumb,
     })),
+    questions: mapQuestions(detail.cueQuestions ?? []),
     reservationId,
   }
 }

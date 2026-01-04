@@ -11,6 +11,7 @@ export type SellerReservationDetail = SellerReservationSummary & {
   category: string
   status: string
   notice: string
+  cueQuestions?: string[]
   products: Array<{
     id: string
     name: string
@@ -103,17 +104,31 @@ const detailsById: Record<
     category: string
     status: string
     notice: string
+    cueQuestions?: string[]
     products: SellerReservationDetail['products']
     standbyThumb?: string
     cancelReason?: string
   }
 > = {
-  'sch-1': { category: '홈오피스', status: '예약됨', notice: defaultNotice, products: defaultProducts },
+  'sch-1': {
+    category: '홈오피스',
+    status: '예약됨',
+    notice: defaultNotice,
+    cueQuestions: [
+      '이번 방송에서 가장 기대되는 아이템은 무엇인가요?',
+      '실제 사용 후기는 어떤가요?',
+    ],
+    products: defaultProducts,
+  },
   'sch-2': { category: '정리/수납', status: '예약됨', notice: defaultNotice, products: defaultProducts },
   'sch-3': {
     category: '주변기기',
     status: '취소됨',
     notice: defaultNotice,
+    cueQuestions: [
+      '모델별 키감 차이가 있나요?',
+      '키보드 소음은 어느 정도인가요?',
+    ],
     products: defaultProducts,
     standbyThumb: gradientThumb('1f2937', '0f172a'),
     cancelReason: '판매자 일정 변경으로 인해 취소되었습니다.',

@@ -3,7 +3,14 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PageContainer from '../../components/PageContainer.vue'
 import PageHeader from '../../components/PageHeader.vue'
-import { buildDraftFromReservation, createEmptyDraft, loadDraft, saveDraft, type LiveCreateDraft } from '../../composables/useLiveCreateDraft'
+import {
+  buildDraftFromReservation,
+  createDefaultQuestions,
+  createEmptyDraft,
+  loadDraft,
+  saveDraft,
+  type LiveCreateDraft,
+} from '../../composables/useLiveCreateDraft'
 
 const router = useRouter()
 const route = useRoute()
@@ -38,7 +45,7 @@ const restoreDraft = () => {
   }
 
   if (!draft.value.questions.length) {
-    draft.value.questions = [createQuestion()]
+    draft.value.questions = createDefaultQuestions()
   }
 
   syncDraft()
@@ -54,20 +61,24 @@ const removeQuestion = (id: string) => {
   draft.value.questions = draft.value.questions.filter((item) => item.id !== id)
 }
 
-const isQuestionValid = (text: string) => {
-  const trimmed = text.trim()
-  return !!trimmed && trimmed.includes('?')
-}
+const isQuestionValid = (text: string) => !!text.trim()
 
 const goNext = () => {
   const hasInvalid = draft.value.questions.some((q) => !isQuestionValid(q.text))
   if (hasInvalid) {
-    error.value = '모든 항목은 질문 형태( ? 포함 )로 작성해주세요.'
+    error.value = '모든 질문을 입력해주세요.'
     return
   }
   error.value = ''
   syncDraft()
   router.push({ path: '/seller/live/create/basic', query: route.query }).catch(() => {})
+}
+
+const cancel = () => {
+  const redirect = isEditMode.value && reservationId.value
+    ? `/seller/broadcasts/reservations/${reservationId.value}`
+    : '/seller/live?tab=scheduled'
+  router.push(redirect).catch(() => {})
 }
 
 onMounted(() => {
@@ -88,8 +99,8 @@ watch(
     <PageHeader :eyebrow="isEditMode ? 'DESKIT' : 'DESKIT'" :title="isEditMode ? '예약 수정 - 큐 카드 편집' : '방송 등록 - 큐 카드 작성'" />
     <section class="create-card ds-surface">
       <div class="step-meta">
-        <span class="step-label">1 / 2 단계</span>
         <button type="button" class="btn ghost" @click="router.back()">이전</button>
+        <button type="button" class="btn ghost" @click="cancel">취소</button>
       </div>
       <div class="section-head">
         <h3>큐 카드 질문</h3>
@@ -103,7 +114,13 @@ watch(
               삭제
             </button>
           </div>
-          <textarea v-model="item.text" rows="3" placeholder="질문 내용을 입력하세요. ( ? 를 포함한 질문 형태만 허용됩니다 )"></textarea>
+          <textarea
+            v-model="item.text"
+            rows="3"
+            placeholder="질문을 입력하세요."
+            @input="error = ''"
+          ></textarea>
+          <p v-if="!isQuestionValid(item.text)" class="inline-error">질문을 입력해주세요.</p>
         </div>
       </div>
       <div class="question-actions">
@@ -114,7 +131,7 @@ watch(
       </div>
       <p v-if="error" class="error">{{ error }}</p>
       <div class="actions">
-        <div class="step-hint">질문형 입력을 모두 채워야 다음 단계로 이동할 수 있습니다.</div>
+        <div class="step-hint">모든 질문을 입력하면 다음 단계로 이동할 수 있습니다.</div>
         <button type="button" class="btn primary" @click="goNext">다음 단계</button>
       </div>
     </section>
@@ -132,12 +149,8 @@ watch(
 .step-meta {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-}
-
-.step-label {
-  font-weight: 800;
-  color: var(--text-muted);
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .field {
@@ -193,6 +206,13 @@ watch(
 
 .question-card.invalid {
   border-color: #ef4444;
+}
+
+.inline-error {
+  margin: 0;
+  color: #ef4444;
+  font-weight: 700;
+  font-size: 0.9rem;
 }
 
 .question-head {

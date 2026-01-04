@@ -23,6 +23,7 @@ const productSearch = ref('')
 const thumbError = ref('')
 const standbyError = ref('')
 const error = ref('')
+const showTermsModal = ref(false)
 
 const reservationId = computed(() => (typeof route.query.reservationId === 'string' ? route.query.reservationId : ''))
 const isEditMode = computed(() => route.query.mode === 'edit' && !!reservationId.value)
@@ -137,7 +138,7 @@ const handleStandbyUpload = (event: Event) => {
 
 const isQuestionValid = (text: string) => {
   const trimmed = text.trim()
-  return !!trimmed && trimmed.includes('?')
+  return !!trimmed
 }
 
 const submit = () => {
@@ -146,7 +147,7 @@ const submit = () => {
   standbyError.value = ''
 
   if (draft.value.questions.some((q) => !isQuestionValid(q.text))) {
-    error.value = '큐카드 질문을 모두 등록해주세요. ( ? 포함 필수 )'
+    error.value = '큐카드 질문을 모두 등록해주세요.'
     router.push({ path: '/seller/live/create', query: route.query }).catch(() => {})
     return
   }
@@ -184,6 +185,7 @@ const submit = () => {
 
   addScheduledBroadcast(scheduled)
   localStorage.removeItem(DRAFT_KEY)
+  alert(isEditMode.value ? '예약 수정이 완료되었습니다.' : '방송 등록이 완료되었습니다.')
   const redirectPath = isEditMode.value
     ? `/seller/broadcasts/reservations/${id}`
     : '/seller/live?tab=scheduled'
@@ -200,6 +202,18 @@ const cancel = () => {
     : '/seller/live?tab=scheduled'
   router.push(redirect).catch(() => {})
 }
+
+const timeOptions = computed(() => {
+  const options: string[] = []
+  for (let hour = 0; hour < 24; hour += 1) {
+    for (const minute of [0, 30]) {
+      const hh = hour.toString().padStart(2, '0')
+      const mm = minute.toString().padStart(2, '0')
+      options.push(`${hh}:${mm}`)
+    }
+  }
+  return options
+})
 
 onMounted(() => {
   restoreDraft()
@@ -219,7 +233,6 @@ watch(
     <PageHeader :eyebrow="isEditMode ? 'DESKIT' : 'DESKIT'" :title="isEditMode ? '예약 수정 - 기본 정보' : '방송 등록 - 기본 정보'" />
     <section class="create-card ds-surface">
       <div class="step-meta">
-        <span class="step-label">2 / 2 단계</span>
         <div class="step-actions">
           <button type="button" class="btn ghost" @click="goPrev">이전</button>
           <button type="button" class="btn ghost" @click="cancel">취소</button>
@@ -242,10 +255,6 @@ watch(
             <option value="악세사리">악세사리</option>
           </select>
         </label>
-        <label class="field">
-          <span class="field__label">간단 설명</span>
-          <input v-model="draft.subtitle" type="text" placeholder="예: 셋업 추천" />
-        </label>
       </div>
       <label class="field">
         <span class="field__label">공지사항</span>
@@ -264,7 +273,10 @@ watch(
         </label>
         <label class="field">
           <span class="field__label">방송 시간</span>
-          <input v-model="draft.time" type="time" />
+          <select v-model="draft.time">
+            <option value="" disabled>시간을 선택하세요</option>
+            <option v-for="time in timeOptions" :key="time" :value="time">{{ time }}</option>
+          </select>
         </label>
       </div>
       <div class="section-block">
@@ -272,17 +284,27 @@ watch(
           <h3>판매 상품 등록</h3>
           <span class="count-pill">선택 {{ draft.products.length }}개</span>
         </div>
-        <label class="field">
-          <span class="field__label">상품 검색</span>
-          <input v-model="productSearch" type="text" placeholder="상품명을 검색하세요" />
-        </label>
-        <div class="product-select">
-          <label v-for="product in filteredProducts" :key="product.id" class="product-option">
+        <div class="product-search-bar">
+          <div class="search-input">
+            <span class="search-icon">🔍</span>
+            <input v-model="productSearch" type="text" placeholder="상품명을 검색하세요" />
+          </div>
+          <span class="search-hint">최소 1개, 최대 10개 선택</span>
+        </div>
+        <div class="product-grid">
+          <label v-for="product in filteredProducts" :key="product.id" class="product-card" :class="{ checked: isSelected(product.id) }">
             <input type="checkbox" :checked="isSelected(product.id)" @change="toggleProduct(product)" />
-            <span class="product-option__text">
-              <strong>{{ product.name }}</strong>
-              <span class="product-option__meta">{{ product.option }}</span>
-            </span>
+            <div class="product-thumb" v-if="product.thumb">
+              <img :src="product.thumb" :alt="product.name" />
+            </div>
+            <div class="product-content">
+              <div class="product-name">{{ product.name }}</div>
+              <div class="product-meta">
+                <span>{{ product.option }}</span>
+                <span>정가 {{ product.price.toLocaleString() }}원</span>
+                <span>재고 {{ product.stock }}</span>
+              </div>
+            </div>
           </label>
         </div>
         <div v-if="draft.products.length" class="product-table-wrap">
@@ -366,17 +388,27 @@ watch(
         <label class="checkbox">
           <input v-model="draft.termsAgreed" type="checkbox" />
           <span>방송 운영 및 약관에 동의합니다. (필수)</span>
+          <button type="button" class="link" @click="showTermsModal = true">자세히보기</button>
         </label>
       </div>
       <p v-if="error" class="error">{{ error }}</p>
       <div class="actions">
-        <div class="step-indicator">
-          <span class="step-label">2 / 2 단계</span>
-        </div>
         <div class="action-buttons">
-          <button type="button" class="btn ghost" @click="goPrev">이전</button>
           <button type="button" class="btn" @click="cancel">취소</button>
           <button type="button" class="btn primary" @click="submit">{{ isEditMode ? '저장' : '방송 등록' }}</button>
+        </div>
+      </div>
+      <div v-if="showTermsModal" class="modal">
+        <div class="modal__content">
+          <div class="modal__header">
+            <h3>방송 운영 및 약관</h3>
+            <button type="button" class="btn ghost" @click="showTermsModal = false">닫기</button>
+          </div>
+          <div class="modal__body">
+            <p>방송 운영 시 상품 정보, 가격, 재고를 정확히 안내해야 하며 허위 광고가 금지됩니다.</p>
+            <p>방송 중 욕설, 비방 등 운영 정책에 어긋나는 행위는 제재될 수 있습니다.</p>
+            <p>취소 및 환불 정책을 명확히 안내하고, 방송 종료 후 문의에 신속히 응답해주세요.</p>
+          </div>
         </div>
       </div>
     </section>
@@ -394,13 +426,8 @@ watch(
 .step-meta {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 12px;
-}
-
-.step-label {
-  font-weight: 800;
-  color: var(--text-muted);
 }
 
 .step-actions {
@@ -483,41 +510,7 @@ input[type='file'] {
 }
 
 .product-select {
-  max-height: 220px;
-  overflow: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding-right: 4px;
-}
-
-.product-option {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 10px;
-  border-radius: 12px;
-  border: 1px solid var(--border-color);
-  background: var(--surface);
-  cursor: pointer;
-}
-
-.product-option input {
-  margin-top: 4px;
-}
-
-.product-option__text {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  color: var(--text-strong);
-  font-weight: 800;
-}
-
-.product-option__meta {
-  font-size: 0.85rem;
-  color: var(--text-muted);
-  font-weight: 700;
+  display: none;
 }
 
 .product-table-wrap {
@@ -616,10 +609,11 @@ input[type='file'] {
 }
 
 .actions {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: center;
+  display: flex;
+  justify-content: flex-end;
   gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
 .action-buttons {
@@ -646,18 +640,159 @@ input[type='file'] {
   color: var(--primary-color);
 }
 
+.product-search-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.search-input {
+  position: relative;
+  flex: 1 1 320px;
+}
+
+.search-input input {
+  width: 100%;
+  padding-left: 34px;
+}
+
+.search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.search-hint {
+  color: var(--text-muted);
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.product-card {
+  display: grid;
+  grid-template-columns: auto 60px 1fr;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--surface);
+  align-items: center;
+  cursor: pointer;
+}
+
+.product-card input {
+  justify-self: center;
+}
+
+.product-card.checked {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px var(--primary-color-light, rgba(45, 127, 249, 0.2));
+}
+
+.product-thumb {
+  width: 60px;
+  height: 60px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--surface-weak);
+  border: 1px solid var(--border-color);
+}
+
+.product-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.product-content {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.product-name {
+  font-weight: 900;
+  color: var(--text-strong);
+}
+
+.product-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--text-muted);
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--primary-color);
+  cursor: pointer;
+  font-weight: 800;
+  text-decoration: underline;
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  padding: 16px;
+}
+
+.modal__content {
+  background: var(--surface);
+  border-radius: 16px;
+  padding: 18px;
+  max-width: 520px;
+  width: 100%;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.modal__body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--text-strong);
+  font-weight: 700;
+  line-height: 1.5;
+}
+
 @media (max-width: 720px) {
   .field-grid {
     grid-template-columns: 1fr;
   }
 
-  .actions {
-    grid-template-columns: 1fr;
+  .product-card {
+    grid-template-columns: auto 50px 1fr;
   }
 
-  .action-buttons {
-    justify-content: flex-start;
-    flex-wrap: wrap;
+  .product-grid {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   }
 }
 </style>
