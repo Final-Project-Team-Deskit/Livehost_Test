@@ -12,8 +12,6 @@ export type LiveCreateProduct = {
 }
 
 export type LiveCreateDraft = {
-  cueTitle: string
-  cueNotes: string
   questions: Array<{ id: string; text: string }>
   title: string
   subtitle: string
@@ -39,8 +37,6 @@ const defaultQuestions = [
 ]
 
 export const createEmptyDraft = (): LiveCreateDraft => ({
-  cueTitle: '',
-  cueNotes: '',
   questions: defaultQuestions.map((text) => ({ id: createId(), text })),
   title: '',
   subtitle: '',
@@ -61,16 +57,19 @@ export const loadDraft = (): LiveCreateDraft | null => {
   try {
     const parsed = JSON.parse(raw)
     if (!parsed || typeof parsed !== 'object') return null
+
+    const { cueTitle: _ignoredCueTitle, cueNotes: _ignoredCueNotes, ...rest } = parsed as Record<string, any>
+
     return {
       ...createEmptyDraft(),
-      ...parsed,
-      questions: Array.isArray(parsed.questions)
-        ? parsed.questions
+      ...rest,
+      questions: Array.isArray(rest.questions)
+        ? rest.questions
             .filter((item: any) => item && typeof item.id === 'string' && typeof item.text === 'string')
             .map((item: any) => ({ id: item.id, text: item.text }))
         : createEmptyDraft().questions,
-      products: Array.isArray(parsed.products)
-        ? parsed.products
+      products: Array.isArray(rest.products)
+        ? rest.products
             .filter((item: any) => item && typeof item.id === 'string')
             .map((item: any) => ({
               id: item.id,

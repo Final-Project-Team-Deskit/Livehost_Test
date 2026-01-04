@@ -56,6 +56,7 @@ const micInputLevel = ref(70)
 const showQCards = ref(false)
 const showBasicInfo = ref(false)
 const showSanctionModal = ref(false)
+const isLoadingStream = ref(true)
 
 const confirmState = reactive({
   open: false,
@@ -70,6 +71,7 @@ const pinnedProductId = ref<string | null>(null)
 const sanctionTarget = ref<string | null>(null)
 const sanctionedUsers = ref<Record<string, { type: string; reason: string }>>({})
 const broadcastInfo = ref<BroadcastInfo | null>(null)
+const stream = ref<StreamData | null>(null)
 
 const streamId = computed(() => {
   const id = route.params.id
@@ -115,11 +117,6 @@ const streamMap: Record<string, StreamData> = {
   },
 }
 
-const stream = computed(() => {
-  if (!streamId.value) return null
-  return streamMap[streamId.value] ?? null
-})
-
 const productItems = computed(() => stream.value?.products ?? [])
 const chatItems = computed(() => stream.value?.chat ?? [])
 const sortedProducts = computed(() => {
@@ -138,23 +135,35 @@ const displayDatetime = computed(
   () => stream.value?.datetime ?? '실시간 송출 화면과 판매 상품, 채팅을 관리합니다.',
 )
 
+const hydrateStream = () => {
+  isLoadingStream.value = true
+  const id = streamId.value
+  const next = id ? streamMap[id] ?? null : null
+  stream.value = next
+
+  if (!next) {
+    pinnedProductId.value = null
+    broadcastInfo.value = null
+    isLoadingStream.value = false
+    return
+  }
+
+  pinnedProductId.value = next.products.find((item) => item.pinned)?.id ?? null
+  broadcastInfo.value = {
+    title: next.title,
+    category: next.category,
+    notice: next.notice ?? defaultNotice,
+    qCards: next.qCards,
+    thumbnail: next.thumbnail,
+    waitingScreen: next.waitingScreen,
+  }
+  isLoadingStream.value = false
+}
+
 watch(
-  () => stream.value,
-  (next) => {
-    if (!next) {
-      pinnedProductId.value = null
-      broadcastInfo.value = null
-      return
-    }
-    pinnedProductId.value = next.products.find((item) => item.pinned)?.id ?? null
-    broadcastInfo.value = {
-      title: next.title,
-      category: next.category,
-      notice: next.notice ?? defaultNotice,
-      qCards: next.qCards,
-      thumbnail: next.thumbnail,
-      waitingScreen: next.waitingScreen,
-    }
+  () => route.params.id,
+  () => {
+    hydrateStream()
   },
   { immediate: true },
 )
@@ -230,6 +239,10 @@ watch(showSanctionModal, (open) => {
 const handleBasicInfoSave = (payload: BroadcastInfo) => {
   if (!broadcastInfo.value) return
   broadcastInfo.value = { ...broadcastInfo.value, ...payload }
+}
+
+const handleGoToList = () => {
+  router.push({ name: 'seller-live' }).catch(() => {})
 }
 
 const handleEndBroadcast = () => {
@@ -448,9 +461,16 @@ const requestEndBroadcast = () => {
           </button>
         </div>
         <div class="stream-center__body">
-          <div v-if="!stream" class="stream-empty">
+          <div v-if="isLoadingStream" class="stream-empty">
+            <p class="stream-title">방송 정보를 불러오는 중입니다.</p>
+            <p class="stream-sub">잠시만 기다려주세요.</p>
+          </div>
+          <div v-else-if="!stream" class="stream-empty">
             <p class="stream-title">방송 정보를 불러올 수 없습니다.</p>
             <p class="stream-sub">라이브 관리 페이지에서 다시 시도해주세요.</p>
+            <div class="stream-actions">
+              <button type="button" class="stream-btn" @click="handleGoToList">목록으로 이동</button>
+            </div>
           </div>
           <div v-else class="stream-placeholder">
             <p class="stream-title">송출 화면 (WebRTC Stream)</p>

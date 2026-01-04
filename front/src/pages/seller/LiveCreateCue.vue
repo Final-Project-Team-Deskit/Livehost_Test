@@ -23,8 +23,6 @@ const createQuestion = () => ({
 const syncDraft = () => {
   saveDraft({
     ...draft.value,
-    cueTitle: draft.value.cueTitle.trim(),
-    cueNotes: draft.value.cueNotes.trim(),
     questions: draft.value.questions.map((q) => ({ ...q, text: q.text.trim() })),
   })
 }
@@ -93,14 +91,6 @@ watch(
         <span class="step-label">1 / 2 단계</span>
         <button type="button" class="btn ghost" @click="router.back()">이전</button>
       </div>
-      <label class="field">
-        <span class="field__label">큐 카드 제목</span>
-        <input v-model="draft.cueTitle" type="text" placeholder="예: 오프닝 멘트" />
-      </label>
-      <label class="field">
-        <span class="field__label">큐 카드 메모</span>
-        <textarea v-model="draft.cueNotes" rows="4" placeholder="방송 흐름을 간단히 적어주세요."></textarea>
-      </label>
       <div class="section-head">
         <h3>큐 카드 질문</h3>
         <span class="count-pill">{{ draft.questions.length }}/{{ maxQuestions }}</span>

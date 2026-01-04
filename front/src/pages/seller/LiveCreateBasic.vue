@@ -84,8 +84,6 @@ const syncDraft = () => {
     subtitle: draft.value.subtitle?.trim() ?? '',
     category: draft.value.category.trim(),
     notice: draft.value.notice.trim(),
-    cueTitle: draft.value.cueTitle.trim(),
-    cueNotes: draft.value.cueNotes.trim(),
     questions: draft.value.questions.map((q) => ({ ...q, text: q.text.trim() })),
   })
 }
