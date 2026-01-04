@@ -7,10 +7,8 @@ import { getSellerReservationDetail, type SellerReservationDetail } from '../../
 const route = useRoute()
 const router = useRouter()
 
-const detail = computed<SellerReservationDetail>(() => {
-  const id = typeof route.params.reservationId === 'string' ? route.params.reservationId : ''
-  return getSellerReservationDetail(id)
-})
+const reservationId = computed(() => (typeof route.params.reservationId === 'string' ? route.params.reservationId : ''))
+const detail = ref<SellerReservationDetail>(getSellerReservationDetail(reservationId.value))
 
 const goBack = () => {
   router.back()
@@ -21,37 +19,32 @@ const goToList = () => {
 }
 
 const openCueCard = () => {
-  console.log('[reservation] cue card', detail.value.id)
+  showCueCard.value = true
 }
 
-const thumbPreview = ref<string | null>(null)
-const standbyPreview = ref<string | null>(null)
-
-const setPreview = (type: 'thumb' | 'standby', event: Event) => {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file) return
-  const url = URL.createObjectURL(file)
-  if (type === 'thumb') {
-    if (thumbPreview.value) URL.revokeObjectURL(thumbPreview.value)
-    thumbPreview.value = url
-  } else {
-    if (standbyPreview.value) URL.revokeObjectURL(standbyPreview.value)
-    standbyPreview.value = url
-  }
-}
+const showCueCard = ref(false)
 
 const handleEdit = () => {
-  console.log('[reservation] edit', detail.value.id)
+  window.alert('예약 정보가 수정되었습니다. (데모)')
 }
 
 const handleCancel = () => {
-  console.log('[reservation] cancel', detail.value.id)
+  const ok = window.confirm('예약을 취소하시겠습니까?')
+  if (!ok) return
+  detail.value.status = '취소됨'
+  window.alert('예약이 취소되었습니다.')
 }
 
 onBeforeUnmount(() => {
-  if (thumbPreview.value) URL.revokeObjectURL(thumbPreview.value)
-  if (standbyPreview.value) URL.revokeObjectURL(standbyPreview.value)
+})
+
+const scheduledWindow = computed(() => {
+  const raw = detail.value.datetime
+  const start = new Date(raw.replace(/\./g, '-').replace(' ', 'T'))
+  const end = new Date(start.getTime() + 30 * 60 * 1000)
+  const fmt = (d: Date) =>
+    `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`
+  return `${raw} ~ ${fmt(end)}`
 })
 </script>
 
@@ -72,7 +65,7 @@ onBeforeUnmount(() => {
         <span class="status-pill">{{ detail.status }}</span>
       </div>
       <div class="detail-meta">
-        <p><span>방송 예정 시간</span>{{ detail.datetime }}</p>
+        <p><span>방송 예정 시간</span>{{ scheduledWindow }}</p>
         <p><span>카테고리</span>{{ detail.category }}</p>
       </div>
     </section>
@@ -90,18 +83,16 @@ onBeforeUnmount(() => {
         <div class="upload-col">
           <p class="upload-label">썸네일</p>
           <div class="upload-preview">
-            <img v-if="thumbPreview" :src="thumbPreview" alt="썸네일 미리보기" />
+            <img :src="detail.thumb" :alt="detail.title" />
           </div>
-          <input type="file" accept="image/*" @change="setPreview('thumb', $event)" />
-          <p class="upload-help">권장: 16:9, JPG/PNG</p>
+          <p class="upload-help">상세에서는 변경할 수 없습니다.</p>
         </div>
         <div class="upload-col">
           <p class="upload-label">대기화면</p>
           <div class="upload-preview">
-            <img v-if="standbyPreview" :src="standbyPreview" alt="대기화면 미리보기" />
+            <img :src="detail.standbyThumb || detail.thumb" :alt="`${detail.title} 대기화면`" />
           </div>
-          <input type="file" accept="image/*" @change="setPreview('standby', $event)" />
-          <p class="upload-help">권장: 16:9, JPG/PNG</p>
+          <p class="upload-help">상세에서는 변경할 수 없습니다.</p>
         </div>
       </div>
     </section>
@@ -117,8 +108,8 @@ onBeforeUnmount(() => {
               <th>상품명</th>
               <th>정가</th>
               <th>할인가</th>
-              <th>수량</th>
               <th>재고</th>
+              <th>판매 수량</th>
             </tr>
           </thead>
           <tbody>
@@ -126,8 +117,8 @@ onBeforeUnmount(() => {
               <td>{{ item.name }}</td>
               <td>{{ item.price }}</td>
               <td class="sale">{{ item.salePrice }}</td>
-              <td>{{ item.qty }}</td>
               <td>{{ item.stock }}</td>
+              <td>{{ item.qty }}</td>
             </tr>
           </tbody>
         </table>
@@ -138,6 +129,17 @@ onBeforeUnmount(() => {
       <div class="footer-actions">
         <button type="button" class="btn primary" @click="handleEdit">예약 수정</button>
         <button type="button" class="btn danger" @click="handleCancel">예약 취소</button>
+      </div>
+    </div>
+
+    <div v-if="showCueCard" class="modal">
+      <div class="modal__backdrop" @click="showCueCard = false"></div>
+      <div class="modal__card ds-surface">
+        <header class="modal__head">
+          <h3>큐카드</h3>
+          <button type="button" class="btn ghost" @click="showCueCard = false">닫기</button>
+        </header>
+        <p class="modal__content">방송 흐름과 안내 멘트를 확인하세요. (데모 화면)</p>
       </div>
     </div>
   </PageContainer>
@@ -214,6 +216,44 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+
+.modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.4);
+}
+
+.modal__card {
+  position: relative;
+  width: min(480px, 92vw);
+  padding: 18px;
+  border-radius: 14px;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.modal__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal__content {
+  margin: 0;
+  color: var(--text-strong);
+  font-weight: 700;
 }
 
 .detail-title h2 {
