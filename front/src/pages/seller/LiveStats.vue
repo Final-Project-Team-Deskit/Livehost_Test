@@ -1,232 +1,251 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
 import PageHeader from '../../components/PageHeader.vue'
-import { getScheduledBroadcasts } from '../../composables/useSellerBroadcasts'
-import { sellerReservationSummaries } from '../../lib/mocks/sellerReservations'
-import { getSellerVodDetail, sellerVodSummaries } from '../../lib/mocks/sellerVods'
+import StatsBarChart from '../../components/stats/StatsBarChart.vue'
+import StatsRankList from '../../components/stats/StatsRankList.vue'
+import {
+  getSellerRevenueRankings,
+  getSellerViewerRankings,
+  revenueData,
+  revenuePerViewerData,
+  type RankGroup,
+  type StatsRange,
+} from '../../lib/mocks/liveStats'
 
-const router = useRouter()
+type RankView = 'best' | 'worst'
 
-const scheduled = ref(getScheduledBroadcasts())
-const seededReservations = ref(sellerReservationSummaries)
-const vods = ref(sellerVodSummaries)
+const revenueRange = ref<StatsRange>('monthly')
+const perViewerRange = ref<StatsRange>('monthly')
+const revenueRankView = ref<RankView>('best')
+const viewerRankView = ref<RankView>('best')
 
-const summaryCards = computed(() => [
-  { label: '예약', value: scheduled.value.length + seededReservations.value.length },
-  { label: 'VOD', value: vods.value.length },
-  {
-    label: '평균 최대 시청자',
-    value:
-      vods.value.length > 0
-        ? Math.round(
-            vods.value.reduce((sum, item) => sum + (getSellerVodDetail(item.id)?.metrics?.maxViewers ?? 0), 0) /
-              vods.value.length,
-          )
-        : 0,
-  },
-])
+const revenueRanks = ref<RankGroup>({ best: [], worst: [] })
+const viewerRanks = ref<RankGroup>({ best: [], worst: [] })
 
-const topVodByLikes = computed(() =>
-  vods.value
-    .map((item) => {
-      const detail = getSellerVodDetail(item.id)
-      return {
-        ...item,
-        likes: detail?.metrics?.likes ?? 0,
-        maxViewers: detail?.metrics?.maxViewers ?? 0,
-        revenue: detail?.metrics?.totalRevenue ?? 0,
-      }
-    })
-    .sort((a, b) => b.likes - a.likes)
-    .slice(0, 5),
-)
+const revenueChart = computed(() => revenueData[revenueRange.value])
+const perViewerChart = computed(() => revenuePerViewerData[perViewerRange.value])
 
-const goSection = (value: 'list' | 'stats') => {
-  if (value === 'list') {
-    router.push('/seller/live').catch(() => {})
-    return
-  }
-}
+const formatCurrency = (value: number) => `₩${value.toLocaleString('ko-KR')}`
+const formatViewerCount = (value: number) => `${value.toLocaleString('ko-KR')}명`
 
 onMounted(() => {
-  scheduled.value = getScheduledBroadcasts()
-  seededReservations.value = sellerReservationSummaries
-  vods.value = sellerVodSummaries
+  revenueRanks.value = getSellerRevenueRankings()
+  viewerRanks.value = getSellerViewerRankings()
 })
 </script>
 
 <template>
-  <div>
+  <div class="stats-page">
     <PageHeader eyebrow="DESKIT" title="방송 통계" />
 
-    <header class="live-header">
-      <div class="live-header__spacer" aria-hidden="true"></div>
-      <div></div>
-      <div class="live-header__right">
-        <label class="inline-filter">
-          <span>섹션</span>
-          <select value="stats" @change="goSection(($event.target as HTMLSelectElement).value as any)">
-            <option value="list">방송 목록</option>
-            <option value="stats" selected>방송 통계</option>
-          </select>
-        </label>
-      </div>
-    </header>
+    <section class="stats-grid stats-grid--charts">
+      <article class="ds-surface stats-card">
+        <header class="stats-card__head">
+          <div>
+            <h3>판매자 매출</h3>
+            <p class="stats-card__sub">기간별 매출 변화를 확인하세요.</p>
+          </div>
+          <div class="toggle-group" role="tablist" aria-label="판매자 매출 기간">
+            <button
+              type="button"
+              class="toggle-btn"
+              :class="{ 'toggle-btn--active': revenueRange === 'daily' }"
+              @click="revenueRange = 'daily'"
+            >
+              일별
+            </button>
+            <button
+              type="button"
+              class="toggle-btn"
+              :class="{ 'toggle-btn--active': revenueRange === 'monthly' }"
+              @click="revenueRange = 'monthly'"
+            >
+              월별
+            </button>
+            <button
+              type="button"
+              class="toggle-btn"
+              :class="{ 'toggle-btn--active': revenueRange === 'yearly' }"
+              @click="revenueRange = 'yearly'"
+            >
+              연도별
+            </button>
+          </div>
+        </header>
+        <StatsBarChart :data="revenueChart" :value-formatter="formatCurrency" />
+      </article>
 
-    <section class="stat-grid">
-      <article v-for="card in summaryCards" :key="card.label" class="ds-surface stat-card">
-        <p class="stat-label">{{ card.label }}</p>
-        <p class="stat-value">{{ card.value.toLocaleString('ko-KR') }}</p>
+      <article class="ds-surface stats-card">
+        <header class="stats-card__head">
+          <div>
+            <h3>시청자 당 매출액</h3>
+            <p class="stats-card__sub">시청자 단위로 환산한 매출 흐름입니다.</p>
+          </div>
+          <div class="toggle-group" role="tablist" aria-label="시청자당 매출 기간">
+            <button
+              type="button"
+              class="toggle-btn"
+              :class="{ 'toggle-btn--active': perViewerRange === 'daily' }"
+              @click="perViewerRange = 'daily'"
+            >
+              일별
+            </button>
+            <button
+              type="button"
+              class="toggle-btn"
+              :class="{ 'toggle-btn--active': perViewerRange === 'monthly' }"
+              @click="perViewerRange = 'monthly'"
+            >
+              월별
+            </button>
+            <button
+              type="button"
+              class="toggle-btn"
+              :class="{ 'toggle-btn--active': perViewerRange === 'yearly' }"
+              @click="perViewerRange = 'yearly'"
+            >
+              연도별
+            </button>
+          </div>
+        </header>
+        <StatsBarChart :data="perViewerChart" :value-formatter="formatCurrency" />
       </article>
     </section>
 
-    <article class="ds-surface panel">
-      <div class="panel__head">
-        <div>
-          <h3>인기 VOD</h3>
-          <p class="ds-section-sub">좋아요 기준 상위 5개 VOD입니다.</p>
-        </div>
-      </div>
-      <div class="list">
-        <div v-for="item in topVodByLikes" :key="item.id" class="list-row">
+    <section class="stats-grid stats-grid--lists">
+      <article class="ds-surface stats-card">
+        <header class="stats-card__head">
           <div>
-            <p class="list-title">{{ item.title }}</p>
-            <p class="list-sub">업로드: {{ item.startedAt }} · 최대 {{ item.maxViewers.toLocaleString('ko-KR') }}명</p>
+            <h3>매출 베스트/워스트 방송 5순위</h3>
+            <p class="stats-card__sub">방송별 매출 상·하위 목록입니다.</p>
           </div>
-          <div class="list-meta">
-            <span class="badge-chip">👍 {{ item.likes.toLocaleString('ko-KR') }}</span>
-            <span class="badge-chip">₩{{ (item.revenue ?? 0).toLocaleString('ko-KR') }}</span>
+          <div class="toggle-group" role="tablist" aria-label="매출 순위">
+            <button
+              type="button"
+              class="toggle-btn"
+              :class="{ 'toggle-btn--active': revenueRankView === 'best' }"
+              @click="revenueRankView = 'best'"
+            >
+              베스트
+            </button>
+            <button
+              type="button"
+              class="toggle-btn"
+              :class="{ 'toggle-btn--active': revenueRankView === 'worst' }"
+              @click="revenueRankView = 'worst'"
+            >
+              워스트
+            </button>
           </div>
-        </div>
-        <p v-if="!topVodByLikes.length" class="empty">데이터가 없습니다.</p>
-      </div>
-    </article>
+        </header>
+        <StatsRankList :items="revenueRanks[revenueRankView]" :value-formatter="formatCurrency" />
+      </article>
+
+      <article class="ds-surface stats-card">
+        <header class="stats-card__head">
+          <div>
+            <h3>시청자 수 베스트/워스트 5순위</h3>
+            <p class="stats-card__sub">방송별 최대 시청자 수를 비교했습니다.</p>
+          </div>
+          <div class="toggle-group" role="tablist" aria-label="시청자 순위">
+            <button
+              type="button"
+              class="toggle-btn"
+              :class="{ 'toggle-btn--active': viewerRankView === 'best' }"
+              @click="viewerRankView = 'best'"
+            >
+              베스트
+            </button>
+            <button
+              type="button"
+              class="toggle-btn"
+              :class="{ 'toggle-btn--active': viewerRankView === 'worst' }"
+              @click="viewerRankView = 'worst'"
+            >
+              워스트
+            </button>
+          </div>
+        </header>
+        <StatsRankList :items="viewerRanks[viewerRankView]" :value-formatter="formatViewerCount" />
+      </article>
+    </section>
   </div>
 </template>
 
 <style scoped>
-.live-header {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  gap: 14px;
-  margin: 12px 0 18px;
-}
-
-.live-header__spacer {
-  min-height: 1px;
-}
-
-.live-header__right {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.inline-filter {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 800;
-  color: var(--text-strong);
-}
-
-.inline-filter select {
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-  padding: 8px 10px;
-  font-weight: 700;
-  color: var(--text-strong);
-  background: var(--surface);
-}
-
-.stat-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 12px;
-  margin-bottom: 18px;
-}
-
-.stat-card {
-  padding: 14px;
-  border-radius: 12px;
-}
-
-.stat-label {
-  margin: 0 0 6px;
-  color: var(--text-muted);
-  font-weight: 800;
-}
-
-.stat-value {
-  margin: 0;
-  font-size: 1.4rem;
-  font-weight: 900;
-  color: var(--text-strong);
-}
-
-.panel {
-  padding: 16px;
-  border-radius: 14px;
-}
-
-.panel__head {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  margin-bottom: 10px;
-}
-
-.list {
+.stats-page {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 
-.list-row {
+.stats-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.stats-grid--charts {
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.stats-grid--lists {
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+}
+
+.stats-card {
+  padding: 16px;
+  border-radius: 14px;
   display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.stats-card__head {
+  display: flex;
+  align-items: flex-start;
   justify-content: space-between;
-  align-items: center;
   gap: 12px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--border-color);
+  flex-wrap: wrap;
 }
 
-.list-row:last-child {
-  border-bottom: none;
-}
-
-.list-title {
-  margin: 0 0 4px;
-  font-weight: 900;
-  color: var(--text-strong);
-}
-
-.list-sub {
-  margin: 0;
+.stats-card__sub {
+  margin: 4px 0 0;
   color: var(--text-muted);
   font-weight: 700;
 }
 
-.list-meta {
-  display: flex;
+.toggle-group {
+  display: inline-flex;
   gap: 8px;
 }
 
-.badge-chip {
-  display: inline-flex;
-  align-items: center;
-  padding: 8px 10px;
-  border-radius: 10px;
-  background: var(--surface-weak);
-  font-weight: 800;
+.toggle-btn {
+  border: 1px solid var(--border-color);
+  background: var(--surface);
   color: var(--text-strong);
-  white-space: nowrap;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.15s ease;
 }
 
-.empty {
-  margin: 0;
-  color: var(--text-muted);
-  font-weight: 700;
+.toggle-btn--active {
+  background: rgba(var(--primary-rgb), 0.12);
+  border-color: rgba(var(--primary-rgb), 0.6);
+  color: var(--primary-color);
+  box-shadow: 0 4px 12px rgba(var(--primary-rgb), 0.14);
+}
+
+@media (max-width: 640px) {
+  .stats-card__head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .toggle-group {
+    width: 100%;
+    flex-wrap: wrap;
+  }
 }
 </style>

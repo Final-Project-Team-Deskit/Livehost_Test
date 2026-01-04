@@ -1,195 +1,250 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
 import PageHeader from '../../../components/PageHeader.vue'
-import { getAdminLiveSummaries } from '../../../lib/mocks/adminLives'
-import { getAdminReservationSummaries } from '../../../lib/mocks/adminReservations'
-import { getAdminVodSummaries } from '../../../lib/mocks/adminVods'
+import StatsBarChart from '../../../components/stats/StatsBarChart.vue'
+import StatsRankList from '../../../components/stats/StatsRankList.vue'
+import {
+  getAdminProductRevenueRankings,
+  getAdminRevenueRankings,
+  revenueData,
+  revenuePerViewerData,
+  type RankGroup,
+  type StatsRange,
+} from '../../../lib/mocks/liveStats'
 
-const router = useRouter()
+type RankView = 'best' | 'worst'
 
-const lives = ref(getAdminLiveSummaries())
-const reservations = ref(getAdminReservationSummaries())
-const vods = ref(getAdminVodSummaries())
+const revenueRange = ref<StatsRange>('monthly')
+const perViewerRange = ref<StatsRange>('monthly')
+const broadcastRankView = ref<RankView>('best')
+const productRankView = ref<RankView>('best')
 
-const summaryCards = computed(() => [
-  { label: '방송 중', value: lives.value.filter((item) => item.status === '방송중').length },
-  { label: '예약 건', value: reservations.value.length },
-  { label: 'VOD', value: vods.value.length },
-  {
-    label: '평균 시청자',
-    value:
-      lives.value.length > 0
-        ? Math.round(lives.value.reduce((sum, item) => sum + item.viewers, 0) / lives.value.length)
-        : 0,
-  },
-])
+const broadcastRanks = ref<RankGroup>({ best: [], worst: [] })
+const productRanks = ref<RankGroup>({ best: [], worst: [] })
 
-const topLiveByView = computed(() =>
-  lives.value
-    .slice()
-    .sort((a, b) => b.viewers - a.viewers)
-    .slice(0, 5),
-)
+const revenueChart = computed(() => revenueData[revenueRange.value])
+const perViewerChart = computed(() => revenuePerViewerData[perViewerRange.value])
 
-const latestReservations = computed(() =>
-  reservations.value.slice().sort((a, b) => b.datetime.localeCompare(a.datetime)).slice(0, 5),
-)
-
-const goSection = (value: 'list' | 'stats' | 'sanctions') => {
-  if (value === 'list') {
-    router.push('/admin/live').catch(() => {})
-    return
-  }
-  if (value === 'sanctions') {
-    router.push('/admin/live/sanctions').catch(() => {})
-    return
-  }
-}
+const formatCurrency = (value: number) => `₩${value.toLocaleString('ko-KR')}`
 
 onMounted(() => {
-  lives.value = getAdminLiveSummaries()
-  reservations.value = getAdminReservationSummaries()
-  vods.value = getAdminVodSummaries()
+  broadcastRanks.value = getAdminRevenueRankings()
+  productRanks.value = getAdminProductRevenueRankings()
 })
 </script>
 
 <template>
-  <div>
+  <div class="stats-page">
     <PageHeader eyebrow="DESKIT" title="방송 통계" />
 
-    <section class="stat-grid">
-      <article v-for="card in summaryCards" :key="card.label" class="ds-surface stat-card">
-        <p class="stat-label">{{ card.label }}</p>
-        <p class="stat-value">{{ card.value.toLocaleString('ko-KR') }}</p>
+    <section class="stats-grid stats-grid--charts">
+      <article class="ds-surface stats-card">
+        <header class="stats-card__head">
+          <div>
+            <h3>매출 추이</h3>
+            <p class="stats-card__sub">기간별 매출 지표</p>
+          </div>
+          <div class="toggle-group" role="tablist" aria-label="매출 기간">
+            <button
+              type="button"
+              class="toggle-btn"
+              :class="{ 'toggle-btn--active': revenueRange === 'daily' }"
+              @click="revenueRange = 'daily'"
+            >
+              일별
+            </button>
+            <button
+              type="button"
+              class="toggle-btn"
+              :class="{ 'toggle-btn--active': revenueRange === 'monthly' }"
+              @click="revenueRange = 'monthly'"
+            >
+              월별
+            </button>
+            <button
+              type="button"
+              class="toggle-btn"
+              :class="{ 'toggle-btn--active': revenueRange === 'yearly' }"
+              @click="revenueRange = 'yearly'"
+            >
+              연도별
+            </button>
+          </div>
+        </header>
+        <StatsBarChart :data="revenueChart" :value-formatter="formatCurrency" />
+      </article>
+
+      <article class="ds-surface stats-card">
+        <header class="stats-card__head">
+          <div>
+            <h3>시청자 당 매출 추이</h3>
+            <p class="stats-card__sub">시청자 1명당 매출 흐름을 확인하세요.</p>
+          </div>
+          <div class="toggle-group" role="tablist" aria-label="시청자당 매출 기간">
+            <button
+              type="button"
+              class="toggle-btn"
+              :class="{ 'toggle-btn--active': perViewerRange === 'daily' }"
+              @click="perViewerRange = 'daily'"
+            >
+              일별
+            </button>
+            <button
+              type="button"
+              class="toggle-btn"
+              :class="{ 'toggle-btn--active': perViewerRange === 'monthly' }"
+              @click="perViewerRange = 'monthly'"
+            >
+              월별
+            </button>
+            <button
+              type="button"
+              class="toggle-btn"
+              :class="{ 'toggle-btn--active': perViewerRange === 'yearly' }"
+              @click="perViewerRange = 'yearly'"
+            >
+              연도별
+            </button>
+          </div>
+        </header>
+        <StatsBarChart :data="perViewerChart" :value-formatter="formatCurrency" />
       </article>
     </section>
 
-    <section class="ds-stack-lg">
-      <article class="ds-surface panel">
-        <div class="panel__head">
+    <section class="stats-grid stats-grid--lists">
+      <article class="ds-surface stats-card">
+        <header class="stats-card__head">
           <div>
-            <h3>시청자 상위 방송</h3>
-            <p class="ds-section-sub">최근 목록 기준 상위 5개 방송이에요.</p>
+            <h3>방송 매출 순위 TOP 5</h3>
+            <p class="stats-card__sub">최근 목록을 기준으로 베스트/워스트를 확인하세요.</p>
           </div>
-        </div>
-        <div class="list">
-          <div v-for="item in topLiveByView" :key="item.id" class="list-row">
-            <div>
-              <p class="list-title">{{ item.title }}</p>
-              <p class="list-sub">{{ item.sellerName }} · {{ item.startedAt }}</p>
-            </div>
-            <span class="badge-chip">시청자 {{ item.viewers.toLocaleString('ko-KR') }}명</span>
+          <div class="toggle-group" role="tablist" aria-label="방송 매출 순위">
+            <button
+              type="button"
+              class="toggle-btn"
+              :class="{ 'toggle-btn--active': broadcastRankView === 'best' }"
+              @click="broadcastRankView = 'best'"
+            >
+              베스트
+            </button>
+            <button
+              type="button"
+              class="toggle-btn"
+              :class="{ 'toggle-btn--active': broadcastRankView === 'worst' }"
+              @click="broadcastRankView = 'worst'"
+            >
+              워스트
+            </button>
           </div>
-          <p v-if="!topLiveByView.length" class="empty">데이터가 없습니다.</p>
-        </div>
+        </header>
+        <StatsRankList :items="broadcastRanks[broadcastRankView]" :value-formatter="formatCurrency" />
       </article>
 
-      <article class="ds-surface panel">
-        <div class="panel__head">
+      <article class="ds-surface stats-card">
+        <header class="stats-card__head">
           <div>
-            <h3>최근 예약</h3>
-            <p class="ds-section-sub">가장 최신 예약 5건을 보여줍니다.</p>
+            <h3>상품 매출 순위 TOP 5</h3>
+            <p class="stats-card__sub">판매된 상품 중 매출 상·하위 항목입니다.</p>
           </div>
-        </div>
-        <div class="list">
-          <div v-for="item in latestReservations" :key="item.id" class="list-row">
-            <div>
-              <p class="list-title">{{ item.title }}</p>
-              <p class="list-sub">{{ item.sellerName }} · {{ item.datetime }}</p>
-            </div>
-            <span class="badge-chip">상태: {{ item.status }}</span>
+          <div class="toggle-group" role="tablist" aria-label="상품 매출 순위">
+            <button
+              type="button"
+              class="toggle-btn"
+              :class="{ 'toggle-btn--active': productRankView === 'best' }"
+              @click="productRankView = 'best'"
+            >
+              베스트
+            </button>
+            <button
+              type="button"
+              class="toggle-btn"
+              :class="{ 'toggle-btn--active': productRankView === 'worst' }"
+              @click="productRankView = 'worst'"
+            >
+              워스트
+            </button>
           </div>
-          <p v-if="!latestReservations.length" class="empty">데이터가 없습니다.</p>
-        </div>
+        </header>
+        <StatsRankList :items="productRanks[productRankView]" :value-formatter="formatCurrency" />
       </article>
     </section>
   </div>
 </template>
 
 <style scoped>
-.stat-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 12px;
-  margin-bottom: 18px;
-}
-
-.stat-card {
-  padding: 14px;
-  border-radius: 12px;
-}
-
-.stat-label {
-  margin: 0 0 6px;
-  color: var(--text-muted);
-  font-weight: 800;
-}
-
-.stat-value {
-  margin: 0;
-  font-size: 1.4rem;
-  font-weight: 900;
-  color: var(--text-strong);
-}
-
-.panel {
-  padding: 16px;
-  border-radius: 14px;
-}
-
-.panel__head {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  margin-bottom: 10px;
-}
-
-.list {
+.stats-page {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 
-.list-row {
+.stats-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.stats-grid--charts {
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.stats-grid--lists {
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+}
+
+.stats-card {
+  padding: 16px;
+  border-radius: 14px;
   display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.stats-card__head {
+  display: flex;
+  align-items: flex-start;
   justify-content: space-between;
-  align-items: center;
   gap: 12px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--border-color);
+  flex-wrap: wrap;
 }
 
-.list-row:last-child {
-  border-bottom: none;
-}
-
-.list-title {
-  margin: 0 0 4px;
-  font-weight: 900;
-  color: var(--text-strong);
-}
-
-.list-sub {
-  margin: 0;
+.stats-card__sub {
+  margin: 4px 0 0;
   color: var(--text-muted);
   font-weight: 700;
 }
 
-.badge-chip {
+.toggle-group {
   display: inline-flex;
-  align-items: center;
-  padding: 8px 10px;
-  border-radius: 10px;
-  background: var(--surface-weak);
-  font-weight: 800;
-  color: var(--text-strong);
-  white-space: nowrap;
+  gap: 8px;
 }
 
-.empty {
-  margin: 0;
-  color: var(--text-muted);
-  font-weight: 700;
+.toggle-btn {
+  border: 1px solid var(--border-color);
+  background: var(--surface);
+  color: var(--text-strong);
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.toggle-btn--active {
+  background: rgba(var(--primary-rgb), 0.12);
+  border-color: rgba(var(--primary-rgb), 0.6);
+  color: var(--primary-color);
+  box-shadow: 0 4px 12px rgba(var(--primary-rgb), 0.14);
+}
+
+@media (max-width: 640px) {
+  .stats-card__head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .toggle-group {
+    width: 100%;
+    flex-wrap: wrap;
+  }
 }
 </style>
