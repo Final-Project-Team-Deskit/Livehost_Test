@@ -423,6 +423,11 @@ const toggleFullscreen = async () => {
       </aside>
 
       <div class="stream-center ds-surface">
+        <div class="stream-overlay stream-overlay--metrics">
+          <div class="overlay-item">⏱ 경과 {{ elapsed }}</div>
+          <div class="overlay-item">👥 {{ viewerCount.toLocaleString('ko-KR') }}명</div>
+          <div class="overlay-item">❤ {{ likeCount.toLocaleString('ko-KR') }}</div>
+        </div>
         <div class="stream-fab">
           <button
             type="button"
@@ -471,12 +476,7 @@ const toggleFullscreen = async () => {
           </button>
         </div>
         <div class="stream-center__body">
-          <div class="stream-player">
-            <div class="stream-overlay stream-overlay--stack">
-              <div class="stream-overlay__row">⏱ 경과 {{ elapsed }}</div>
-              <div class="stream-overlay__row">👥 {{ viewerCount.toLocaleString('ko-KR') }}명 시청 중</div>
-              <div class="stream-overlay__row">❤ {{ likeCount.toLocaleString('ko-KR') }}</div>
-            </div>
+          <div class="player-frame">
             <div v-if="isLoadingStream" class="stream-empty">
               <p class="stream-title">방송 정보를 불러오는 중입니다.</p>
               <p class="stream-sub">잠시만 기다려주세요.</p>
@@ -834,30 +834,37 @@ const toggleFullscreen = async () => {
   position: relative;
 }
 
-.stream-player {
+.player-frame {
   position: relative;
   width: 100%;
-  max-height: calc(var(--stream-pane-height) - 32px);
-  aspect-ratio: 16 / 9;
+  height: 100%;
   border-radius: 16px;
-  background: #0b0f1a;
+  background: radial-gradient(circle at 20% 20%, rgba(59, 130, 246, 0.18), rgba(15, 23, 42, 0.9));
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
+  aspect-ratio: 16 / 9;
   min-height: 320px;
+}
+
+.player-frame::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.04), rgba(15, 23, 42, 0.4));
 }
 
 .stream-overlay {
   position: absolute;
   top: 14px;
-  left: 14px;
+  right: 14px;
   background: rgba(0, 0, 0, 0.55);
   color: #fff;
   border-radius: 12px;
   padding: 10px 12px;
   display: grid;
-  gap: 6px;
+  gap: 8px;
   z-index: 2;
 }
 
