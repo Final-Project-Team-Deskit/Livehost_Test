@@ -431,44 +431,44 @@ onBeforeUnmount(() => {
           <h3>예약된 방송</h3>
         </div>
         <div class="live-section__controls">
-          <div v-if="activeTab === 'scheduled'" class="control-stack">
-            <p class="ds-section-sub">예약 상태와 카테고리를 선택해 정렬할 수 있습니다.</p>
-            <div class="filter-row">
-              <label class="inline-filter">
-                <span>상태</span>
-                <select v-model="scheduledStatus">
-                  <option value="all">전체</option>
-                  <option value="reserved">예약중</option>
-                  <option value="canceled">취소됨</option>
-                </select>
-              </label>
-              <label class="inline-filter">
-                <span>카테고리</span>
-                <select v-model="scheduledCategory">
-                  <option value="all">모든 카테고리</option>
-                  <option v-for="category in scheduledCategories" :key="category" :value="category">{{ category }}</option>
-                </select>
-              </label>
-              <label class="inline-filter">
-                <span>정렬</span>
-                <select v-model="scheduledSort">
-                  <option value="nearest">방송 시간이 가까운 순</option>
-                  <option value="latest">최신순</option>
-                  <option value="oldest">오래된 순</option>
-                </select>
-              </label>
-            </div>
-          </div>
-          <div v-else class="more-row">
-            <span
-              class="link-more"
-              role="button"
-              tabindex="0"
-              @click="setTab('scheduled')"
-            >
-              + 더보기
-            </span>
-          </div>
+          <p v-if="activeTab === 'scheduled'" class="ds-section-sub">예정된 라이브 스케줄을 관리하세요.</p>
+          <span
+            v-else
+            class="link-more"
+            role="button"
+            tabindex="0"
+            @click="setTab('scheduled')"
+          >
+            + 더보기
+          </span>
+        </div>
+      </div>
+
+      <div v-if="activeTab === 'scheduled'" class="control-stack">
+        <div class="filter-row">
+          <label class="inline-filter">
+            <span>상태</span>
+            <select v-model="scheduledStatus">
+              <option value="all">전체</option>
+              <option value="reserved">예약중</option>
+              <option value="canceled">취소됨</option>
+            </select>
+          </label>
+          <label class="inline-filter">
+            <span>카테고리</span>
+            <select v-model="scheduledCategory">
+              <option value="all">모든 카테고리</option>
+              <option v-for="category in scheduledCategories" :key="category" :value="category">{{ category }}</option>
+            </select>
+          </label>
+          <label class="inline-filter">
+            <span>정렬</span>
+            <select v-model="scheduledSort">
+              <option value="nearest">방송 시간이 가까운 순</option>
+              <option value="latest">최신순</option>
+              <option value="oldest">오래된 순</option>
+            </select>
+          </label>
         </div>
       </div>
 
