@@ -356,7 +356,7 @@ onBeforeUnmount(() => {
         </div>
         <div class="live-section__controls">
           <p v-if="activeTab === 'live'" class="ds-section-sub">현재 진행 중인 라이브 방송입니다.</p>
-          <span v-else class="link-more" role="button" tabindex="0" @click="setTab('live')">+ 더보기</span>
+          <button v-else class="link-more" type="button" @click="setTab('live')">+ 더보기</button>
         </div>
       </div>
 
@@ -431,15 +431,14 @@ onBeforeUnmount(() => {
         </div>
         <div class="live-section__controls">
           <p v-if="activeTab === 'scheduled'" class="ds-section-sub">예정된 라이브 스케줄을 관리하세요.</p>
-          <span
+          <button
             v-else
             class="link-more"
-            role="button"
-            tabindex="0"
+            type="button"
             @click="setTab('scheduled')"
           >
             + 더보기
-          </span>
+          </button>
         </div>
       </div>
 
@@ -510,15 +509,14 @@ onBeforeUnmount(() => {
         </div>
         <div class="live-section__controls">
           <p v-if="activeTab === 'vod'" class="ds-section-sub">저장된 다시보기 콘텐츠를 확인합니다.</p>
-          <span
+          <button
             v-else
             class="link-more"
-            role="button"
-            tabindex="0"
+            type="button"
             @click="setTab('vod')"
           >
             + 더보기
-          </span>
+          </button>
         </div>
       </div>
 
@@ -707,6 +705,15 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.link-more {
+  border: none;
+  background: transparent;
+  color: var(--primary-color);
+  font-weight: 900;
+  cursor: pointer;
+  padding: 4px 6px;
 }
 
 .filter-row {
