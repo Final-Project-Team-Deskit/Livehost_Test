@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import BasicInfoEditModal from '../../components/BasicInfoEditModal.vue'
 import ChatSanctionModal from '../../components/ChatSanctionModal.vue'
@@ -19,6 +19,7 @@ type StreamChat = {
   id: string
   name: string
   message: string
+  time?: string
 }
 
 type StreamData = {
@@ -46,7 +47,7 @@ const showSettings = ref(false)
 const viewerCount = ref(1010)
 const likeCount = ref(1574)
 const elapsed = ref('02:01:44')
-const streamStage = ref<HTMLElement | null>(null)
+const monitorRef = ref<HTMLElement | null>(null)
 const isFullscreen = ref(false)
 const micEnabled = ref(true)
 const videoEnabled = ref(true)
@@ -54,6 +55,8 @@ const volume = ref(43)
 const selectedMic = ref('기본 마이크')
 const selectedCamera = ref('기본 카메라')
 const micInputLevel = ref(70)
+const chatText = ref('')
+const chatListRef = ref<HTMLElement | null>(null)
 
 const showQCards = ref(false)
 const showBasicInfo = ref(false)
@@ -78,6 +81,9 @@ const sanctionTarget = ref<string | null>(null)
 const sanctionedUsers = ref<Record<string, { type: string; reason: string }>>({})
 const broadcastInfo = ref<BroadcastInfo | null>(null)
 const stream = ref<StreamData | null>(null)
+const chatMessages = ref<StreamChat[]>([])
+
+const defaultChatTimes = ['오후 2:10', '오후 2:12', '오후 2:14']
 
 const streamId = computed(() => {
   const id = route.params.id
@@ -124,7 +130,6 @@ const streamMap: Record<string, StreamData> = {
 }
 
 const productItems = computed(() => stream.value?.products ?? [])
-const chatItems = computed(() => stream.value?.chat ?? [])
 const sortedProducts = computed(() => {
   const items = [...productItems.value]
   items.sort((a, b) => {
@@ -138,6 +143,15 @@ const sortedProducts = computed(() => {
     return 0
   })
   return items
+})
+
+const chatItems = computed(() => chatMessages.value)
+
+const monitorColumns = computed(() => {
+  if (showProducts.value && showChat.value) return '320px minmax(0, 1fr) 320px'
+  if (showProducts.value) return '320px minmax(0, 1fr)'
+  if (showChat.value) return 'minmax(0, 1fr) 320px'
+  return 'minmax(0, 1fr)'
 })
 
 const qCards = computed(() => broadcastInfo.value?.qCards ?? [])
@@ -155,6 +169,7 @@ const hydrateStream = () => {
   if (!next) {
     pinnedProductId.value = null
     broadcastInfo.value = null
+    chatMessages.value = []
     isLoadingStream.value = false
     return
   }
@@ -168,7 +183,12 @@ const hydrateStream = () => {
     thumbnail: next.thumbnail,
     waitingScreen: next.waitingScreen,
   }
+  chatMessages.value = (next.chat ?? []).map((item, index) => ({
+    ...item,
+    time: item.time ?? defaultChatTimes[index % defaultChatTimes.length],
+  }))
   isLoadingStream.value = false
+  scrollChatToBottom()
 }
 
 watch(
@@ -229,6 +249,7 @@ const handlePinProduct = (productId: string) => {
 }
 
 const openSanction = (username: string) => {
+  if (username === 'SYSTEM') return
   sanctionTarget.value = username
   showSanctionModal.value = true
 }
@@ -241,11 +262,60 @@ const applySanction = (payload: { type: string; reason: string }) => {
   }
   alert(`${sanctionTarget.value}님에게 제재가 적용되었습니다.`)
   sanctionTarget.value = null
+  const now = new Date()
+  const at = `${now.getHours()}시 ${String(now.getMinutes()).padStart(2, '0')}분`
+  chatMessages.value = [
+    ...chatMessages.value,
+    {
+      id: `sys-${Date.now()}`,
+      name: 'SYSTEM',
+      message: `${payload.type} 처리됨 (사유: ${payload.reason})`,
+      time: at,
+    },
+  ]
+  scrollChatToBottom()
 }
 
 watch(showSanctionModal, (open) => {
   if (!open) {
     sanctionTarget.value = null
+  }
+})
+
+const scrollChatToBottom = () => {
+  nextTick(() => {
+    const el = chatListRef.value
+    if (!el) return
+    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+  })
+}
+
+const formatChatTime = () => {
+  const now = new Date()
+  const hours = now.getHours()
+  const displayHour = hours % 12 || 12
+  const minutes = String(now.getMinutes()).padStart(2, '0')
+  return `${hours >= 12 ? '오후' : '오전'} ${displayHour}:${minutes}`
+}
+
+const handleSendChat = () => {
+  if (!chatText.value.trim()) return
+  chatMessages.value = [
+    ...chatMessages.value,
+    {
+      id: `seller-${Date.now()}`,
+      name: '판매자',
+      message: chatText.value.trim(),
+      time: formatChatTime(),
+    },
+  ]
+  chatText.value = ''
+  scrollChatToBottom()
+}
+
+watch(showChat, (open) => {
+  if (open) {
+    scrollChatToBottom()
   }
 })
 
@@ -276,7 +346,7 @@ const requestEndBroadcast = () => {
 }
 
 const toggleFullscreen = async () => {
-  const el = streamStage.value
+  const el = monitorRef.value
   if (!el) return
   try {
     if (document.fullscreenElement) {
@@ -306,19 +376,7 @@ const toggleFullscreen = async () => {
       </div>
     </header>
 
-    <section
-      class="stream-grid"
-      :style="{
-        gridTemplateColumns:
-          showProducts && showChat
-            ? '280px minmax(0, 1fr) 280px'
-            : showProducts
-              ? '280px minmax(0, 1fr)'
-              : showChat
-                ? 'minmax(0, 1fr) 280px'
-                : 'minmax(0, 1fr)',
-      }"
-    >
+    <section ref="monitorRef" class="stream-grid" :style="{ gridTemplateColumns: monitorColumns }">
       <aside v-if="showProducts" class="stream-panel ds-surface">
         <div class="panel-head">
           <div class="panel-head__left">
@@ -364,7 +422,7 @@ const toggleFullscreen = async () => {
         </div>
       </aside>
 
-      <div ref="streamStage" class="stream-center ds-surface">
+      <div class="stream-center ds-surface">
         <div class="stream-overlay stream-overlay--stack">
           <div class="stream-overlay__row">⏱ 경과 {{ elapsed }}</div>
           <div class="stream-overlay__row">👥 {{ viewerCount.toLocaleString('ko-KR') }}명 시청 중</div>
@@ -529,20 +587,27 @@ const toggleFullscreen = async () => {
           </div>
           <button type="button" class="panel-close" aria-label="채팅 패널 닫기" @click="showChat = false">×</button>
         </div>
-        <div class="panel-chat">
+        <div ref="chatListRef" class="panel-chat">
           <div
             v-for="item in chatItems"
             :key="item.id"
             class="chat-item"
-            :class="{ 'chat-item--muted': sanctionedUsers[item.name] }"
+            :class="{ 'chat-item--muted': sanctionedUsers[item.name], 'chat-item--system': item.name === 'SYSTEM' }"
             @contextmenu.prevent="openSanction(item.name)"
           >
             <div class="chat-item__header">
-              <span class="chat-name">{{ item.name }}</span>
+              <div class="chat-meta">
+                <span class="chat-name">{{ item.name }}</span>
+                <span class="chat-time">{{ item.time }}</span>
+              </div>
               <span v-if="sanctionedUsers[item.name]" class="chat-badge">{{ sanctionedUsers[item.name].type }}</span>
             </div>
             <span class="chat-message">{{ item.message }}</span>
           </div>
+        </div>
+        <div class="chat-input">
+          <input v-model="chatText" type="text" placeholder="메시지를 입력하세요" @keyup.enter="handleSendChat" />
+          <button type="button" class="stream-btn primary" @click="handleSendChat">전송</button>
         </div>
       </aside>
     </section>
@@ -597,10 +662,10 @@ const toggleFullscreen = async () => {
 
 .stream-grid {
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr) 280px;
+  grid-template-columns: 320px minmax(0, 1fr) 320px;
   gap: 18px;
   align-items: start;
-  --stream-pane-height: clamp(420px, 60vh, 620px);
+  --stream-pane-height: clamp(460px, 62vh, 680px);
 }
 
 .stream-panel {
@@ -871,12 +936,13 @@ const toggleFullscreen = async () => {
 
 .chat-item {
   display: grid;
-  gap: 4px;
+  gap: 6px;
   padding: 8px 10px;
   border-radius: 12px;
   background: var(--surface-weak);
   flex: 0 0 auto;
   align-self: stretch;
+  border: 1px solid transparent;
 }
 
 .chat-item--muted {
@@ -884,8 +950,19 @@ const toggleFullscreen = async () => {
   border: 1px dashed var(--border-color);
 }
 
+.chat-item--system .chat-name {
+  color: #ef4444;
+}
+
 .chat-item__header {
   display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.chat-meta {
+  display: inline-flex;
   align-items: center;
   gap: 8px;
 }
@@ -894,6 +971,12 @@ const toggleFullscreen = async () => {
   font-weight: 800;
   color: var(--text-strong);
   font-size: 0.85rem;
+}
+
+.chat-time {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 700;
 }
 
 .chat-message {
@@ -911,6 +994,27 @@ const toggleFullscreen = async () => {
   color: #b91c1c;
   font-weight: 800;
   font-size: 0.75rem;
+}
+
+.chat-input {
+  display: flex;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.chat-input input {
+  flex: 1;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-weight: 700;
+  color: var(--text-strong);
+  background: var(--surface);
+}
+
+.stream-btn.primary {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
 }
 
 
@@ -1037,6 +1141,16 @@ const toggleFullscreen = async () => {
   padding: 8px 10px;
   font-weight: 800;
   cursor: pointer;
+}
+
+.stream-grid:fullscreen {
+  gap: 14px;
+}
+
+.stream-grid:fullscreen .stream-panel,
+.stream-grid:fullscreen .stream-center {
+  height: calc(100vh - 180px);
+  min-height: 0;
 }
 
 @media (max-width: 960px) {
