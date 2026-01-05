@@ -94,7 +94,7 @@ export default function LiveBroadcastsPage() {
           )}
         </>
       ) : (
-        <div className="flex justify-center">
+        <div className="flex w-full justify-center">
           <EmptyState message="현재 진행 중인 방송이 없습니다." />
         </div>
       )}

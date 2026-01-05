@@ -266,7 +266,7 @@ export default function BroadcastsPage() {
             {liveBroadcasts.length > 0 ? (
               <BroadcastCarousel broadcasts={liveBroadcasts.slice(0, 5)} variant="live" />
             ) : (
-              <div className="flex justify-center">
+              <div className="flex w-full justify-center">
                 <EmptyState message="현재 진행 중인 방송이 없습니다." />
               </div>
             )}
@@ -289,7 +289,7 @@ export default function BroadcastsPage() {
             {reservedBroadcasts.length > 0 ? (
               <BroadcastCarousel broadcasts={reservedBroadcasts.slice(0, 5)} variant="reservation" />
             ) : (
-              <div className="flex justify-center">
+              <div className="flex w-full justify-center">
                 <EmptyState message="현재 예약이 존재하지 않습니다." />
               </div>
             )}
@@ -312,7 +312,7 @@ export default function BroadcastsPage() {
             {vodBroadcasts.length > 0 ? (
               <BroadcastCarousel broadcasts={vodBroadcasts.slice(0, 5)} variant="vod" />
             ) : (
-              <div className="flex justify-center">
+              <div className="flex w-full justify-center">
                 <EmptyState message="현재 VOD가 존재하지 않습니다." />
               </div>
             )}
@@ -367,7 +367,7 @@ export default function BroadcastsPage() {
               )}
             </>
           ) : (
-            <div className="flex justify-center">
+            <div className="flex w-full justify-center">
               <EmptyState message="예약 방송이 없습니다." />
             </div>
           )}
@@ -403,7 +403,7 @@ export default function BroadcastsPage() {
               )}
             </>
           ) : (
-            <div className="flex justify-center">
+            <div className="flex w-full justify-center">
               <EmptyState message="현재 진행 중인 방송이 없습니다." />
             </div>
           )}
@@ -446,7 +446,7 @@ export default function BroadcastsPage() {
               )}
             </>
           ) : (
-            <div className="flex justify-center">
+            <div className="flex w-full justify-center">
               <EmptyState message="VOD가 없습니다." />
             </div>
           )}
