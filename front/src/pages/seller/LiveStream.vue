@@ -378,7 +378,12 @@ const toggleFullscreen = async () => {
             :aria-label="showProducts ? '상품 패널 닫기' : '상품 패널 열기'"
             @click="showProducts = !showProducts"
           >
-            <span aria-hidden="true">🛍</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M3 7h18l-2 12H5L3 7z" stroke="currentColor" stroke-width="1.7" />
+              <path d="M10 11v4M14 11v4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+              <circle cx="9" cy="19" r="1" fill="currentColor" />
+              <circle cx="15" cy="19" r="1" fill="currentColor" />
+            </svg>
           </button>
           <button
             type="button"
@@ -387,7 +392,10 @@ const toggleFullscreen = async () => {
             :aria-label="showChat ? '채팅 패널 닫기' : '채팅 패널 열기'"
             @click="showChat = !showChat"
           >
-            <span aria-hidden="true">💬</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M3 20l1.62-3.24A2 2 0 0 1 6.42 16H20a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v15z" stroke="currentColor" stroke-width="1.7" />
+              <path d="M7 9h10M7 12h6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+            </svg>
           </button>
           <button
             type="button"
@@ -397,24 +405,16 @@ const toggleFullscreen = async () => {
             @click="showSettings = !showSettings"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path
-                d="M12 9a3 3 0 100 6 3 3 0 000-6z"
-                stroke="currentColor"
-                stroke-width="1.7"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-              <path
-                d="M4 12a8 8 0 011-3l2 1 2-2-1-2a8 8 0 013-1l1 2h2l1-2a8 8 0 013 1l-1 2 2 2 2-1a8 8 0 011 3l-2 1v2l2 1a8 8 0 01-1 3l-2-1-2 2 1 2a8 8 0 01-3 1l-1-2h-2l-1 2a8 8 0 01-3-1l1-2-2-2-2 1a8 8 0 01-1-3l2-1v-2l-2-1z"
-                stroke="currentColor"
-                stroke-width="1.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
+              <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+              <circle cx="9" cy="6" r="2" stroke="currentColor" stroke-width="1.7" />
+              <circle cx="14" cy="12" r="2" stroke="currentColor" stroke-width="1.7" />
+              <circle cx="7" cy="18" r="2" stroke="currentColor" stroke-width="1.7" />
             </svg>
           </button>
           <button type="button" class="fab-btn" aria-label="전체 화면" @click="toggleFullscreen">
-            {{ isFullscreen ? '🗕' : '⛶' }}
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
           </button>
         </div>
         <div class="stream-center__body">
