@@ -617,9 +617,11 @@ onBeforeUnmount(() => {
 }
 
 .inline-filter {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 140px;
   font-weight: 800;
   color: var(--text-strong);
 }
@@ -631,6 +633,17 @@ onBeforeUnmount(() => {
   padding: 8px 10px;
   font-weight: 700;
   color: var(--text-strong);
+  background: var(--surface);
+}
+
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
   background: var(--surface);
 }
 
