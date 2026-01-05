@@ -367,7 +367,7 @@ onBeforeUnmount(() => {
                   <path d="M3 20l1.62-3.24A2 2 0 0 1 6.42 16H20a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v15z" fill="none" stroke="currentColor" stroke-width="1.8" />
                   <path d="M7 9h10M7 12h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
                 </svg>
-              </button>
+              </div>
               <div class="toolbar-settings">
                 <button
                   ref="settingsButtonRef"
@@ -460,7 +460,7 @@ onBeforeUnmount(() => {
         </aside>
       </div>
 
-      <section v-if="showProducts" class="panel panel--products">
+      <section class="panel panel--products">
         <div class="panel__header">
           <h3 class="panel__title">라이브 상품</h3>
           <span class="panel__count">{{ products.length }}개</span>
@@ -542,6 +542,18 @@ onBeforeUnmount(() => {
 .panel--chat {
   gap: 12px;
   min-height: 0;
+}
+
+.product-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.product-list--grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
 }
 
 .product-card {
