@@ -34,7 +34,7 @@ type StreamData = {
   waitingScreen?: string
 }
 
-type BroadcastInfo = Pick<StreamData, 'title' | 'category' | 'notice' | 'thumbnail' | 'waitingScreen' | 'qCards'>
+type EditableBroadcastInfo = Pick<StreamData, 'title' | 'category' | 'notice' | 'thumbnail' | 'waitingScreen'>
 
 const defaultNotice = '판매 상품 외 다른 상품 문의는 받지 않습니다.'
 
@@ -79,7 +79,7 @@ const confirmAction = ref<() => void>(() => {})
 const pinnedProductId = ref<string | null>(null)
 const sanctionTarget = ref<string | null>(null)
 const sanctionedUsers = ref<Record<string, { type: string; reason: string }>>({})
-const broadcastInfo = ref<BroadcastInfo | null>(null)
+const broadcastInfo = ref<(EditableBroadcastInfo & { qCards: string[] }) | null>(null)
 const stream = ref<StreamData | null>(null)
 const chatMessages = ref<StreamChat[]>([])
 
@@ -154,11 +154,19 @@ const monitorColumns = computed(() => {
   return 'minmax(0, 1fr)'
 })
 
-const qCards = computed(() => broadcastInfo.value?.qCards ?? [])
+const qCards = computed(() => broadcastInfo.value?.qCards ?? stream.value?.qCards ?? [])
 const displayTitle = computed(() => broadcastInfo.value?.title ?? stream.value?.title ?? '방송 진행')
 const displayDatetime = computed(
   () => stream.value?.datetime ?? '실시간 송출 화면과 판매 상품, 채팅을 관리합니다.',
 )
+
+const scrollChatToBottom = () => {
+  nextTick(() => {
+    const el = chatListRef.value
+    if (!el) return
+    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+  })
+}
 
 const hydrateStream = () => {
   isLoadingStream.value = true
@@ -179,9 +187,9 @@ const hydrateStream = () => {
     title: next.title,
     category: next.category,
     notice: next.notice ?? defaultNotice,
-    qCards: next.qCards,
     thumbnail: next.thumbnail,
     waitingScreen: next.waitingScreen,
+    qCards: next.qCards,
   }
   chatMessages.value = (next.chat ?? []).map((item, index) => ({
     ...item,
@@ -282,14 +290,6 @@ watch(showSanctionModal, (open) => {
   }
 })
 
-const scrollChatToBottom = () => {
-  nextTick(() => {
-    const el = chatListRef.value
-    if (!el) return
-    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
-  })
-}
-
 const formatChatTime = () => {
   const now = new Date()
   const hours = now.getHours()
@@ -319,7 +319,7 @@ watch(showChat, (open) => {
   }
 })
 
-const handleBasicInfoSave = (payload: BroadcastInfo) => {
+const handleBasicInfoSave = (payload: EditableBroadcastInfo) => {
   if (!broadcastInfo.value) return
   broadcastInfo.value = { ...broadcastInfo.value, ...payload }
 }
