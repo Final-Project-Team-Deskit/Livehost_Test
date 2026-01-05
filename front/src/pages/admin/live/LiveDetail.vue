@@ -26,6 +26,72 @@ const moderationTarget = ref<{ user: string } | null>(null)
 const moderationType = ref('')
 const moderationReason = ref('')
 const moderatedUsers = ref<Record<string, { type: string; reason: string; at: string }>>({})
+const activePane = ref<'monitor' | 'products'>('monitor')
+const liveProducts = ref(
+  [
+    {
+      id: 'p-1',
+      name: '모던 스탠딩 데스크',
+      option: '1200mm · 오프화이트',
+      price: '₩229,000',
+      sale: '₩189,000',
+      status: '판매중',
+      thumb: '',
+      sold: 128,
+      stock: 42,
+    },
+    {
+      id: 'p-2',
+      name: '무선 기계식 키보드',
+      option: '갈축 · 무선',
+      price: '₩139,000',
+      sale: '₩109,000',
+      status: '판매중',
+      thumb: '',
+      sold: 93,
+      stock: 65,
+    },
+    {
+      id: 'p-3',
+      name: '프리미엄 데스크 매트',
+      option: '900mm · 샌드',
+      price: '₩59,000',
+      sale: '₩45,000',
+      status: '품절',
+      thumb: '',
+      sold: 210,
+      stock: 0,
+    },
+    {
+      id: 'p-4',
+      name: '알루미늄 모니터암',
+      option: '싱글 · 블랙',
+      price: '₩169,000',
+      sale: '₩129,000',
+      status: '판매중',
+      thumb: '',
+      sold: 77,
+      stock: 18,
+    },
+  ],
+)
+const gradientPalette = ['111827', '0f172a', '1f2937', '334155'] as const
+
+const gradientThumb = (from: string, to: string) =>
+  `data:image/svg+xml;utf8,` +
+  `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 200'>` +
+  `<defs><linearGradient id='g' x1='0' x2='1' y1='0' y2='1'>` +
+  `<stop offset='0' stop-color='%23${from}'/>` +
+  `<stop offset='1' stop-color='%23${to}'/>` +
+  `</linearGradient></defs>` +
+  `<rect width='320' height='200' fill='url(%23g)'/>` +
+  `</svg>`
+const seedProductThumbs = () => {
+  liveProducts.value = liveProducts.value.map((item, index) => ({
+    ...item,
+    thumb: gradientThumb(gradientPalette[index % gradientPalette.length], '0f172a'),
+  }))
+}
 
 const reasonOptions = [
   '음란물',
@@ -195,6 +261,7 @@ const saveModeration = () => {
 
 onMounted(() => {
   loadDetail()
+  seedProductThumbs()
   document.addEventListener('fullscreenchange', syncFullscreen)
   window.addEventListener(ADMIN_LIVES_EVENT, loadDetail)
 })
@@ -233,66 +300,122 @@ watch(liveId, loadDetail, { immediate: true })
     </section>
 
     <section class="player-card">
-      <div ref="stageRef" class="monitor-stage" :class="{ 'monitor-stage--chat': showChat }">
-        <div class="player-wrap">
-          <div class="player-frame">
-            <div class="player-overlay">
-              <div class="overlay-item">⏱ {{ detail.elapsed }}</div>
-              <div class="overlay-item">👥 {{ detail.viewers }}명</div>
-              <div class="overlay-item">❤ {{ detail.likes }}</div>
-              <div class="overlay-item">🚩 {{ detail.reports ?? 0 }}건</div>
+      <div class="player-tabs">
+        <div class="tab-list" role="tablist" aria-label="모니터링 패널">
+          <button
+            type="button"
+            class="tab"
+            :class="{ 'tab--active': activePane === 'monitor' }"
+            role="tab"
+            aria-controls="monitor-pane"
+            :aria-selected="activePane === 'monitor'"
+            @click="activePane = 'monitor'"
+          >
+            모니터링
+          </button>
+          <button
+            type="button"
+            class="tab"
+            :class="{ 'tab--active': activePane === 'products' }"
+            role="tab"
+            aria-controls="products-pane"
+            :aria-selected="activePane === 'products'"
+            @click="activePane = 'products'"
+          >
+            상품
+          </button>
+        </div>
+
+        <div v-show="activePane === 'monitor'" id="monitor-pane">
+          <div ref="stageRef" class="monitor-stage" :class="{ 'monitor-stage--chat': showChat }">
+            <div class="player-wrap">
+              <div class="player-frame">
+                <div class="player-overlay">
+                  <div class="overlay-item">⏱ {{ detail.elapsed }}</div>
+                  <div class="overlay-item">👥 {{ detail.viewers }}명</div>
+                  <div class="overlay-item">❤ {{ detail.likes }}</div>
+                  <div class="overlay-item">🚩 {{ detail.reports ?? 0 }}건</div>
+                </div>
+                <div class="overlay-actions">
+                  <button type="button" class="icon-circle" :class="{ active: showChat }" @click="toggleChat" :title="showChat ? '채팅 닫기' : '채팅 보기'">
+                    <svg aria-hidden="true" class="icon" viewBox="0 0 24 24" focusable="false">
+                      <path d="M3 20l1.62-3.24A2 2 0 0 1 6.42 16H20a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v15z" />
+                    </svg>
+                  </button>
+                  <button type="button" class="icon-circle ghost" :class="{ active: isFullscreen }" @click="toggleFullscreen" :title="isFullscreen ? '전체화면 종료' : '전체화면'">
+                    <svg v-if="!isFullscreen" aria-hidden="true" class="icon" viewBox="0 0 24 24" focusable="false">
+                      <path d="M15 3h6v6" />
+                      <path d="M9 21H3v-6" />
+                      <path d="M21 3 14 10" />
+                      <path d="M3 21 10 14" />
+                    </svg>
+                    <svg v-else aria-hidden="true" class="icon" viewBox="0 0 24 24" focusable="false">
+                      <path d="M9 9H3V3" />
+                      <path d="m3 9 6-6" />
+                      <path d="M15 15h6v6" />
+                      <path d="m21 15-6 6" />
+                    </svg>
+                  </button>
+                </div>
+                <div class="player-label">송출 화면</div>
+              </div>
             </div>
-            <div class="overlay-actions">
-              <button type="button" class="icon-circle" :class="{ active: showChat }" @click="toggleChat" :title="showChat ? '채팅 닫기' : '채팅 보기'">
-                <svg aria-hidden="true" class="icon" viewBox="0 0 24 24" focusable="false">
-                  <path d="M3 20l1.62-3.24A2 2 0 0 1 6.42 16H20a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v15z" />
-                </svg>
-              </button>
-              <button type="button" class="icon-circle ghost" :class="{ active: isFullscreen }" @click="toggleFullscreen" :title="isFullscreen ? '전체화면 종료' : '전체화면'">
-                <svg v-if="!isFullscreen" aria-hidden="true" class="icon" viewBox="0 0 24 24" focusable="false">
-                  <path d="M15 3h6v6" />
-                  <path d="M9 21H3v-6" />
-                  <path d="M21 3 14 10" />
-                  <path d="M3 21 10 14" />
-                </svg>
-                <svg v-else aria-hidden="true" class="icon" viewBox="0 0 24 24" focusable="false">
-                  <path d="M9 9H3V3" />
-                  <path d="m3 9 6-6" />
-                  <path d="M15 15h6v6" />
-                  <path d="m21 15-6 6" />
-                </svg>
-              </button>
-            </div>
-            <div class="player-label">송출 화면</div>
+
+            <aside v-if="showChat" class="chat-panel ds-surface">
+              <header class="chat-head">
+                <h4>실시간 채팅</h4>
+                <button type="button" class="chat-close" @click="closeChat">×</button>
+              </header>
+              <div ref="chatListRef" class="chat-messages">
+                <div
+                  v-for="msg in chatMessages"
+                  :key="msg.id"
+                  class="chat-message"
+                  :class="{ 'chat-message--system': msg.user === 'SYSTEM', 'chat-message--muted': moderatedUsers[msg.user] }"
+                  @contextmenu.prevent="openModeration(msg)"
+                >
+                  <div class="chat-meta">
+                    <span class="chat-user">{{ msg.user }}</span>
+                    <span class="chat-time">{{ msg.time }}</span>
+                    <span v-if="msg.user !== 'SYSTEM' && moderatedUsers[msg.user]" class="chat-badge">{{ moderatedUsers[msg.user].type }}</span>
+                  </div>
+                  <p class="chat-text">{{ msg.text }}</p>
+                </div>
+              </div>
+              <div class="chat-input">
+                <input v-model="chatText" type="text" placeholder="메시지를 입력하세요" />
+                <button type="button" class="btn primary" @click="sendChat">전송</button>
+              </div>
+            </aside>
           </div>
         </div>
 
-        <aside v-if="showChat" class="chat-panel ds-surface">
-          <header class="chat-head">
-            <h4>실시간 채팅</h4>
-            <button type="button" class="chat-close" @click="closeChat">×</button>
-          </header>
-          <div ref="chatListRef" class="chat-messages">
-            <div
-              v-for="msg in chatMessages"
-              :key="msg.id"
-              class="chat-message"
-              :class="{ 'chat-message--system': msg.user === 'SYSTEM', 'chat-message--muted': moderatedUsers[msg.user] }"
-              @contextmenu.prevent="openModeration(msg)"
-            >
-              <div class="chat-meta">
-                <span class="chat-user">{{ msg.user }}</span>
-                <span class="chat-time">{{ msg.time }}</span>
-                <span v-if="msg.user !== 'SYSTEM' && moderatedUsers[msg.user]" class="chat-badge">{{ moderatedUsers[msg.user].type }}</span>
-              </div>
-              <p class="chat-text">{{ msg.text }}</p>
+        <div v-show="activePane === 'products'" id="products-pane" class="products-pane ds-surface">
+          <header class="products-head">
+            <div>
+              <h4>상품 정보</h4>
+              <p class="ds-section-sub">방송에 연결된 상품 현황을 확인하세요.</p>
             </div>
+            <span class="pill">총 {{ liveProducts.length }}개</span>
+          </header>
+          <div class="product-list">
+            <article v-for="product in liveProducts" :key="product.id" class="product-row">
+              <div class="product-thumb">
+                <img :src="product.thumb" :alt="product.name" loading="lazy" />
+              </div>
+              <div class="product-meta">
+                <p class="product-name">{{ product.name }}</p>
+                <p class="product-option">{{ product.option }}</p>
+                <p class="product-price">
+                  <span class="product-sale">{{ product.sale }}</span>
+                  <span class="product-origin">{{ product.price }}</span>
+                </p>
+                <p class="product-stats">판매 {{ product.sold }} · 재고 {{ product.stock }}</p>
+              </div>
+              <span class="product-status" :class="{ 'is-soldout': product.status === '품절' }">{{ product.status }}</span>
+            </article>
           </div>
-          <div class="chat-input">
-            <input v-model="chatText" type="text" placeholder="메시지를 입력하세요" />
-            <button type="button" class="btn primary" @click="sendChat">전송</button>
-          </div>
-        </aside>
+        </div>
       </div>
     </section>
 
@@ -825,6 +948,147 @@ watch(liveId, loadDetail, { immediate: true })
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+}
+
+/* Monitoring tabs & products */
+.player-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tab-list {
+  display: inline-flex;
+  background: rgba(15, 23, 42, 0.08);
+  padding: 4px;
+  border-radius: 12px;
+  gap: 6px;
+  width: fit-content;
+}
+
+.tab {
+  border: none;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-muted);
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.tab--active {
+  background: var(--surface);
+  color: var(--text-strong);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.06);
+}
+
+.products-pane {
+  border-radius: 16px;
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border-color);
+}
+
+.products-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.products-head h4 {
+  margin: 0;
+  color: var(--text-strong);
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface-weak);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-weight: 800;
+  color: var(--text-muted);
+}
+
+.product-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.product-row {
+  display: grid;
+  grid-template-columns: 120px 1fr 100px;
+  gap: 12px;
+  align-items: center;
+  background: var(--surface-weak);
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+}
+
+.product-thumb img {
+  width: 120px;
+  height: 80px;
+  object-fit: cover;
+  border-radius: 10px;
+}
+
+.product-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.product-name {
+  margin: 0;
+  font-weight: 900;
+  color: var(--text-strong);
+}
+
+.product-option {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.product-price {
+  margin: 0;
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.product-sale {
+  font-weight: 900;
+  color: #f59e0b;
+}
+
+.product-origin {
+  color: var(--text-soft);
+  text-decoration: line-through;
+}
+
+.product-stats {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.product-status {
+  justify-self: end;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(34, 197, 94, 0.12);
+  color: #16a34a;
+  font-weight: 800;
+}
+
+.product-status.is-soldout {
+  background: rgba(248, 113, 113, 0.15);
+  color: #ef4444;
 }
 
 @media (max-width: 900px) {

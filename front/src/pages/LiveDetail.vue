@@ -77,6 +77,10 @@ const handleVod = () => {
   router.push({ name: 'vod', params: { id: liveItem.value.id } })
 }
 
+const showChat = ref(true)
+const showProducts = ref(true)
+const isFullscreen = ref(false)
+const stageRef = ref<HTMLElement | null>(null)
 const isLiked = ref(false)
 const toggleLike = () => {
   isLiked.value = !isLiked.value
@@ -89,6 +93,30 @@ const playerPanelRef = ref<HTMLElement | null>(null)
 const chatPanelRef = ref<HTMLElement | null>(null)
 const playerHeight = ref<number | null>(null)
 let panelResizeObserver: ResizeObserver | null = null
+
+const toggleChat = () => {
+  showChat.value = !showChat.value
+}
+
+const toggleProducts = () => {
+  showProducts.value = !showProducts.value
+}
+
+const toggleFullscreen = async () => {
+  const el = stageRef.value
+  if (!el) return
+  try {
+    if (document.fullscreenElement) {
+      await document.exitFullscreen()
+      isFullscreen.value = false
+    } else if (el.requestFullscreen) {
+      await el.requestFullscreen()
+      isFullscreen.value = true
+    }
+  } catch {
+    return
+  }
+}
 
 const syncChatHeight = () => {
   if (!playerPanelRef.value) {
@@ -210,14 +238,21 @@ const handleDocumentKeydown = (event: KeyboardEvent) => {
   }
 }
 
+const handleFullscreenChange = () => {
+  isFullscreen.value = Boolean(document.fullscreenElement)
+}
+
 onMounted(() => {
+  stageRef.value = playerPanelRef.value
   document.addEventListener('click', handleDocumentClick)
   document.addEventListener('keydown', handleDocumentKeydown)
+  document.addEventListener('fullscreenchange', handleFullscreenChange)
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', handleDocumentClick)
   document.removeEventListener('keydown', handleDocumentKeydown)
+  document.removeEventListener('fullscreenchange', handleFullscreenChange)
   if (panelResizeObserver && playerPanelRef.value) {
     panelResizeObserver.unobserve(playerPanelRef.value)
   }
@@ -235,107 +270,146 @@ onBeforeUnmount(() => {
     </div>
 
     <section v-else class="live-detail-layout">
-      <div class="live-detail-main">
+      <div
+        class="live-detail-main"
+        :style="{
+          gridTemplateColumns:
+            showChat && showProducts
+              ? 'minmax(0, 1.4fr) minmax(0, 0.8fr)'
+              : showChat || showProducts
+                ? 'minmax(0, 1.6fr) minmax(0, 0.8fr)'
+                : 'minmax(0, 1fr)',
+        }"
+      >
         <section ref="playerPanelRef" class="panel panel--player">
-        <div class="player-meta">
-          <div class="status-row">
-            <span class="status-badge" :class="`status-badge--${status?.toLowerCase()}`">
-              {{ statusLabel }}
-            </span>
-            <span v-if="status === 'LIVE' && liveItem.viewerCount" class="status-viewers">
-              {{ liveItem.viewerCount.toLocaleString() }}명 시청 중
-            </span>
-            <span v-else-if="status === 'UPCOMING'" class="status-schedule">
-              {{ scheduledLabel }}
-            </span>
-            <span v-else-if="status === 'ENDED'" class="status-ended">방송 종료</span>
-          </div>
-          <h3 class="player-title">{{ liveItem.title }}</h3>
-          <p v-if="liveItem.description" class="player-desc">{{ liveItem.description }}</p>
-        </div>
-
-        <div class="player-frame">
-          <span class="player-frame__label">LIVE 플레이어</span>
-        </div>
-
-        <div class="player-toolbar">
-          <div class="player-toolbar__group player-toolbar__group--left">
-            <button
-              type="button"
-              class="toolbar-btn"
-              :class="{ 'toolbar-btn--active': isLiked }"
-              :aria-label="isLiked ? '좋아요' : '좋아요'"
-              @click="toggleLike"
-            >
-              <svg class="toolbar-svg" viewBox="0 0 24 24" aria-hidden="true">
-                <path v-if="isLiked" d="M12.1 21.35l-1.1-1.02C5.14 15.24 2 12.39 2 8.99 2 6.42 4.02 4.5 6.58 4.5c1.54 0 3.04.74 3.92 1.91C11.38 5.24 12.88 4.5 14.42 4.5 16.98 4.5 19 6.42 19 8.99c0 3.4-3.14 6.25-8.9 11.34l-1.1 1.02z" fill="currentColor" />
-                <path v-else d="M12.1 21.35l-1.1-1.02C5.14 15.24 2 12.39 2 8.99 2 6.42 4.02 4.5 6.58 4.5c1.54 0 3.04.74 3.92 1.91C11.38 5.24 12.88 4.5 14.42 4.5 16.98 4.5 19 6.42 19 8.99c0 3.4-3.14 6.25-8.9 11.34l-1.1 1.02z" fill="none" stroke="currentColor" stroke-width="1.8" />
-              </svg>
-              <span class="toolbar-label">{{ isLiked ? '좋아요' : '좋아요' }}</span>
-            </button>
-          </div>
-          <div class="player-toolbar__group player-toolbar__group--right">
-            <div class="toolbar-settings">
-              <button
-                ref="settingsButtonRef"
-                type="button"
-                class="toolbar-btn"
-                aria-controls="player-settings"
-                :aria-expanded="isSettingsOpen ? 'true' : 'false'"
-                aria-label="설정"
-                @click="toggleSettings"
-              >
-                <svg class="toolbar-svg" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M4 6h16M4 12h16M4 18h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
-                  <circle cx="9" cy="6" r="2" fill="none" stroke="currentColor" stroke-width="1.8" />
-                  <circle cx="14" cy="12" r="2" fill="none" stroke="currentColor" stroke-width="1.8" />
-                  <circle cx="7" cy="18" r="2" fill="none" stroke="currentColor" stroke-width="1.8" />
-                </svg>
-                <span class="toolbar-label">설정</span>
-              </button>
-              <div
-                v-if="isSettingsOpen"
-                id="player-settings"
-                ref="settingsPanelRef"
-                class="settings-popover"
-              >
-                <label class="settings-row">
-                  <span class="settings-label">볼륨</span>
-                  <input
-                    class="toolbar-slider"
-                    type="range"
-                    min="0"
-                    max="100"
-                    value="60"
-                    aria-label="볼륨 조절"
-                  />
-                </label>
-                <label class="settings-row">
-                  <span class="settings-label">화질</span>
-                  <select class="settings-select" aria-label="화질">
-                    <option>자동</option>
-                    <option>1080p</option>
-                    <option>720p</option>
-                    <option>480p</option>
-                  </select>
-                </label>
-              </div>
+          <div class="player-meta">
+            <div class="status-row">
+              <span class="status-badge" :class="`status-badge--${status?.toLowerCase()}`">
+                {{ statusLabel }}
+              </span>
+              <span v-if="status === 'LIVE' && liveItem.viewerCount" class="status-viewers">
+                {{ liveItem.viewerCount.toLocaleString() }}명 시청 중
+              </span>
+              <span v-else-if="status === 'UPCOMING'" class="status-schedule">
+                {{ scheduledLabel }}
+              </span>
+              <span v-else-if="status === 'ENDED'" class="status-ended">방송 종료</span>
             </div>
-            <button type="button" class="toolbar-btn" aria-label="전체화면">
-              <svg class="toolbar-svg" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
-              </svg>
-              <span class="toolbar-label">전체화면</span>
-            </button>
+            <h3 class="player-title">{{ liveItem.title }}</h3>
+            <p v-if="liveItem.description" class="player-desc">{{ liveItem.description }}</p>
           </div>
-        </div>
 
-        <button v-if="status === 'ENDED'" type="button" class="vod-btn" @click="handleVod">
-          VOD 다시보기
-        </button>
+          <div ref="stageRef" class="player-frame">
+            <span class="player-frame__label">LIVE 플레이어</span>
+            <div class="player-overlay">
+              <button
+                type="button"
+                class="icon-circle"
+                :class="{ active: isLiked }"
+                aria-label="좋아요"
+                @click="toggleLike"
+              >
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    v-if="isLiked"
+                    d="M12.1 21.35l-1.1-1.02C5.14 15.24 2 12.39 2 8.99 2 6.42 4.02 4.5 6.58 4.5c1.54 0 3.04.74 3.92 1.91C11.38 5.24 12.88 4.5 14.42 4.5 16.98 4.5 19 6.42 19 8.99c0 3.4-3.14 6.25-8.9 11.34l-1.1 1.02z"
+                    fill="currentColor"
+                  />
+                  <path
+                    v-else
+                    d="M12.1 21.35l-1.1-1.02C5.14 15.24 2 12.39 2 8.99 2 6.42 4.02 4.5 6.58 4.5c1.54 0 3.04.74 3.92 1.91C11.38 5.24 12.88 4.5 14.42 4.5 16.98 4.5 19 6.42 19 8.99c0 3.4-3.14 6.25-8.9 11.34l-1.1 1.02z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                  />
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="icon-circle"
+                :class="{ active: showChat }"
+                aria-label="채팅 패널 토글"
+                @click="toggleChat"
+              >
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M3 20l1.62-3.24A2 2 0 0 1 6.42 16H20a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v15z" fill="none" stroke="currentColor" stroke-width="1.8" />
+                  <path d="M7 9h10M7 12h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+                </svg>
+              </button>
+              <div class="toolbar-settings">
+                <button
+                  ref="settingsButtonRef"
+                  type="button"
+                  class="icon-circle"
+                  aria-controls="player-settings"
+                  :aria-expanded="isSettingsOpen ? 'true' : 'false'"
+                  aria-label="설정"
+                  @click="toggleSettings"
+                >
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 6h16M4 12h16M4 18h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+                    <circle cx="9" cy="6" r="2" fill="none" stroke="currentColor" stroke-width="1.8" />
+                    <circle cx="14" cy="12" r="2" fill="none" stroke="currentColor" stroke-width="1.8" />
+                    <circle cx="7" cy="18" r="2" fill="none" stroke="currentColor" stroke-width="1.8" />
+                  </svg>
+                </button>
+                <div
+                  v-if="isSettingsOpen"
+                  id="player-settings"
+                  ref="settingsPanelRef"
+                  class="settings-popover"
+                >
+                  <label class="settings-row">
+                    <span class="settings-label">볼륨</span>
+                    <input
+                      class="toolbar-slider"
+                      type="range"
+                      min="0"
+                      max="100"
+                      value="60"
+                      aria-label="볼륨 조절"
+                    />
+                  </label>
+                  <label class="settings-row">
+                    <span class="settings-label">화질</span>
+                    <select class="settings-select" aria-label="화질">
+                      <option>자동</option>
+                      <option>1080p</option>
+                      <option>720p</option>
+                      <option>480p</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
+              <button type="button" class="icon-circle" aria-label="전체 화면" @click="toggleFullscreen">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="icon-circle"
+                :class="{ active: showProducts }"
+                aria-label="상품 패널 토글"
+                @click="toggleProducts"
+              >
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M3 7h18l-2 12H5L3 7z" fill="none" stroke="currentColor" stroke-width="1.6" />
+                  <path d="M10 11v4M14 11v4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+                  <circle cx="9" cy="19" r="1" fill="currentColor" />
+                  <circle cx="15" cy="19" r="1" fill="currentColor" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <button v-if="status === 'ENDED'" type="button" class="vod-btn" @click="handleVod">
+            VOD 다시보기
+          </button>
         </section>
 
         <aside
+          v-if="showChat"
           ref="chatPanelRef"
           class="panel panel--chat"
           :style="{ height: playerHeight ? `${playerHeight}px` : undefined }"
@@ -371,7 +445,7 @@ onBeforeUnmount(() => {
         </aside>
       </div>
 
-      <section class="panel panel--products">
+      <section v-if="showProducts" class="panel panel--products">
         <div class="panel__header">
           <h3 class="panel__title">라이브 상품</h3>
           <span class="panel__count">{{ products.length }}개</span>
@@ -497,6 +571,61 @@ onBeforeUnmount(() => {
   font-weight: 700;
 }
 
+.settings-popover {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  background: var(--surface);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
+  min-width: 220px;
+  display: grid;
+  gap: 10px;
+}
+
+.settings-select {
+  border: 1px solid var(--border-color);
+  background: var(--surface);
+  color: var(--text-strong);
+  border-radius: 10px;
+  height: 36px;
+  padding: 0 12px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease;
+}
+
+.settings-select:hover {
+  border-color: var(--primary-color);
+}
+
+.settings-select:focus-visible,
+.toolbar-slider:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+}
+
+.toolbar-slider {
+  accent-color: var(--primary-color);
+  width: 140px;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.settings-label {
+  font-weight: 800;
+  color: var(--text-strong);
+}
+
 .panel--player {
   gap: 16px;
 }
@@ -570,6 +699,7 @@ onBeforeUnmount(() => {
 }
 
 .player-frame {
+  position: relative;
   width: 100%;
   aspect-ratio: 16 / 9;
   background: #10131b;
@@ -584,260 +714,47 @@ onBeforeUnmount(() => {
   opacity: 0.8;
 }
 
-.player-toolbar {
+.player-overlay {
+  position: absolute;
+  top: 12px;
+  right: 12px;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 12px;
-  border-top: 1px solid var(--border-color);
-  background: var(--surface-weak);
-  border-radius: 12px;
-  flex-wrap: nowrap;
+  gap: 8px;
 }
 
-.player-toolbar__group {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex: 1;
-  min-width: 0;
-}
-
-.player-toolbar__group--left {
-  justify-content: flex-start;
-}
-
-.player-toolbar__group--center {
-  justify-content: center;
-}
-
-.player-toolbar__group--right {
-  justify-content: flex-end;
-}
-
-.toolbar-btn,
-.settings-select {
-  border: 1px solid var(--border-color);
-  background: var(--surface);
-  color: var(--text-strong);
-  border-radius: 10px;
-  height: 36px;
-  padding: 0 12px;
-  font-weight: 700;
+.icon-circle {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease;
-}
-
-.toolbar-btn {
+  justify-content: center;
+  border: 1px solid var(--border-color);
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--text-strong);
   cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
 }
 
-.toolbar-btn:hover,
-.settings-select:hover {
-  border-color: var(--primary-color);
-}
-
-.toolbar-btn:focus-visible,
-.settings-select:focus-visible,
-.toolbar-slider:focus-visible {
-  outline: 2px solid var(--primary-color);
-  outline-offset: 2px;
-}
-
-.toolbar-btn--active {
+.icon-circle.active {
   border-color: var(--primary-color);
   color: var(--primary-color);
+  background: rgba(var(--primary-rgb), 0.12);
 }
 
-.toolbar-svg {
+.icon {
   width: 18px;
   height: 18px;
-  flex-shrink: 0;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7px;
 }
 
-.toolbar-label {
-  white-space: nowrap;
-}
 
-.toolbar-slider {
-  width: 100%;
-  height: 36px;
-  accent-color: var(--primary-color);
-  background: transparent;
-}
-
-.toolbar-settings {
-  position: relative;
-}
-
-.settings-popover {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 8px);
-  min-width: 220px;
-  background: var(--surface);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  padding: 12px;
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.12);
-  display: grid;
-  gap: 10px;
-  z-index: 5;
-}
-
-.settings-row {
-  display: grid;
-  gap: 6px;
-}
-
-.settings-label {
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: var(--text-muted);
-}
-
-.settings-select {
-  appearance: none;
-  background-image: linear-gradient(45deg, transparent 50%, var(--text-muted) 50%),
-    linear-gradient(135deg, var(--text-muted) 50%, transparent 50%);
-  background-position: calc(100% - 14px) 50%, calc(100% - 8px) 50%;
-  background-size: 6px 6px, 6px 6px;
-  background-repeat: no-repeat;
-  padding-right: 28px;
-  cursor: pointer;
-}
-
-.vod-btn {
-  border: none;
-  background: var(--primary-color);
-  color: #fff;
-  font-weight: 800;
-  border-radius: 12px;
-  padding: 12px 16px;
-  cursor: pointer;
-  align-self: flex-start;
-}
-
-.chat-list {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding-right: 4px;
-}
-
-.chat-message {
-  display: grid;
-  gap: 4px;
-  padding: 8px 10px;
-  border-radius: 12px;
-  background: var(--surface-weak);
-}
-
-.chat-message--system {
-  background: var(--hover-bg);
-  color: var(--text-muted);
-}
-
-.chat-message__user {
-  font-weight: 800;
-  font-size: 0.85rem;
-}
-
-.chat-message__text {
-  margin: 0;
-  color: var(--text-strong);
-}
-
-.chat-message__time {
-  font-size: 0.75rem;
-  color: var(--text-soft);
-}
-
-.chat-input {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 10px;
-}
-
-.chat-input input {
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-  padding: 10px 12px;
-  font-size: 0.95rem;
-}
-
-.chat-input button {
-  border: none;
-  background: var(--primary-color);
-  color: #fff;
-  font-weight: 800;
-  border-radius: 10px;
-  padding: 10px 16px;
-  cursor: pointer;
-}
-
-.chat-input button:disabled,
-.chat-input input:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.chat-helper {
-  margin: 0;
-  color: var(--text-soft);
-  font-size: 0.85rem;
-}
-
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  color: var(--text-muted);
-}
-
-.link-back {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 700;
-  color: var(--primary-color);
-}
-
-.product-list--grid {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-}
-
-@media (max-width: 1080px) {
-  .live-detail-main {
-    grid-template-columns: 1fr;
-  }
-}
 
 @media (max-width: 640px) {
   .live-detail-main {
     gap: 14px;
-  }
-
-  .player-toolbar {
-    gap: 8px;
-    padding: 8px 10px;
-  }
-
-  .toolbar-label {
-    display: none;
-  }
-
-  .toolbar-btn {
-    height: 36px;
-    padding: 0 8px;
   }
 
   .chat-input {
