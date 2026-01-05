@@ -733,13 +733,104 @@ onBeforeUnmount(() => {
   -webkit-overflow-scrolling: touch;
 }
 
-.live-carousel::-webkit-scrollbar {
-  height: 10px;
+.vod-filter-row {
+  align-items: flex-end;
 }
 
-.live-carousel::-webkit-scrollbar-thumb {
-  background: rgba(15, 23, 42, 0.12);
-  border-radius: 999px;
+.more-row {
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.carousel-wrap {
+  position: relative;
+}
+
+.live-grid,
+.scheduled-grid,
+.vod-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.carousel-btn {
+  border: 1px solid var(--border-color);
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  background: var(--surface);
+  font-weight: 900;
+  color: var(--text-strong);
+  cursor: pointer;
+}
+
+.carousel-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.live-grid,
+.scheduled-grid,
+.vod-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.carousel-btn {
+  border: 1px solid var(--border-color);
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  background: var(--surface);
+  font-weight: 900;
+  color: var(--text-strong);
+  cursor: pointer;
+}
+
+.carousel-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.live-grid,
+.scheduled-grid,
+.vod-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.carousel-btn {
+  border: 1px solid var(--border-color);
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  background: var(--surface);
+  font-weight: 900;
+  color: var(--text-strong);
+  cursor: pointer;
+}
+
+.carousel-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.live-grid,
+.scheduled-grid,
+.vod-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
 }
 
 .carousel-btn {
