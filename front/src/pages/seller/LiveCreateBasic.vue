@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Teleport, computed, onMounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PageContainer from '../../components/PageContainer.vue'
 import PageHeader from '../../components/PageHeader.vue'
@@ -27,7 +27,11 @@ const showTermsModal = ref(false)
 const showProductModal = ref(false)
 const modalProducts = ref<LiveCreateProduct[]>([])
 
-const reservationId = computed(() => (typeof route.query.reservationId === 'string' ? route.query.reservationId : ''))
+const reservationId = computed(() => {
+  const queryValue = route.query.reservationId
+  if (Array.isArray(queryValue)) return queryValue[0] ?? ''
+  return typeof queryValue === 'string' ? queryValue : ''
+})
 const isEditMode = computed(() => route.query.mode === 'edit' && !!reservationId.value)
 const modalCount = computed(() => modalProducts.value.length)
 
@@ -93,9 +97,14 @@ const updateProductQuantity = (productId: string, value: number) => {
 
 const syncDraft = () => {
   const trimmedQuestions = draft.value.questions.map((q) => ({ ...q, text: q.text.trim() })).filter((q) => q.text.length > 0)
-  if (!isEditMode.value) {
-    return
+  const shouldUpdateQuestions =
+    trimmedQuestions.length !== draft.value.questions.length ||
+    trimmedQuestions.some((item, index) => item.text !== draft.value.questions[index]?.text)
+
+  if (shouldUpdateQuestions) {
+    draft.value.questions = trimmedQuestions
   }
+
   saveDraft({
     ...draft.value,
     title: draft.value.title.trim(),
@@ -103,20 +112,20 @@ const syncDraft = () => {
     category: draft.value.category.trim(),
     notice: draft.value.notice.trim(),
     questions: trimmedQuestions,
-    reservationId: reservationId.value,
+    reservationId: reservationId.value || draft.value.reservationId,
   })
-  draft.value.questions = trimmedQuestions
 }
 
 const restoreDraft = () => {
-  if (!isEditMode.value) {
-    localStorage.removeItem(DRAFT_KEY)
-    draft.value = createEmptyDraft()
-    modalProducts.value = []
-    return
-  }
+  const savedDraft = loadDraft()
+  const baseDraft = savedDraft && (!isEditMode.value || savedDraft.reservationId === reservationId.value)
+    ? { ...createEmptyDraft(), ...savedDraft }
+    : createEmptyDraft()
 
-  const reservationDraft = { ...createEmptyDraft(), ...buildDraftFromReservation(reservationId.value), reservationId: reservationId.value }
+  const reservationDraft = isEditMode.value
+    ? { ...baseDraft, ...buildDraftFromReservation(reservationId.value), reservationId: reservationId.value }
+    : baseDraft
+
   draft.value = reservationDraft
   modalProducts.value = reservationDraft.products.map((p) => ({ ...p }))
 }
@@ -241,6 +250,13 @@ const saveProductSelection = () => {
   alert('상품 선택이 저장되었습니다.')
 }
 
+const confirmRemoveProduct = (productId: string) => {
+  const ok = window.confirm('이 상품을 리스트에서 제거하시겠어요?')
+  if (ok) {
+    draft.value.products = removeProduct(productId, draft.value.products)
+  }
+}
+
 const timeOptions = computed(() => {
   const options: string[] = []
   for (let hour = 0; hour < 24; hour += 1) {
@@ -253,9 +269,13 @@ const timeOptions = computed(() => {
   return options
 })
 
-onMounted(() => {
-  restoreDraft()
-})
+watch(
+  () => [isEditMode.value, reservationId.value],
+  () => {
+    restoreDraft()
+  },
+  { immediate: true },
+)
 
 watch(
   draft,
@@ -370,16 +390,7 @@ watch(
                 </td>
                 <td class="numeric">{{ product.stock }}</td>
                 <td>
-                  <button
-                    type="button"
-                    class="btn ghost"
-                  @click="
-                    () => {
-                      const ok = window.confirm('이 상품을 리스트에서 제거하시겠어요?')
-                      if (ok) draft.value.products = removeProduct(product.id, draft.value.products)
-                    }
-                  "
-                >
+                  <button type="button" class="btn ghost" @click="confirmRemoveProduct(product.id)">
                   제거
                 </button>
                 </td>
@@ -444,11 +455,11 @@ watch(
                   v-for="product in filteredProducts"
                   :key="product.id"
                   class="product-card"
-                  :class="{ checked: isSelected(product.id, modalProducts.value) }"
+                  :class="{ checked: isSelected(product.id, modalProducts) }"
                 >
                   <input
                     type="checkbox"
-                    :checked="isSelected(product.id, modalProducts.value)"
+                    :checked="isSelected(product.id, modalProducts)"
                     @change="toggleProductInModal(product)"
                   />
                   <div class="product-thumb" v-if="product.thumb">
