@@ -734,6 +734,7 @@ onBeforeUnmount(() => {
   gap: 6px;
   align-items: flex-start;
   width: 100%;
+  margin-bottom: 12px;
 }
 
 .vod-filter-row {

@@ -61,6 +61,20 @@ const products = computed<LiveProductItem[]>(() => {
   }
   return getProductsForLive(liveId.value)
 })
+const sortedProducts = computed(() => {
+  const list = products.value.slice()
+  const withPinned = list.map((item, index) => ({
+    ...item,
+    isPinned: index === 0,
+  }))
+  return withPinned.sort((a, b) => {
+    if (a.isPinned && !b.isPinned) return -1
+    if (!a.isPinned && b.isPinned) return 1
+    if (a.isSoldOut && !b.isSoldOut) return 1
+    if (!a.isSoldOut && b.isSoldOut) return -1
+    return a.name.localeCompare(b.name)
+  })
+})
 
 const formatPrice = (price: number) => {
   return `${price.toLocaleString('ko-KR')}원`
@@ -258,7 +272,12 @@ onBeforeUnmount(() => {
     </div>
 
     <section v-else class="live-detail-layout">
-      <div class="live-detail-main">
+      <div
+        class="live-detail-main"
+  :style="{
+          gridTemplateColumns: showChat ? 'minmax(0, 1.6fr) minmax(0, 0.95fr)' : 'minmax(0, 1fr)',
+        }"
+      >
         <section ref="playerPanelRef" class="panel panel--player">
           <div class="player-meta">
             <div class="status-row">
@@ -344,27 +363,61 @@ onBeforeUnmount(() => {
                 ref="settingsPanelRef"
                 class="settings-popover settings-popover--overlay"
               >
-                <label class="settings-row">
-                  <span class="settings-label">볼륨</span>
-                  <input
-                    class="toolbar-slider"
-                    type="range"
-                    min="0"
-                    max="100"
-                    value="60"
-                    aria-label="볼륨 조절"
-                  />
-                </label>
-                <label class="settings-row">
-                  <span class="settings-label">화질</span>
-                  <select class="settings-select" aria-label="화질">
-                    <option>자동</option>
-                    <option>1080p</option>
-                    <option>720p</option>
-                    <option>480p</option>
-                  </select>
-                </label>
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M3 20l1.62-3.24A2 2 0 0 1 6.42 16H20a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v15z" fill="none" stroke="currentColor" stroke-width="1.8" />
+                  <path d="M7 9h10M7 12h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+                </svg>
+              </button>
+              <div class="toolbar-settings">
+                <button
+                  ref="settingsButtonRef"
+                  type="button"
+                  class="icon-circle"
+                  aria-controls="player-settings"
+                  :aria-expanded="isSettingsOpen ? 'true' : 'false'"
+                  aria-label="설정"
+                  @click="toggleSettings"
+                >
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 6h16M4 12h16M4 18h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+                    <circle cx="9" cy="6" r="2" fill="none" stroke="currentColor" stroke-width="1.8" />
+                    <circle cx="14" cy="12" r="2" fill="none" stroke="currentColor" stroke-width="1.8" />
+                    <circle cx="7" cy="18" r="2" fill="none" stroke="currentColor" stroke-width="1.8" />
+                  </svg>
+                </button>
+                <div
+                  v-if="isSettingsOpen"
+                  id="player-settings"
+                  ref="settingsPanelRef"
+                  class="settings-popover"
+                >
+                  <label class="settings-row">
+                    <span class="settings-label">볼륨</span>
+                    <input
+                      class="toolbar-slider"
+                      type="range"
+                      min="0"
+                      max="100"
+                      value="60"
+                      aria-label="볼륨 조절"
+                    />
+                  </label>
+                  <label class="settings-row">
+                    <span class="settings-label">화질</span>
+                    <select class="settings-select" aria-label="화질">
+                      <option>자동</option>
+                      <option>1080p</option>
+                      <option>720p</option>
+                      <option>480p</option>
+                    </select>
+                  </label>
+                </div>
               </div>
+              <button type="button" class="icon-circle" aria-label="전체 화면" @click="toggleFullscreen">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </button>
             </div>
           </div>
         </section>
@@ -407,7 +460,7 @@ onBeforeUnmount(() => {
         </aside>
       </div>
 
-      <section class="panel panel--products">
+      <section v-if="showProducts" class="panel panel--products">
         <div class="panel__header">
           <h3 class="panel__title">라이브 상품</h3>
           <span class="panel__count">{{ products.length }}개</span>
@@ -415,7 +468,7 @@ onBeforeUnmount(() => {
         <div v-if="!products.length" class="panel__empty">등록된 상품이 없습니다.</div>
         <div v-else class="product-list product-list--grid">
           <button
-            v-for="product in products"
+            v-for="product in sortedProducts"
             :key="product.id"
             type="button"
             class="product-card"
