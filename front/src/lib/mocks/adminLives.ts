@@ -38,8 +38,14 @@ const gradientThumb = (from: string, to: string) =>
   `<rect width='320' height='200' fill='url(%23g)'/>` +
   `</svg>`
 
-const sellerNames = ['판매자 A', '판매자 B', '판매자 C']
-const categories = ['홈오피스', '주변기기', '정리/수납'] as const
+const sellerNames = ['판매자 A', '판매자 B', '판매자 C', '판매자 D']
+const categories = ['홈오피스', '주변기기', '정리/수납', '조명'] as const
+
+const today = new Date()
+const formatToday = (hours: number, minutes: number) =>
+  `${today.getFullYear()}.${String(today.getMonth() + 1).padStart(2, '0')}.${String(today.getDate()).padStart(2, '0')} ${String(
+    hours,
+  ).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
 
 const seedLives = (): AdminLiveSummary[] => [
   {
@@ -88,8 +94,20 @@ const seedLives = (): AdminLiveSummary[] => [
 
 const readAll = (): AdminLiveSummary[] => {
   const parsed = safeParse<AdminLiveSummary[]>(localStorage.getItem(STORAGE_KEY), [])
-  if (parsed.length > 0) return parsed
   const seeded = seedLives()
+
+  if (parsed.length > 0) {
+    const existingIds = new Set(parsed.map((item) => item.id))
+    const merged = [...parsed]
+    seeded.forEach((item) => {
+      if (!existingIds.has(item.id)) {
+        merged.push(item)
+      }
+    })
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(merged))
+    return merged
+  }
+
   localStorage.setItem(STORAGE_KEY, JSON.stringify(seeded))
   return seeded
 }
