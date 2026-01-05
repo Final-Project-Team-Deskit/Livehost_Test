@@ -211,80 +211,6 @@ const vodCategories = computed(() => Array.from(new Set(vodItems.value.map((item
 
 const liveCarouselItems = computed(() => visibleLiveItems.value.slice(0, 5))
 
-const filteredLive = computed(() => {
-  let filtered = [...liveItems.value]
-  if (liveCategory.value !== 'all') {
-    filtered = filtered.filter((item) => item.category === liveCategory.value)
-  }
-  filtered.sort((a, b) => {
-    if (liveSort.value === 'reports_desc') return (b.reports ?? 0) - (a.reports ?? 0)
-    if (liveSort.value === 'latest') return toDateMs(b.startedAt) - toDateMs(a.startedAt)
-    if (liveSort.value === 'viewers_desc') return (b.viewers ?? 0) - (a.viewers ?? 0)
-    if (liveSort.value === 'viewers_asc') return (a.viewers ?? 0) - (b.viewers ?? 0)
-    return 0
-  })
-  return filtered
-})
-
-const filteredScheduled = computed(() => {
-  let filtered = [...scheduledItems.value]
-  if (scheduledStatus.value === 'reserved') {
-    filtered = filtered.filter((item) => item.status !== '취소됨')
-  } else if (scheduledStatus.value === 'canceled') {
-    filtered = filtered.filter((item) => item.status === '취소됨')
-  }
-  if (scheduledCategory.value !== 'all') {
-    filtered = filtered.filter((item) => item.category === scheduledCategory.value)
-  }
-  filtered.sort((a, b) => {
-    const aDate = a.startAtMs ?? toDateMs(a.datetime)
-    const bDate = b.startAtMs ?? toDateMs(b.datetime)
-    if (scheduledSort.value === 'latest') return bDate - aDate
-    if (scheduledSort.value === 'oldest') return aDate - bDate
-    return aDate - bDate
-  })
-  return filtered
-})
-
-const filteredVods = computed(() => {
-  const startMs = vodStartDate.value ? Date.parse(`${vodStartDate.value}T00:00:00`) : null
-  const endMs = vodEndDate.value ? Date.parse(`${vodEndDate.value}T23:59:59`) : null
-
-  let filtered = [...vodItems.value].filter((item) => {
-    const dateMs = item.startAtMs ?? toDateMs(item.startedAt)
-    if (startMs && dateMs < startMs) return false
-    if (endMs && dateMs > endMs) return false
-    if (vodVisibility.value !== 'all' && vodVisibility.value !== item.visibility) return false
-    if (vodCategory.value !== 'all' && item.category !== vodCategory.value) return false
-    return true
-  })
-
-  filtered.sort((a, b) => {
-    if (vodSort.value === 'latest') return (b.startAtMs ?? 0) - (a.startAtMs ?? 0)
-    if (vodSort.value === 'oldest') return (a.startAtMs ?? 0) - (b.startAtMs ?? 0)
-    if (vodSort.value === 'reports_desc') return (b.metrics.reports ?? 0) - (a.metrics.reports ?? 0)
-    if (vodSort.value === 'likes_desc') return (b.metrics.likes ?? 0) - (a.metrics.likes ?? 0)
-    if (vodSort.value === 'likes_asc') return (a.metrics.likes ?? 0) - (b.metrics.likes ?? 0)
-    if (vodSort.value === 'revenue_desc') return (b.metrics.totalRevenue ?? 0) - (a.metrics.totalRevenue ?? 0)
-    if (vodSort.value === 'revenue_asc') return (a.metrics.totalRevenue ?? 0) - (b.metrics.totalRevenue ?? 0)
-    if (vodSort.value === 'viewers_desc') return (b.metrics.maxViewers ?? 0) - (a.metrics.maxViewers ?? 0)
-    if (vodSort.value === 'viewers_asc') return (a.metrics.maxViewers ?? 0) - (b.metrics.maxViewers ?? 0)
-    return 0
-  })
-
-  return filtered
-})
-
-const visibleLiveItems = computed(() => filteredLive.value.slice(0, liveVisibleCount.value))
-const visibleScheduledItems = computed(() => filteredScheduled.value.slice(0, scheduledVisibleCount.value))
-const visibleVodItems = computed(() => filteredVods.value.slice(0, vodVisibleCount.value))
-
-const liveCategories = computed(() => Array.from(new Set(liveItems.value.map((item) => item.category ?? '기타'))))
-const scheduledCategories = computed(() => Array.from(new Set(scheduledItems.value.map((item) => item.category ?? '기타'))))
-const vodCategories = computed(() => Array.from(new Set(vodItems.value.map((item) => item.category ?? '기타'))))
-
-const liveCarouselItems = computed(() => visibleLiveItems.value.slice(0, 5))
-
 const openReservationDetail = (id: string) => {
   if (!id) return
   router.push(`/admin/live/reservations/${id}`).catch(() => {})
@@ -426,29 +352,32 @@ onBeforeUnmount(() => {
         <div class="live-section__title">
           <h3>방송 중</h3>
         </div>
-        <div class="live-section__desc">
-          <p v-if="activeTab !== 'all'" class="ds-section-sub">현재 진행 중인 라이브 방송입니다.</p>
-          <span v-else class="link-more" role="button" tabindex="0" @click="setTab('live')">+ 더보기</span>
+        <div class="live-section__controls">
+          <div v-if="activeTab === 'live'" class="control-stack">
+            <p class="ds-section-sub">신고·시청자 기준으로 라이브를 정렬할 수 있습니다.</p>
+            <div class="filter-row">
+              <label class="inline-filter">
+                <span>카테고리</span>
+                <select v-model="liveCategory">
+                  <option value="all">모든 카테고리</option>
+                  <option v-for="category in liveCategories" :key="category" :value="category">{{ category }}</option>
+                </select>
+              </label>
+              <label class="inline-filter">
+                <span>정렬</span>
+                <select v-model="liveSort">
+                  <option value="reports_desc">신고가 많은 순</option>
+                  <option value="latest">최신순</option>
+                  <option value="viewers_desc">시청자가 많은 순</option>
+                  <option value="viewers_asc">시청자가 적은 순</option>
+                </select>
+              </label>
+            </div>
+          </div>
+          <div v-else class="more-row">
+            <span class="link-more" role="button" tabindex="0" @click="setTab('live')">+ 더보기</span>
+          </div>
         </div>
-      </div>
-
-      <div v-if="activeTab === 'live'" class="filter-bar">
-        <label class="filter-field">
-          <span class="filter-label">카테고리</span>
-          <select v-model="liveCategory">
-            <option value="all">모든 카테고리</option>
-            <option v-for="category in liveCategories" :key="category" :value="category">{{ category }}</option>
-          </select>
-        </label>
-        <label class="filter-field">
-          <span class="filter-label">정렬</span>
-          <select v-model="liveSort">
-            <option value="reports_desc">신고가 많은 순</option>
-            <option value="latest">최신순</option>
-            <option value="viewers_desc">시청자가 많은 순</option>
-            <option value="viewers_asc">시청자가 적은 순</option>
-          </select>
-        </label>
       </div>
 
       <div class="carousel-wrap">
@@ -494,44 +423,46 @@ onBeforeUnmount(() => {
         <div class="live-section__title">
           <h3>예약된 방송</h3>
         </div>
-        <div class="live-section__desc">
-          <p v-if="activeTab !== 'all'" class="ds-section-sub">예정된 라이브 스케줄을 관리하세요.</p>
-          <span
-            v-else
-            class="link-more"
-            role="button"
-            tabindex="0"
-            @click="setTab('scheduled')"
-          >
-            + 더보기
-          </span>
+        <div class="live-section__controls">
+          <div v-if="activeTab === 'scheduled'" class="control-stack">
+            <p class="ds-section-sub">예약 상태와 카테고리를 선택해 정렬할 수 있습니다.</p>
+            <div class="filter-row">
+              <label class="inline-filter">
+                <span>상태</span>
+                <select v-model="scheduledStatus">
+                  <option value="all">전체</option>
+                  <option value="reserved">예약중</option>
+                  <option value="canceled">취소됨</option>
+                </select>
+              </label>
+              <label class="inline-filter">
+                <span>카테고리</span>
+                <select v-model="scheduledCategory">
+                  <option value="all">모든 카테고리</option>
+                  <option v-for="category in scheduledCategories" :key="category" :value="category">{{ category }}</option>
+                </select>
+              </label>
+              <label class="inline-filter">
+                <span>정렬</span>
+                <select v-model="scheduledSort">
+                  <option value="nearest">방송 시간이 가까운 순</option>
+                  <option value="latest">최신순</option>
+                  <option value="oldest">오래된 순</option>
+                </select>
+              </label>
+            </div>
+          </div>
+          <div v-else class="more-row">
+            <span
+              class="link-more"
+              role="button"
+              tabindex="0"
+              @click="setTab('scheduled')"
+            >
+              + 더보기
+            </span>
+          </div>
         </div>
-      </div>
-
-      <div v-if="activeTab === 'scheduled'" class="filter-bar">
-        <label class="filter-field">
-          <span class="filter-label">상태</span>
-          <select v-model="scheduledStatus">
-            <option value="all">전체</option>
-            <option value="reserved">예약중</option>
-            <option value="canceled">취소됨</option>
-          </select>
-        </label>
-        <label class="filter-field">
-          <span class="filter-label">카테고리</span>
-          <select v-model="scheduledCategory">
-            <option value="all">전체</option>
-            <option v-for="category in scheduledCategories" :key="category" :value="category">{{ category }}</option>
-          </select>
-        </label>
-        <label class="filter-field">
-          <span class="filter-label">정렬</span>
-          <select v-model="scheduledSort">
-            <option value="nearest">방송 시간이 가까운 순</option>
-            <option value="latest">최신순</option>
-            <option value="oldest">오래된 순</option>
-          </select>
-        </label>
       </div>
 
       <div class="scheduled-grid" aria-label="예약 방송 목록">
@@ -571,58 +502,60 @@ onBeforeUnmount(() => {
         <div class="live-section__title">
           <h3>VOD</h3>
         </div>
-        <div class="live-section__desc">
-          <p v-if="activeTab !== 'all'" class="ds-section-sub">저장된 다시보기 콘텐츠를 확인합니다.</p>
-          <span
-            v-else
-            class="link-more"
-            role="button"
-            tabindex="0"
-            @click="setTab('vod')"
-          >
-            + 더보기
-          </span>
+        <div class="live-section__controls">
+          <div v-if="activeTab === 'vod'" class="control-stack">
+            <p class="ds-section-sub">기간, 공개여부, 카테고리를 선택해 VOD를 정렬할 수 있습니다.</p>
+            <div class="filter-row vod-filter-row">
+              <label class="inline-filter">
+                <span>날짜 시작</span>
+                <input v-model="vodStartDate" type="date" />
+              </label>
+              <label class="inline-filter">
+                <span>날짜 종료</span>
+                <input v-model="vodEndDate" type="date" />
+              </label>
+              <label class="inline-filter">
+                <span>공개 여부</span>
+                <select v-model="vodVisibility">
+                  <option value="all">전체</option>
+                  <option value="public">공개</option>
+                  <option value="private">비공개</option>
+                </select>
+              </label>
+              <label class="inline-filter">
+                <span>카테고리</span>
+                <select v-model="vodCategory">
+                  <option value="all">모든 카테고리</option>
+                  <option v-for="category in vodCategories" :key="category" :value="category">{{ category }}</option>
+                </select>
+              </label>
+              <label class="inline-filter">
+                <span>정렬</span>
+                <select v-model="vodSort">
+                  <option value="latest">최신순</option>
+                  <option value="reports_desc">신고 건수가 많은 순</option>
+                  <option value="oldest">오래된 순</option>
+                  <option value="likes_desc">좋아요가 높은 순</option>
+                  <option value="likes_asc">좋아요가 낮은 순</option>
+                  <option value="revenue_desc">매출액이 높은 순</option>
+                  <option value="revenue_asc">매출액이 낮은 순</option>
+                  <option value="viewers_desc">총 시청자 수가 높은 순</option>
+                  <option value="viewers_asc">총 시청자 수가 낮은 순</option>
+                </select>
+              </label>
+            </div>
+          </div>
+          <div v-else class="more-row">
+            <span
+              class="link-more"
+              role="button"
+              tabindex="0"
+              @click="setTab('vod')"
+            >
+              + 더보기
+            </span>
+          </div>
         </div>
-      </div>
-
-      <div v-if="activeTab === 'vod'" class="filter-bar">
-        <label class="filter-field">
-          <span class="filter-label">날짜 시작</span>
-          <input v-model="vodStartDate" type="date" />
-        </label>
-        <label class="filter-field">
-          <span class="filter-label">날짜 종료</span>
-          <input v-model="vodEndDate" type="date" />
-        </label>
-        <label class="filter-field">
-          <span class="filter-label">공개 여부</span>
-          <select v-model="vodVisibility">
-            <option value="all">전체</option>
-            <option value="public">공개</option>
-            <option value="private">비공개</option>
-          </select>
-        </label>
-        <label class="filter-field">
-          <span class="filter-label">카테고리</span>
-          <select v-model="vodCategory">
-            <option value="all">모든 카테고리</option>
-            <option v-for="category in vodCategories" :key="category" :value="category">{{ category }}</option>
-          </select>
-        </label>
-        <label class="filter-field">
-          <span class="filter-label">정렬</span>
-          <select v-model="vodSort">
-            <option value="latest">최신순</option>
-            <option value="reports_desc">신고 건수가 많은 순</option>
-            <option value="oldest">오래된 순</option>
-            <option value="likes_desc">좋아요가 높은 순</option>
-            <option value="likes_asc">좋아요가 낮은 순</option>
-            <option value="revenue_desc">매출액이 높은 순</option>
-            <option value="revenue_asc">매출액이 낮은 순</option>
-            <option value="viewers_desc">총 시청자 수가 높은 순</option>
-            <option value="viewers_asc">총 시청자 수가 낮은 순</option>
-          </select>
-        </label>
       </div>
 
       <div class="vod-grid" aria-label="VOD 목록">
@@ -736,7 +669,7 @@ onBeforeUnmount(() => {
 
 .live-section__head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 12px;
@@ -748,18 +681,6 @@ onBeforeUnmount(() => {
   font-size: 1.3rem;
   font-weight: 900;
   color: var(--text-strong);
-}
-
-.live-section__title {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.live-section__desc {
-  display: flex;
-  align-items: center;
-  gap: 10px;
 }
 
 .live-section__controls {
@@ -776,42 +697,15 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
 }
 
-.vod-filter-row {
-  align-items: flex-end;
-}
-
-.filter-bar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  padding: 12px;
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  background: var(--surface);
-  margin-bottom: 12px;
-}
-
-.filter-field {
+.control-stack {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  min-width: 140px;
+  align-items: flex-end;
 }
 
-.filter-label {
-  font-weight: 800;
-  color: var(--text-strong);
-  font-size: 0.85rem;
-}
-
-.filter-field select,
-.filter-field input {
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-  padding: 10px 12px;
-  font-weight: 700;
-  color: var(--text-strong);
-  background: var(--surface);
+.vod-filter-row {
+  align-items: flex-end;
 }
 
 .more-row {
@@ -851,32 +745,6 @@ onBeforeUnmount(() => {
 
 .carousel-wrap {
   position: relative;
-}
-
-.live-grid,
-.scheduled-grid,
-.vod-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
-}
-
-.carousel-btn {
-  border: 1px solid var(--border-color);
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  display: grid;
-  place-items: center;
-  background: var(--surface);
-  font-weight: 900;
-  color: var(--text-strong);
-  cursor: pointer;
-}
-
-.carousel-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 .live-grid,
@@ -1130,15 +998,6 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   min-height: 160px;
-}
-
-.link-more {
-  border: none;
-  background: transparent;
-  color: var(--primary-color);
-  font-weight: 900;
-  cursor: pointer;
-  padding: 4px 6px;
 }
 
 @media (max-width: 1200px) {
