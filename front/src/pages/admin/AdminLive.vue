@@ -26,6 +26,7 @@ type LiveItem = {
   viewers?: number
   reports?: number
   category?: string
+  startedAt?: string
   startedAtMs?: number
 }
 
@@ -384,7 +385,12 @@ onBeforeUnmount(() => {
         <button v-if="liveCarouselItems.length" type="button" class="carousel-btn prev" @click="scrollLiveCarousel('prev')" aria-label="이전">
           ‹
         </button>
-        <div ref="liveCarouselRef" class="live-carousel" aria-label="방송 중 목록">
+        <div
+          ref="liveCarouselRef"
+          class="live-carousel"
+          :class="{ 'live-carousel--empty': !liveCarouselItems.length }"
+          aria-label="방송 중 목록"
+        >
           <template v-if="liveCarouselItems.length">
             <article
               v-for="item in liveCarouselItems"
@@ -465,7 +471,11 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div class="scheduled-grid" aria-label="예약 방송 목록">
+      <div
+        class="scheduled-grid"
+        :class="{ 'scheduled-grid--empty': !visibleScheduledItems.length }"
+        aria-label="예약 방송 목록"
+      >
         <template v-if="visibleScheduledItems.length">
           <article
             v-for="item in visibleScheduledItems"
@@ -558,7 +568,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div class="vod-grid" aria-label="VOD 목록">
+      <div class="vod-grid" :class="{ 'vod-grid--empty': !visibleVodItems.length }" aria-label="VOD 목록">
         <template v-if="visibleVodItems.length">
           <article
             v-for="item in visibleVodItems"
@@ -733,6 +743,11 @@ onBeforeUnmount(() => {
   -webkit-overflow-scrolling: touch;
 }
 
+.live-carousel--empty {
+  display: flex;
+  justify-content: center;
+}
+
 .vod-filter-row {
   align-items: flex-end;
 }
@@ -753,6 +768,11 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
+}
+
+.scheduled-grid--empty,
+.vod-grid--empty {
+  justify-items: center;
 }
 
 .carousel-btn {
@@ -998,6 +1018,13 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   min-height: 160px;
+}
+
+.live-carousel .empty-section,
+.scheduled-grid .empty-section,
+.vod-grid .empty-section {
+  grid-column: 1 / -1;
+  width: 100%;
 }
 
 @media (max-width: 1200px) {
