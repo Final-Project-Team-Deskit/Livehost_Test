@@ -61,6 +61,20 @@ const products = computed<LiveProductItem[]>(() => {
   }
   return getProductsForLive(liveId.value)
 })
+const sortedProducts = computed(() => {
+  const list = products.value.slice()
+  const withPinned = list.map((item, index) => ({
+    ...item,
+    isPinned: index === 0,
+  }))
+  return withPinned.sort((a, b) => {
+    if (a.isPinned && !b.isPinned) return -1
+    if (!a.isPinned && b.isPinned) return 1
+    if (a.isSoldOut && !b.isSoldOut) return 1
+    if (!a.isSoldOut && b.isSoldOut) return -1
+    return a.name.localeCompare(b.name)
+  })
+})
 
 const formatPrice = (price: number) => {
   return `${price.toLocaleString('ko-KR')}원`
@@ -78,7 +92,6 @@ const handleVod = () => {
 }
 
 const showChat = ref(true)
-const showProducts = ref(true)
 const isFullscreen = ref(false)
 const stageRef = ref<HTMLElement | null>(null)
 const isLiked = ref(false)
@@ -96,10 +109,6 @@ let panelResizeObserver: ResizeObserver | null = null
 
 const toggleChat = () => {
   showChat.value = !showChat.value
-}
-
-const toggleProducts = () => {
-  showProducts.value = !showProducts.value
 }
 
 const toggleFullscreen = async () => {
@@ -273,12 +282,7 @@ onBeforeUnmount(() => {
       <div
         class="live-detail-main"
         :style="{
-          gridTemplateColumns:
-            showChat && showProducts
-              ? 'minmax(0, 1.4fr) minmax(0, 0.8fr)'
-              : showChat || showProducts
-                ? 'minmax(0, 1.6fr) minmax(0, 0.8fr)'
-                : 'minmax(0, 1fr)',
+          gridTemplateColumns: showChat ? 'minmax(0, 1.6fr) minmax(0, 0.9fr)' : 'minmax(0, 1fr)',
         }"
       >
         <section ref="playerPanelRef" class="panel panel--player">
@@ -301,7 +305,7 @@ onBeforeUnmount(() => {
 
           <div ref="stageRef" class="player-frame">
             <span class="player-frame__label">LIVE 플레이어</span>
-            <div class="player-overlay">
+            <div class="player-actions">
               <button
                 type="button"
                 class="icon-circle"
@@ -386,20 +390,6 @@ onBeforeUnmount(() => {
                   <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
                 </svg>
               </button>
-              <button
-                type="button"
-                class="icon-circle"
-                :class="{ active: showProducts }"
-                aria-label="상품 패널 토글"
-                @click="toggleProducts"
-              >
-                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M3 7h18l-2 12H5L3 7z" fill="none" stroke="currentColor" stroke-width="1.6" />
-                  <path d="M10 11v4M14 11v4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
-                  <circle cx="9" cy="19" r="1" fill="currentColor" />
-                  <circle cx="15" cy="19" r="1" fill="currentColor" />
-                </svg>
-              </button>
             </div>
           </div>
 
@@ -416,6 +406,7 @@ onBeforeUnmount(() => {
         >
           <div class="panel__header">
             <h3 class="panel__title">실시간 채팅</h3>
+            <button type="button" class="chat-close" aria-label="채팅 닫기" @click="toggleChat">×</button>
           </div>
           <div ref="chatListRef" class="chat-list">
             <div
@@ -453,7 +444,7 @@ onBeforeUnmount(() => {
         <div v-if="!products.length" class="panel__empty">등록된 상품이 없습니다.</div>
         <div v-else class="product-list product-list--grid">
           <button
-            v-for="product in products"
+            v-for="product in sortedProducts"
             :key="product.id"
             type="button"
             class="product-card"
@@ -635,6 +626,16 @@ onBeforeUnmount(() => {
   min-height: 0;
 }
 
+.chat-close {
+  border: 1px solid var(--border-color);
+  background: var(--surface);
+  color: var(--text-muted);
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
 .player-meta {
   display: flex;
   flex-direction: column;
@@ -716,10 +717,11 @@ onBeforeUnmount(() => {
 
 .player-overlay {
   position: absolute;
-  top: 12px;
-  right: 12px;
+  bottom: 14px;
+  right: 14px;
   display: flex;
-  gap: 8px;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .icon-circle {
@@ -737,9 +739,9 @@ onBeforeUnmount(() => {
 }
 
 .icon-circle.active {
-  border-color: var(--primary-color);
-  color: var(--primary-color);
-  background: rgba(var(--primary-rgb), 0.12);
+  border-color: var(--live-color);
+  color: var(--live-color);
+  background: rgba(220, 38, 38, 0.12);
 }
 
 .icon {
