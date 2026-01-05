@@ -84,13 +84,6 @@ const handleProductClick = (productId: string) => {
   router.push({ name: 'product-detail', params: { id: productId } })
 }
 
-const handleVod = () => {
-  if (!liveItem.value) {
-    return
-  }
-  router.push({ name: 'vod', params: { id: liveItem.value.id } })
-}
-
 const showChat = ref(true)
 const isFullscreen = ref(false)
 const stageRef = ref<HTMLElement | null>(null)
@@ -252,7 +245,7 @@ const handleFullscreenChange = () => {
 }
 
 onMounted(() => {
-  stageRef.value = playerPanelRef.value
+  stageRef.value = playerPanelRef.value?.querySelector('.player-frame') as HTMLElement | null
   document.addEventListener('click', handleDocumentClick)
   document.addEventListener('keydown', handleDocumentKeydown)
   document.addEventListener('fullscreenchange', handleFullscreenChange)
@@ -307,7 +300,7 @@ onBeforeUnmount(() => {
             <span class="player-frame__label" v-if="status === 'ENDED'">대기 화면</span>
             <span class="player-frame__label" v-else>LIVE 플레이어</span>
             <div class="player-actions">
-              <div class="icon-stack">
+              <div class="action-row">
                 <button
                   type="button"
                   class="icon-circle"
@@ -682,17 +675,14 @@ onBeforeUnmount(() => {
   right: 14px;
   bottom: 14px;
   display: inline-flex;
-  flex-direction: column;
+  align-items: center;
   gap: 10px;
-  align-items: flex-end;
   z-index: 2;
 }
 
-.icon-stack {
+.action-row {
   display: inline-flex;
-  flex-direction: column;
   gap: 10px;
-  align-items: flex-end;
 }
 
 .icon-circle {
