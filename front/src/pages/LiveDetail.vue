@@ -391,23 +391,25 @@ onBeforeUnmount(() => {
         <aside
           v-if="showChat"
           ref="chatPanelRef"
-          class="panel panel--chat"
+          class="chat-panel ds-surface"
           :style="{ height: playerHeight ? `${playerHeight}px` : undefined }"
         >
-          <div class="panel__header">
-            <h3 class="panel__title">실시간 채팅</h3>
+          <header class="chat-head">
+            <h4>실시간 채팅</h4>
             <button type="button" class="chat-close" aria-label="채팅 닫기" @click="toggleChat">×</button>
-          </div>
-          <div ref="chatListRef" class="chat-list">
+          </header>
+          <div ref="chatListRef" class="chat-messages">
             <div
               v-for="message in messages"
               :key="message.id"
               class="chat-message"
               :class="{ 'chat-message--system': message.kind === 'system' }"
             >
-              <span class="chat-user">{{ message.user }}</span>
+              <div class="chat-meta">
+                <span class="chat-user">{{ message.user }}</span>
+                <span class="chat-time">{{ formatChatTime(message.at) }}</span>
+              </div>
               <p class="chat-text">{{ message.text }}</p>
-              <span class="chat-time">{{ formatChatTime(message.at) }}</span>
             </div>
           </div>
           <div class="chat-input">
@@ -418,7 +420,12 @@ onBeforeUnmount(() => {
               :disabled="!isLoggedIn"
               @keydown.enter="sendMessage"
             />
-            <button type="button" :disabled="!isLoggedIn || !input.trim()" @click="sendMessage">
+            <button
+              type="button"
+              class="btn primary"
+              :disabled="!isLoggedIn || !input.trim()"
+              @click="sendMessage"
+            >
               전송
             </button>
           </div>
@@ -503,11 +510,6 @@ onBeforeUnmount(() => {
 
 .panel--products {
   overflow: hidden;
-}
-
-.panel--chat {
-  gap: 12px;
-  min-height: 0;
 }
 
 .product-list {
@@ -703,6 +705,7 @@ onBeforeUnmount(() => {
   gap: 10px;
   background: var(--surface);
   border: 1px solid var(--border-color);
+  min-height: 0;
 }
 
 .chat-head {
@@ -774,18 +777,38 @@ onBeforeUnmount(() => {
 }
 
 .chat-input {
-  display: grid;
-  grid-template-columns: 1fr auto;
+  display: flex;
   gap: 8px;
 }
 
 .chat-input input {
+  flex: 1;
   border: 1px solid var(--border-color);
   border-radius: 12px;
-  padding: 10px 12px;
+  padding: 8px 10px;
   font-weight: 700;
   color: var(--text-strong);
   background: var(--surface);
+}
+
+.btn {
+  border: 1px solid var(--border-color);
+  background: var(--surface);
+  color: var(--text-strong);
+  border-radius: 999px;
+  padding: 10px 16px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.btn.primary {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .chat-helper {
