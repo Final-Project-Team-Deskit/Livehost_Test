@@ -382,7 +382,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div class="carousel-wrap">
+      <div class="carousel-wrap" :class="{ 'carousel-wrap--empty': !liveCarouselItems.length }">
         <button v-if="liveCarouselItems.length" type="button" class="carousel-btn prev" @click="scrollLiveCarousel('prev')" aria-label="이전">
           ‹
         </button>
@@ -472,11 +472,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div
-        class="scheduled-grid"
-        :class="{ 'scheduled-grid--empty': !visibleScheduledItems.length }"
-        aria-label="예약 방송 목록"
-      >
+      <div class="scheduled-grid" :class="{ 'scheduled-grid--empty': !visibleScheduledItems.length }" aria-label="예약 방송 목록">
         <template v-if="visibleScheduledItems.length">
           <article
             v-for="item in visibleScheduledItems"
@@ -733,6 +729,10 @@ onBeforeUnmount(() => {
   gap: 10px;
 }
 
+.carousel-wrap--empty {
+  grid-template-columns: 1fr;
+}
+
 .live-carousel {
   display: grid;
   grid-auto-flow: column;
@@ -775,7 +775,9 @@ onBeforeUnmount(() => {
 
 .scheduled-grid--empty,
 .vod-grid--empty {
-  justify-items: center;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 .carousel-btn {
