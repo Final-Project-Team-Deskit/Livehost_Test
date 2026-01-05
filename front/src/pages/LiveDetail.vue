@@ -439,11 +439,9 @@ onBeforeUnmount(() => {
               class="chat-message"
               :class="{ 'chat-message--system': message.kind === 'system' }"
             >
-              <div class="chat-meta">
-                <span class="chat-user">{{ message.user }}</span>
-                <span class="chat-time">{{ formatChatTime(message.at) }}</span>
-              </div>
+              <span class="chat-user">{{ message.user }}</span>
               <p class="chat-text">{{ message.text }}</p>
+              <span class="chat-time">{{ formatChatTime(message.at) }}</span>
             </div>
           </div>
           <div class="chat-input">
@@ -544,6 +542,18 @@ onBeforeUnmount(() => {
 .panel--chat {
   gap: 12px;
   min-height: 0;
+}
+
+.product-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.product-list--grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
 }
 
 .product-card {
@@ -677,16 +687,14 @@ onBeforeUnmount(() => {
   right: 14px;
   bottom: 14px;
   display: inline-flex;
-  align-items: flex-end;
-  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
   z-index: 2;
 }
 
 .action-row {
   display: inline-flex;
-  flex-direction: column;
   gap: 10px;
-  align-items: flex-end;
 }
 
 .icon-circle {
