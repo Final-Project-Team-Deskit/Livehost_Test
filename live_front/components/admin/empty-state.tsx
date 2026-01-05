@@ -4,8 +4,8 @@ interface EmptyStateProps {
 
 export function EmptyState({ message }: EmptyStateProps) {
   return (
-    <div className="flex items-center justify-center py-16 text-muted-foreground">
-      <p className="text-center">{message}</p>
+    <div className="grid w-full max-w-screen-xl place-items-center mx-auto py-16 text-center text-muted-foreground">
+      <p>{message}</p>
     </div>
   )
 }

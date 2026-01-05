@@ -110,7 +110,9 @@ export default function ReservationsPage() {
           )}
         </>
       ) : (
-        <EmptyState message="예약 방송이 없습니다." />
+        <div className="flex w-full justify-center">
+          <EmptyState message="예약 방송이 없습니다." />
+        </div>
       )}
     </div>
   )
