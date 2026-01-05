@@ -26,6 +26,7 @@ type LiveItem = {
   viewers?: number
   reports?: number
   category?: string
+  startedAt?: string
   startedAtMs?: number
 }
 
