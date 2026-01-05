@@ -848,15 +848,18 @@ const toggleFullscreen = async () => {
 
 .stream-overlay {
   position: absolute;
-  top: 14px;
-  right: 14px;
+  top: 16px;
+  right: 16px;
   background: rgba(0, 0, 0, 0.55);
   color: #fff;
   border-radius: 12px;
   padding: 10px 12px;
-  display: grid;
+  display: inline-flex;
+  flex-direction: column;
   gap: 6px;
   z-index: 2;
+  width: fit-content;
+  min-width: 0;
 }
 
 .stream-overlay__row {
