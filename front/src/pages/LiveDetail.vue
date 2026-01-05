@@ -61,6 +61,20 @@ const products = computed<LiveProductItem[]>(() => {
   }
   return getProductsForLive(liveId.value)
 })
+const sortedProducts = computed(() => {
+  const list = products.value.slice()
+  const withPinned = list.map((item, index) => ({
+    ...item,
+    isPinned: index === 0,
+  }))
+  return withPinned.sort((a, b) => {
+    if (a.isPinned && !b.isPinned) return -1
+    if (!a.isPinned && b.isPinned) return 1
+    if (a.isSoldOut && !b.isSoldOut) return 1
+    if (!a.isSoldOut && b.isSoldOut) return -1
+    return a.name.localeCompare(b.name)
+  })
+})
 
 const formatPrice = (price: number) => {
   return `${price.toLocaleString('ko-KR')}원`
@@ -422,7 +436,7 @@ onBeforeUnmount(() => {
         </aside>
       </div>
 
-      <section class="panel panel--products">
+      <section v-if="showProducts" class="panel panel--products">
         <div class="panel__header">
           <h3 class="panel__title">라이브 상품</h3>
           <span class="panel__count">{{ products.length }}개</span>
@@ -430,7 +444,7 @@ onBeforeUnmount(() => {
         <div v-if="!products.length" class="panel__empty">등록된 상품이 없습니다.</div>
         <div v-else class="product-list product-list--grid">
           <button
-            v-for="product in products"
+            v-for="product in sortedProducts"
             :key="product.id"
             type="button"
             class="product-card"
@@ -692,6 +706,16 @@ onBeforeUnmount(() => {
   margin: 0;
   color: var(--text-muted);
   font-weight: 700;
+}
+
+.chat-close {
+  border: 1px solid var(--border-color);
+  background: var(--surface);
+  color: var(--text-muted);
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  cursor: pointer;
 }
 
 .player-meta {
