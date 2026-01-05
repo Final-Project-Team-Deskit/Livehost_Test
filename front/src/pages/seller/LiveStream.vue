@@ -423,6 +423,11 @@ const toggleFullscreen = async () => {
       </aside>
 
       <div class="stream-center ds-surface">
+        <div class="stream-overlay stream-overlay--stack">
+          <div class="stream-overlay__row">⏱ 경과 {{ elapsed }}</div>
+          <div class="stream-overlay__row">👥 {{ viewerCount.toLocaleString('ko-KR') }}명 시청 중</div>
+          <div class="stream-overlay__row">❤ {{ likeCount.toLocaleString('ko-KR') }}</div>
+        </div>
         <div class="stream-fab">
           <button
             type="button"
@@ -471,27 +476,20 @@ const toggleFullscreen = async () => {
           </button>
         </div>
         <div class="stream-center__body">
-          <div class="stream-player">
-            <div class="stream-overlay stream-overlay--stack">
-              <div class="stream-overlay__row">⏱ 경과 {{ elapsed }}</div>
-              <div class="stream-overlay__row">👥 {{ viewerCount.toLocaleString('ko-KR') }}명</div>
-              <div class="stream-overlay__row">❤ {{ likeCount.toLocaleString('ko-KR') }}</div>
+          <div v-if="isLoadingStream" class="stream-empty">
+            <p class="stream-title">방송 정보를 불러오는 중입니다.</p>
+            <p class="stream-sub">잠시만 기다려주세요.</p>
+          </div>
+          <div v-else-if="!stream" class="stream-empty">
+            <p class="stream-title">방송 정보를 불러올 수 없습니다.</p>
+            <p class="stream-sub">라이브 관리 페이지에서 다시 시도해주세요.</p>
+            <div class="stream-actions">
+              <button type="button" class="stream-btn" @click="handleGoToList">목록으로 이동</button>
             </div>
-            <div v-if="isLoadingStream" class="stream-empty">
-              <p class="stream-title">방송 정보를 불러오는 중입니다.</p>
-              <p class="stream-sub">잠시만 기다려주세요.</p>
-            </div>
-            <div v-else-if="!stream" class="stream-empty">
-              <p class="stream-title">방송 정보를 불러올 수 없습니다.</p>
-              <p class="stream-sub">라이브 관리 페이지에서 다시 시도해주세요.</p>
-              <div class="stream-actions">
-                <button type="button" class="stream-btn" @click="handleGoToList">목록으로 이동</button>
-              </div>
-            </div>
-            <div v-else class="stream-placeholder">
-              <p class="stream-title">송출 화면 (WebRTC Stream)</p>
-              <p class="stream-sub">현재 송출 중인 화면이 표시됩니다.</p>
-            </div>
+          </div>
+          <div v-else class="stream-placeholder">
+            <p class="stream-title">송출 화면 (WebRTC Stream)</p>
+            <p class="stream-sub">현재 송출 중인 화면이 표시됩니다.</p>
           </div>
         </div>
         <div v-if="showSettings" class="stream-settings ds-surface" role="dialog" aria-label="방송 설정">
@@ -589,20 +587,22 @@ const toggleFullscreen = async () => {
           </div>
           <button type="button" class="panel-close" aria-label="채팅 패널 닫기" @click="showChat = false">×</button>
         </div>
-        <div ref="chatListRef" class="panel-chat chat-messages">
+        <div ref="chatListRef" class="panel-chat">
           <div
             v-for="item in chatItems"
             :key="item.id"
-            class="chat-message"
-            :class="{ 'chat-message--muted': sanctionedUsers[item.name], 'chat-message--system': item.name === 'SYSTEM' }"
+            class="chat-item"
+            :class="{ 'chat-item--muted': sanctionedUsers[item.name], 'chat-item--system': item.name === 'SYSTEM' }"
             @contextmenu.prevent="openSanction(item.name)"
           >
-            <div class="chat-meta">
-              <span class="chat-user">{{ item.name }}</span>
-              <span class="chat-time">{{ item.time }}</span>
+            <div class="chat-item__header">
+              <div class="chat-meta">
+                <span class="chat-name">{{ item.name }}</span>
+                <span class="chat-time">{{ item.time }}</span>
+              </div>
               <span v-if="sanctionedUsers[item.name]" class="chat-badge">{{ sanctionedUsers[item.name].type }}</span>
             </div>
-            <p class="chat-text">{{ item.message }}</p>
+            <span class="chat-message">{{ item.message }}</span>
           </div>
         </div>
         <div class="chat-input">
@@ -832,31 +832,22 @@ const toggleFullscreen = async () => {
   position: relative;
 }
 
-.stream-player {
-  position: relative;
-  width: 100%;
-  height: auto;
-  aspect-ratio: 16 / 9;
-  border-radius: 16px;
-  background: #0b0f1a;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  min-height: 320px;
-}
-
 .stream-overlay {
   position: absolute;
   top: 14px;
-  right: 14px;
   background: rgba(0, 0, 0, 0.55);
   color: #fff;
   border-radius: 12px;
   padding: 10px 12px;
   display: grid;
   gap: 6px;
-  z-index: 2;
+}
+
+.stream-overlay--stack {
+  left: 14px;
+  top: 14px;
+  display: grid;
+  gap: 6px;
 }
 
 .stream-overlay__row {
@@ -900,9 +891,8 @@ const toggleFullscreen = async () => {
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: block;
+  padding-bottom: 140px;
 }
 
 .stream-placeholder {
@@ -944,36 +934,43 @@ const toggleFullscreen = async () => {
   justify-content: flex-start;
 }
 
-.chat-messages {
-  gap: 10px;
-}
-
-.chat-message {
-  display: flex;
-  flex-direction: column;
+.chat-item {
+  display: grid;
   gap: 6px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: var(--surface-weak);
+  flex: 0 0 auto;
+  align-self: stretch;
+  border: 1px solid transparent;
 }
 
-.chat-message--system .chat-user {
+.chat-item--muted {
+  opacity: 0.85;
+  border: 1px dashed var(--border-color);
+}
+
+.chat-item--system .chat-name {
   color: #ef4444;
 }
 
-.chat-message--muted .chat-text {
-  color: var(--text-muted);
+.chat-item__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: space-between;
 }
 
 .chat-meta {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 0.85rem;
-  color: var(--text-muted);
-  font-weight: 700;
 }
 
-.chat-user {
-  color: var(--text-strong);
+.chat-name {
   font-weight: 800;
+  color: var(--text-strong);
+  font-size: 0.85rem;
 }
 
 .chat-time {
@@ -982,19 +979,19 @@ const toggleFullscreen = async () => {
   font-weight: 700;
 }
 
-.chat-text {
-  margin: 0;
-  color: var(--text-strong);
+.chat-message {
+  display: block;
+  color: var(--text-muted);
   font-weight: 700;
-  font-size: 0.9rem;
-  line-height: 1.45;
+  font-size: 0.85rem;
+  line-height: 1.35;
 }
 
 .chat-badge {
   padding: 2px 6px;
   border-radius: 999px;
-  background: var(--surface-weak);
-  color: var(--text-muted);
+  background: rgba(239, 68, 68, 0.12);
+  color: #b91c1c;
   font-weight: 800;
   font-size: 0.75rem;
 }
