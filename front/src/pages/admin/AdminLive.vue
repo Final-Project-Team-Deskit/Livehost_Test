@@ -92,7 +92,8 @@ const setTab = (tab: LiveTab) => {
   activeTab.value = tab
 }
 
-const toDateMs = (raw: string) => {
+const toDateMs = (raw: string | undefined) => {
+  if (!raw) return 0
   const parsed = Date.parse(raw.replace(/\./g, '-').replace(' ', 'T'))
   return Number.isNaN(parsed) ? 0 : parsed
 }
@@ -746,6 +747,8 @@ onBeforeUnmount(() => {
 .live-carousel--empty {
   display: flex;
   justify-content: center;
+  align-items: center;
+  width: 100%;
 }
 
 .vod-filter-row {
