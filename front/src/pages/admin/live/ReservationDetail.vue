@@ -300,9 +300,9 @@ watch(reservationId, loadDetail, { immediate: true })
 }
 
 .detail-meta {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 8px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   font-weight: 700;
   color: var(--text-muted);
 }
