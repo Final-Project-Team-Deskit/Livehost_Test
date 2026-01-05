@@ -9,6 +9,7 @@ export type AdminReservationSummary = {
   ctaLabel: string
   status: string
   sellerName: string
+  category?: string
 }
 
 export type AdminReservationDetail = SellerReservationDetail & {
@@ -62,6 +63,7 @@ export const getAdminReservationSummaries = (): AdminReservationSummary[] => {
     ctaLabel: detail.ctaLabel,
     status: detail.status,
     sellerName: detail.sellerName,
+    category: detail.category,
   }))
 }
 
