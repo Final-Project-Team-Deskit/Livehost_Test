@@ -723,7 +723,11 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div v-if="activeTab === 'live'" class="live-livegrid">
+      <div
+        v-if="activeTab === 'live'"
+        class="live-livegrid live-livegrid--empty"
+        :class="{ 'live-livegrid--has-data': !!currentLive }"
+      >
         <article v-if="currentLive" class="live-feature ds-surface">
           <div class="live-feature__top">
             <div class="live-feature__content">
@@ -885,7 +889,12 @@ onBeforeUnmount(() => {
         </label>
       </div>
 
-      <div v-if="activeTab === 'scheduled'" class="scheduled-grid" aria-label="예약 방송 목록">
+      <div
+        v-if="activeTab === 'scheduled'"
+        class="scheduled-grid"
+        :class="{ 'scheduled-grid--empty': !visibleScheduledItems.length }"
+        aria-label="예약 방송 목록"
+      >
         <template v-if="visibleScheduledItems.length">
           <article
             v-for="item in visibleScheduledItems"
@@ -946,6 +955,7 @@ onBeforeUnmount(() => {
         <div class="live-carousel live-carousel--loop">
           <div
             class="live-carousel__track"
+            :class="{ 'live-carousel__track--empty': !scheduledLoopItems.length }"
             :style="getTrackStyle('scheduled')"
             :ref="setCarouselRef('scheduled')"
             aria-label="예약 방송 목록"
@@ -1051,7 +1061,12 @@ onBeforeUnmount(() => {
         </label>
       </div>
 
-      <div v-if="activeTab === 'vod'" class="vod-grid" aria-label="VOD 목록">
+      <div
+        v-if="activeTab === 'vod'"
+        class="vod-grid"
+        :class="{ 'vod-grid--empty': !visibleVodItems.length }"
+        aria-label="VOD 목록"
+      >
         <template v-if="visibleVodItems.length">
             <article
               v-for="item in visibleVodItems"
@@ -1098,6 +1113,7 @@ onBeforeUnmount(() => {
         <div class="live-carousel live-carousel--loop">
           <div
             class="live-carousel__track"
+            :class="{ 'live-carousel__track--empty': !vodLoopItems.length }"
             :style="getTrackStyle('vod')"
             :ref="setCarouselRef('vod')"
             aria-label="VOD 목록"
@@ -1787,6 +1803,17 @@ onBeforeUnmount(() => {
   font-size: 0.9rem;
 }
 
+.live-livegrid {
+  display: grid;
+  grid-template-columns: 2fr 1.2fr;
+  gap: 12px;
+}
+
+.live-livegrid--empty:not(.live-livegrid--has-data) {
+  grid-template-columns: 1fr;
+  justify-items: center;
+}
+
 .live-card--empty {
   justify-content: center;
   padding: 18px;
@@ -1823,6 +1850,18 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
+}
+
+.scheduled-grid--empty,
+.vod-grid--empty {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.live-carousel__track--empty {
+  justify-content: center;
+  width: 100%;
 }
 
 .live-more {
