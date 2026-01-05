@@ -274,7 +274,7 @@ onBeforeUnmount(() => {
     <section v-else class="live-detail-layout">
       <div
         class="live-detail-main"
-  :style="{
+        :style="{
           gridTemplateColumns: showChat ? 'minmax(0, 1.6fr) minmax(0, 0.95fr)' : 'minmax(0, 1fr)',
         }"
       >
@@ -300,75 +300,41 @@ onBeforeUnmount(() => {
             <span class="player-frame__label" v-if="status === 'ENDED'">대기 화면</span>
             <span class="player-frame__label" v-else>LIVE 플레이어</span>
             <div class="player-actions">
-              <div class="action-row">
-                <button
-                  type="button"
-                  class="icon-circle"
-                  :class="{ active: isLiked }"
-                  aria-label="좋아요"
-                  @click="toggleLike"
-                >
-                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                    <path
-                      v-if="isLiked"
-                      d="M12.1 21.35l-1.1-1.02C5.14 15.24 2 12.39 2 8.99 2 6.42 4.02 4.5 6.58 4.5c1.54 0 3.04.74 3.92 1.91C11.38 5.24 12.88 4.5 14.42 4.5 16.98 4.5 19 6.42 19 8.99c0 3.4-3.14 6.25-8.9 11.34l-1.1 1.02z"
-                      fill="currentColor"
-                    />
-                    <path
-                      v-else
-                      d="M12.1 21.35l-1.1-1.02C5.14 15.24 2 12.39 2 8.99 2 6.42 4.02 4.5 6.58 4.5c1.54 0 3.04.74 3.92 1.91C11.38 5.24 12.88 4.5 14.42 4.5 16.98 4.5 19 6.42 19 8.99c0 3.4-3.14 6.25-8.9 11.34l-1.1 1.02z"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="1.8"
-                    />
-                  </svg>
-                </button>
-                <button
-                  type="button"
-                  class="icon-circle"
-                  :class="{ active: showChat }"
-                  aria-label="채팅 패널 토글"
-                  @click="toggleChat"
-                >
-                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M3 20l1.62-3.24A2 2 0 0 1 6.42 16H20a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v15z" fill="none" stroke="currentColor" stroke-width="1.8" />
-                    <path d="M7 9h10M7 12h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
-                  </svg>
-                </button>
-                <button
-                  ref="settingsButtonRef"
-                  type="button"
-                  class="icon-circle"
-                  aria-controls="player-settings"
-                  :aria-expanded="isSettingsOpen ? 'true' : 'false'"
-                  aria-label="설정"
-                  @click="toggleSettings"
-                >
-                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M4 6h16M4 12h16M4 18h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
-                    <circle cx="9" cy="6" r="2" fill="none" stroke="currentColor" stroke-width="1.8" />
-                    <circle cx="14" cy="12" r="2" fill="none" stroke="currentColor" stroke-width="1.8" />
-                    <circle cx="7" cy="18" r="2" fill="none" stroke="currentColor" stroke-width="1.8" />
-                  </svg>
-                </button>
-                <button type="button" class="icon-circle" aria-label="전체 화면" @click="toggleFullscreen">
-                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
-                  </svg>
-                </button>
-              </div>
-              <div
-                v-if="isSettingsOpen"
-                id="player-settings"
-                ref="settingsPanelRef"
-                class="settings-popover settings-popover--overlay"
+              <button
+                type="button"
+                class="icon-circle"
+                :class="{ active: isLiked }"
+                aria-label="좋아요"
+                @click="toggleLike"
+              >
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    v-if="isLiked"
+                    d="M12.1 21.35l-1.1-1.02C5.14 15.24 2 12.39 2 8.99 2 6.42 4.02 4.5 6.58 4.5c1.54 0 3.04.74 3.92 1.91C11.38 5.24 12.88 4.5 14.42 4.5 16.98 4.5 19 6.42 19 8.99c0 3.4-3.14 6.25-8.9 11.34l-1.1 1.02z"
+                    fill="currentColor"
+                  />
+                  <path
+                    v-else
+                    d="M12.1 21.35l-1.1-1.02C5.14 15.24 2 12.39 2 8.99 2 6.42 4.02 4.5 6.58 4.5c1.54 0 3.04.74 3.92 1.91C11.38 5.24 12.88 4.5 14.42 4.5 16.98 4.5 19 6.42 19 8.99c0 3.4-3.14 6.25-8.9 11.34l-1.1 1.02z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                  />
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="icon-circle"
+                :class="{ active: showChat }"
+                aria-label="채팅 패널 토글"
+                @click="toggleChat"
               >
                 <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M3 20l1.62-3.24A2 2 0 0 1 6.42 16H20a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v15z" fill="none" stroke="currentColor" stroke-width="1.8" />
                   <path d="M7 9h10M7 12h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
                 </svg>
-              </div>
-              <div class="toolbar-settings">
+              </button>
+              <div class="player-settings">
                 <button
                   ref="settingsButtonRef"
                   type="button"
@@ -686,15 +652,18 @@ onBeforeUnmount(() => {
   position: absolute;
   right: 14px;
   bottom: 14px;
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
   z-index: 2;
 }
 
-.action-row {
-  display: inline-flex;
-  gap: 10px;
+.player-settings {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
 }
 
 .icon-circle {
@@ -825,12 +794,6 @@ onBeforeUnmount(() => {
   font-weight: 700;
 }
 
-.settings-popover--overlay {
-  top: auto;
-  bottom: 48px;
-  right: 0;
-}
-
 .panel--player {
   gap: 16px;
 }
@@ -897,62 +860,6 @@ onBeforeUnmount(() => {
   margin: 0;
   color: var(--text-muted);
 }
-
-.player-frame {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  background: #10131b;
-  border-radius: 16px;
-  display: grid;
-  place-items: center;
-  color: #fff;
-  font-weight: 700;
-}
-
-.player-frame__label {
-  opacity: 0.8;
-}
-
-.player-overlay {
-  position: absolute;
-  right: 14px;
-  bottom: 14px;
-  display: inline-flex;
-  flex-direction: column;
-  gap: 10px;
-  align-items: flex-end;
-}
-
-.icon-circle {
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  background: rgba(0, 0, 0, 0.55);
-  color: #fff;
-  cursor: pointer;
-  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
-}
-
-.icon-circle.active {
-  border-color: var(--primary-color);
-  color: var(--primary-color);
-  background: rgba(var(--primary-rgb), 0.12);
-}
-
-.icon {
-  width: 18px;
-  height: 18px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.7px;
-}
-
-
 
 @media (max-width: 640px) {
   .live-detail-main {
