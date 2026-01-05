@@ -61,6 +61,20 @@ const products = computed<LiveProductItem[]>(() => {
   }
   return getProductsForLive(liveId.value)
 })
+const sortedProducts = computed(() => {
+  const list = products.value.slice()
+  const withPinned = list.map((item, index) => ({
+    ...item,
+    isPinned: index === 0,
+  }))
+  return withPinned.sort((a, b) => {
+    if (a.isPinned && !b.isPinned) return -1
+    if (!a.isPinned && b.isPinned) return 1
+    if (a.isSoldOut && !b.isSoldOut) return 1
+    if (!a.isSoldOut && b.isSoldOut) return -1
+    return a.name.localeCompare(b.name)
+  })
+})
 
 const formatPrice = (price: number) => {
   return `${price.toLocaleString('ko-KR')}원`
@@ -266,7 +280,12 @@ onBeforeUnmount(() => {
     </div>
 
     <section v-else class="live-detail-layout">
-      <div class="live-detail-main">
+      <div
+        class="live-detail-main"
+  :style="{
+          gridTemplateColumns: showChat ? 'minmax(0, 1.6fr) minmax(0, 0.95fr)' : 'minmax(0, 1fr)',
+        }"
+      >
         <section ref="playerPanelRef" class="panel panel--player">
           <div class="player-meta">
             <div class="status-row">
@@ -377,6 +396,11 @@ onBeforeUnmount(() => {
                   </svg>
                 </button>
               </div>
+              <button type="button" class="icon-circle" aria-label="전체 화면" @click="toggleFullscreen">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </button>
             </div>
 
             <aside v-if="showChat" ref="chatPanelRef" class="chat-panel ds-surface">
@@ -417,7 +441,7 @@ onBeforeUnmount(() => {
         </section>
       </div>
 
-      <section class="panel panel--products">
+      <section v-if="showProducts" class="panel panel--products">
         <div class="panel__header">
           <h3 class="panel__title">라이브 상품</h3>
           <span class="panel__count">{{ products.length }}개</span>
@@ -425,7 +449,7 @@ onBeforeUnmount(() => {
         <div v-if="!products.length" class="panel__empty">등록된 상품이 없습니다.</div>
         <div v-else class="product-list product-list--grid">
           <button
-            v-for="product in products"
+            v-for="product in sortedProducts"
             :key="product.id"
             type="button"
             class="product-card"
