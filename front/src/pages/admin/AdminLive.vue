@@ -152,6 +152,80 @@ const filteredLiveList = computed(() => {
   return filtered
 })
 
+const filteredScheduledList = computed(() => {
+  let filtered = [...scheduledItems.value]
+  if (scheduledStatus.value === 'reserved') {
+    filtered = filtered.filter((item) => item.status !== '취소됨')
+  } else if (scheduledStatus.value === 'canceled') {
+    filtered = filtered.filter((item) => item.status === '취소됨')
+  }
+  if (scheduledCategory.value !== 'all') {
+    filtered = filtered.filter((item) => item.category === scheduledCategory.value)
+  }
+  filtered.sort((a, b) => {
+    const aDate = a.startAtMs ?? toDateMs(a.datetime)
+    const bDate = b.startAtMs ?? toDateMs(b.datetime)
+    if (scheduledSort.value === 'latest') return bDate - aDate
+    if (scheduledSort.value === 'oldest') return aDate - bDate
+    return aDate - bDate
+  })
+  return filtered
+})
+
+const filteredVods = computed(() => {
+  const startMs = vodStartDate.value ? Date.parse(`${vodStartDate.value}T00:00:00`) : null
+  const endMs = vodEndDate.value ? Date.parse(`${vodEndDate.value}T23:59:59`) : null
+
+  let filtered = [...vodItems.value].filter((item) => {
+    const dateMs = item.startAtMs ?? toDateMs(item.startedAt)
+    if (startMs && dateMs < startMs) return false
+    if (endMs && dateMs > endMs) return false
+    if (vodVisibility.value !== 'all' && vodVisibility.value !== item.visibility) return false
+    if (vodCategory.value !== 'all' && item.category !== vodCategory.value) return false
+    return true
+  })
+
+  filtered.sort((a, b) => {
+    if (vodSort.value === 'latest') return (b.startAtMs ?? 0) - (a.startAtMs ?? 0)
+    if (vodSort.value === 'oldest') return (a.startAtMs ?? 0) - (b.startAtMs ?? 0)
+    if (vodSort.value === 'reports_desc') return (b.metrics.reports ?? 0) - (a.metrics.reports ?? 0)
+    if (vodSort.value === 'likes_desc') return (b.metrics.likes ?? 0) - (a.metrics.likes ?? 0)
+    if (vodSort.value === 'likes_asc') return (a.metrics.likes ?? 0) - (b.metrics.likes ?? 0)
+    if (vodSort.value === 'revenue_desc') return (b.metrics.totalRevenue ?? 0) - (a.metrics.totalRevenue ?? 0)
+    if (vodSort.value === 'revenue_asc') return (a.metrics.totalRevenue ?? 0) - (b.metrics.totalRevenue ?? 0)
+    if (vodSort.value === 'viewers_desc') return (b.metrics.maxViewers ?? 0) - (a.metrics.maxViewers ?? 0)
+    if (vodSort.value === 'viewers_asc') return (a.metrics.maxViewers ?? 0) - (b.metrics.maxViewers ?? 0)
+    return 0
+  })
+
+  return filtered
+})
+
+const visibleLiveItems = computed(() => filteredLiveList.value.slice(0, liveVisibleCount.value))
+const visibleScheduledItems = computed(() => filteredScheduledList.value.slice(0, scheduledVisibleCount.value))
+const visibleVodItems = computed(() => filteredVods.value.slice(0, vodVisibleCount.value))
+
+const liveCategories = computed(() => Array.from(new Set(liveItems.value.map((item) => item.category ?? '기타'))))
+const scheduledCategories = computed(() => Array.from(new Set(scheduledItems.value.map((item) => item.category ?? '기타'))))
+const vodCategories = computed(() => Array.from(new Set(vodItems.value.map((item) => item.category ?? '기타'))))
+
+const liveCarouselItems = computed(() => visibleLiveItems.value.slice(0, 5))
+
+const filteredLiveList = computed(() => {
+  let filtered = [...liveItems.value]
+  if (liveCategory.value !== 'all') {
+    filtered = filtered.filter((item) => item.category === liveCategory.value)
+  }
+  filtered.sort((a, b) => {
+    if (liveSort.value === 'reports_desc') return (b.reports ?? 0) - (a.reports ?? 0)
+    if (liveSort.value === 'latest') return toDateMs(b.startedAt) - toDateMs(a.startedAt)
+    if (liveSort.value === 'viewers_desc') return (b.viewers ?? 0) - (a.viewers ?? 0)
+    if (liveSort.value === 'viewers_asc') return (a.viewers ?? 0) - (b.viewers ?? 0)
+    return 0
+  })
+  return filtered
+})
+
 const filteredScheduled = computed(() => {
   let filtered = [...scheduledItems.value]
   if (scheduledStatus.value === 'reserved') {
@@ -925,6 +999,32 @@ onBeforeUnmount(() => {
 
 .carousel-wrap {
   position: relative;
+}
+
+.live-grid,
+.scheduled-grid,
+.vod-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.carousel-btn {
+  border: 1px solid var(--border-color);
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  background: var(--surface);
+  font-weight: 900;
+  color: var(--text-strong);
+  cursor: pointer;
+}
+
+.carousel-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .live-grid,
