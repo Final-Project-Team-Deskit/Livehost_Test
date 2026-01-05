@@ -355,30 +355,29 @@ onBeforeUnmount(() => {
           <h3>방송 중</h3>
         </div>
         <div class="live-section__controls">
-          <div v-if="activeTab === 'live'" class="control-stack">
-            <p class="ds-section-sub">신고·시청자 기준으로 라이브를 정렬할 수 있습니다.</p>
-            <div class="filter-row">
-              <label class="inline-filter">
-                <span>카테고리</span>
-                <select v-model="liveCategory">
-                  <option value="all">모든 카테고리</option>
-                  <option v-for="category in liveCategories" :key="category" :value="category">{{ category }}</option>
-                </select>
-              </label>
-              <label class="inline-filter">
-                <span>정렬</span>
-                <select v-model="liveSort">
-                  <option value="reports_desc">신고가 많은 순</option>
-                  <option value="latest">최신순</option>
-                  <option value="viewers_desc">시청자가 많은 순</option>
-                  <option value="viewers_asc">시청자가 적은 순</option>
-                </select>
-              </label>
-            </div>
-          </div>
-          <div v-else class="more-row">
-            <span class="link-more" role="button" tabindex="0" @click="setTab('live')">+ 더보기</span>
-          </div>
+          <p v-if="activeTab === 'live'" class="ds-section-sub">현재 진행 중인 라이브 방송입니다.</p>
+          <span v-else class="link-more" role="button" tabindex="0" @click="setTab('live')">+ 더보기</span>
+        </div>
+      </div>
+
+      <div v-if="activeTab === 'live'" class="control-stack">
+        <div class="filter-row">
+          <label class="inline-filter">
+            <span>카테고리</span>
+            <select v-model="liveCategory">
+              <option value="all">모든 카테고리</option>
+              <option v-for="category in liveCategories" :key="category" :value="category">{{ category }}</option>
+            </select>
+          </label>
+          <label class="inline-filter">
+            <span>정렬</span>
+            <select v-model="liveSort">
+              <option value="reports_desc">신고가 많은 순</option>
+              <option value="latest">최신순</option>
+              <option value="viewers_desc">시청자가 많은 순</option>
+              <option value="viewers_asc">시청자가 적은 순</option>
+            </select>
+          </label>
         </div>
       </div>
 
@@ -510,58 +509,58 @@ onBeforeUnmount(() => {
           <h3>VOD</h3>
         </div>
         <div class="live-section__controls">
-          <div v-if="activeTab === 'vod'" class="control-stack">
-            <p class="ds-section-sub">기간, 공개여부, 카테고리를 선택해 VOD를 정렬할 수 있습니다.</p>
-            <div class="filter-row vod-filter-row">
-              <label class="inline-filter">
-                <span>날짜 시작</span>
-                <input v-model="vodStartDate" type="date" />
-              </label>
-              <label class="inline-filter">
-                <span>날짜 종료</span>
-                <input v-model="vodEndDate" type="date" />
-              </label>
-              <label class="inline-filter">
-                <span>공개 여부</span>
-                <select v-model="vodVisibility">
-                  <option value="all">전체</option>
-                  <option value="public">공개</option>
-                  <option value="private">비공개</option>
-                </select>
-              </label>
-              <label class="inline-filter">
-                <span>카테고리</span>
-                <select v-model="vodCategory">
-                  <option value="all">모든 카테고리</option>
-                  <option v-for="category in vodCategories" :key="category" :value="category">{{ category }}</option>
-                </select>
-              </label>
-              <label class="inline-filter">
-                <span>정렬</span>
-                <select v-model="vodSort">
-                  <option value="latest">최신순</option>
-                  <option value="reports_desc">신고 건수가 많은 순</option>
-                  <option value="oldest">오래된 순</option>
-                  <option value="likes_desc">좋아요가 높은 순</option>
-                  <option value="likes_asc">좋아요가 낮은 순</option>
-                  <option value="revenue_desc">매출액이 높은 순</option>
-                  <option value="revenue_asc">매출액이 낮은 순</option>
-                  <option value="viewers_desc">총 시청자 수가 높은 순</option>
-                  <option value="viewers_asc">총 시청자 수가 낮은 순</option>
-                </select>
-              </label>
-            </div>
-          </div>
-          <div v-else class="more-row">
-            <span
-              class="link-more"
-              role="button"
-              tabindex="0"
-              @click="setTab('vod')"
-            >
-              + 더보기
-            </span>
-          </div>
+          <p v-if="activeTab === 'vod'" class="ds-section-sub">저장된 다시보기 콘텐츠를 확인합니다.</p>
+          <span
+            v-else
+            class="link-more"
+            role="button"
+            tabindex="0"
+            @click="setTab('vod')"
+          >
+            + 더보기
+          </span>
+        </div>
+      </div>
+
+      <div v-if="activeTab === 'vod'" class="control-stack">
+        <div class="filter-row vod-filter-row">
+          <label class="inline-filter">
+            <span>날짜 시작</span>
+            <input v-model="vodStartDate" type="date" />
+          </label>
+          <label class="inline-filter">
+            <span>날짜 종료</span>
+            <input v-model="vodEndDate" type="date" />
+          </label>
+          <label class="inline-filter">
+            <span>공개 여부</span>
+            <select v-model="vodVisibility">
+              <option value="all">전체</option>
+              <option value="public">공개</option>
+              <option value="private">비공개</option>
+            </select>
+          </label>
+          <label class="inline-filter">
+            <span>카테고리</span>
+            <select v-model="vodCategory">
+              <option value="all">모든 카테고리</option>
+              <option v-for="category in vodCategories" :key="category" :value="category">{{ category }}</option>
+            </select>
+          </label>
+          <label class="inline-filter">
+            <span>정렬</span>
+            <select v-model="vodSort">
+              <option value="latest">최신순</option>
+              <option value="reports_desc">신고 건수가 많은 순</option>
+              <option value="oldest">오래된 순</option>
+              <option value="likes_desc">좋아요가 높은 순</option>
+              <option value="likes_asc">좋아요가 낮은 순</option>
+              <option value="revenue_desc">매출액이 높은 순</option>
+              <option value="revenue_asc">매출액이 낮은 순</option>
+              <option value="viewers_desc">총 시청자 수가 높은 순</option>
+              <option value="viewers_asc">총 시청자 수가 낮은 순</option>
+            </select>
+          </label>
         </div>
       </div>
 
