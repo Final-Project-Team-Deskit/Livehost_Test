@@ -281,8 +281,8 @@ onBeforeUnmount(() => {
     <section v-else class="live-detail-layout">
       <div
         class="live-detail-main"
-        :style="{
-          gridTemplateColumns: showChat ? 'minmax(0, 1.6fr) minmax(0, 0.9fr)' : 'minmax(0, 1fr)',
+  :style="{
+          gridTemplateColumns: showChat ? 'minmax(0, 1.6fr) minmax(0, 0.95fr)' : 'minmax(0, 1fr)',
         }"
       >
         <section ref="playerPanelRef" class="panel panel--player">
@@ -624,6 +624,88 @@ onBeforeUnmount(() => {
 .panel--chat {
   gap: 12px;
   min-height: 0;
+  width: min(360px, 100%);
+  margin-left: auto;
+  padding: 12px;
+}
+
+.chat-close {
+  border: 1px solid var(--border-color);
+  background: var(--surface);
+  color: var(--text-muted);
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.chat-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-right: 4px;
+}
+
+.chat-message {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.chat-message--system .chat-user {
+  color: #ef4444;
+}
+
+.chat-message__user {
+  color: var(--text-strong);
+  font-weight: 800;
+}
+
+.chat-message__text {
+  margin: 0;
+  color: var(--text-strong);
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.chat-message__time {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.chat-input {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+
+.chat-input input {
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-weight: 700;
+  color: var(--text-strong);
+  background: var(--surface);
+}
+
+.chat-input button {
+  border: 1px solid var(--primary-color);
+  color: var(--primary-color);
+  background: rgba(var(--primary-rgb), 0.08);
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.chat-helper {
+  margin: 0;
+  color: var(--text-muted);
+  font-weight: 700;
 }
 
 .chat-close {
@@ -717,11 +799,12 @@ onBeforeUnmount(() => {
 
 .player-overlay {
   position: absolute;
-  bottom: 14px;
   right: 14px;
-  display: flex;
+  bottom: 14px;
+  display: inline-flex;
   flex-direction: column;
   gap: 10px;
+  align-items: flex-end;
 }
 
 .icon-circle {
@@ -731,17 +814,17 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--border-color);
-  background: rgba(0, 0, 0, 0.04);
-  color: var(--text-strong);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
   cursor: pointer;
   transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
 }
 
 .icon-circle.active {
-  border-color: var(--live-color);
-  color: var(--live-color);
-  background: rgba(220, 38, 38, 0.12);
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+  background: rgba(var(--primary-rgb), 0.12);
 }
 
 .icon {
