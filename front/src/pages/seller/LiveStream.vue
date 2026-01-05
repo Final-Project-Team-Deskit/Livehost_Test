@@ -861,12 +861,12 @@ const toggleFullscreen = async () => {
   z-index: 2;
 }
 
-.stream-overlay__row {
-  display: inline-flex;
+.overlay-item {
+  display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   font-weight: 800;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
 }
 
 .stream-fab {
