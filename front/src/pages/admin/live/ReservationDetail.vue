@@ -300,19 +300,19 @@ watch(reservationId, loadDetail, { immediate: true })
 }
 
 .detail-meta {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 8px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   font-weight: 700;
   color: var(--text-muted);
 }
 
 .detail-meta span {
   display: inline-block;
-  min-width: 120px;
+  min-width: 100px;
   color: var(--text-strong);
   font-weight: 800;
-  margin-right: 6px;
+  margin-right: 4px;
 }
 
 .cancel-row {
