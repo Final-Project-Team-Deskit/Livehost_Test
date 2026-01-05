@@ -94,6 +94,7 @@ const handleVod = () => {
 const showChat = ref(true)
 const isFullscreen = ref(false)
 const stageRef = ref<HTMLElement | null>(null)
+const viewerStageRef = ref<HTMLElement | null>(null)
 const isLiked = ref(false)
 const toggleLike = () => {
   isLiked.value = !isLiked.value
@@ -252,7 +253,7 @@ const handleFullscreenChange = () => {
 }
 
 onMounted(() => {
-  stageRef.value = playerPanelRef.value
+  stageRef.value = viewerStageRef.value
   document.addEventListener('click', handleDocumentClick)
   document.addEventListener('keydown', handleDocumentKeydown)
   document.addEventListener('fullscreenchange', handleFullscreenChange)
@@ -303,137 +304,140 @@ onBeforeUnmount(() => {
             <p v-if="liveItem.description" class="player-desc">{{ liveItem.description }}</p>
           </div>
 
-          <div ref="stageRef" class="player-frame">
-            <span class="player-frame__label">LIVE 플레이어</span>
-            <div class="player-actions">
-              <button
-                type="button"
-                class="icon-circle"
-                :class="{ active: isLiked }"
-                aria-label="좋아요"
-                @click="toggleLike"
-              >
-                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                  <path
-                    v-if="isLiked"
-                    d="M12.1 21.35l-1.1-1.02C5.14 15.24 2 12.39 2 8.99 2 6.42 4.02 4.5 6.58 4.5c1.54 0 3.04.74 3.92 1.91C11.38 5.24 12.88 4.5 14.42 4.5 16.98 4.5 19 6.42 19 8.99c0 3.4-3.14 6.25-8.9 11.34l-1.1 1.02z"
-                    fill="currentColor"
-                  />
-                  <path
-                    v-else
-                    d="M12.1 21.35l-1.1-1.02C5.14 15.24 2 12.39 2 8.99 2 6.42 4.02 4.5 6.58 4.5c1.54 0 3.04.74 3.92 1.91C11.38 5.24 12.88 4.5 14.42 4.5 16.98 4.5 19 6.42 19 8.99c0 3.4-3.14 6.25-8.9 11.34l-1.1 1.02z"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="1.8"
-                  />
-                </svg>
-              </button>
-              <button
-                type="button"
-                class="icon-circle"
-                :class="{ active: showChat }"
-                aria-label="채팅 패널 토글"
-                @click="toggleChat"
-              >
-                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M3 20l1.62-3.24A2 2 0 0 1 6.42 16H20a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v15z" fill="none" stroke="currentColor" stroke-width="1.8" />
-                  <path d="M7 9h10M7 12h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
-                </svg>
-              </button>
-              <div class="toolbar-settings">
+          <div ref="viewerStageRef" class="viewer-stage" :class="{ 'viewer-stage--chat': showChat }">
+            <div ref="stageRef" class="player-frame">
+              <span class="player-frame__label">LIVE 플레이어</span>
+              <div class="player-actions">
                 <button
-                  ref="settingsButtonRef"
                   type="button"
                   class="icon-circle"
-                  aria-controls="player-settings"
-                  :aria-expanded="isSettingsOpen ? 'true' : 'false'"
-                  aria-label="설정"
-                  @click="toggleSettings"
+                  :class="{ active: isLiked }"
+                  aria-label="좋아요"
+                  @click="toggleLike"
                 >
                   <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M4 6h16M4 12h16M4 18h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
-                    <circle cx="9" cy="6" r="2" fill="none" stroke="currentColor" stroke-width="1.8" />
-                    <circle cx="14" cy="12" r="2" fill="none" stroke="currentColor" stroke-width="1.8" />
-                    <circle cx="7" cy="18" r="2" fill="none" stroke="currentColor" stroke-width="1.8" />
+                    <path
+                      v-if="isLiked"
+                      d="M12.1 21.35l-1.1-1.02C5.14 15.24 2 12.39 2 8.99 2 6.42 4.02 4.5 6.58 4.5c1.54 0 3.04.74 3.92 1.91C11.38 5.24 12.88 4.5 14.42 4.5 16.98 4.5 19 6.42 19 8.99c0 3.4-3.14 6.25-8.9 11.34l-1.1 1.02z"
+                      fill="currentColor"
+                    />
+                    <path
+                      v-else
+                      d="M12.1 21.35l-1.1-1.02C5.14 15.24 2 12.39 2 8.99 2 6.42 4.02 4.5 6.58 4.5c1.54 0 3.04.74 3.92 1.91C11.38 5.24 12.88 4.5 14.42 4.5 16.98 4.5 19 6.42 19 8.99c0 3.4-3.14 6.25-8.9 11.34l-1.1 1.02z"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.8"
+                    />
                   </svg>
                 </button>
-                <div
-                  v-if="isSettingsOpen"
-                  id="player-settings"
-                  ref="settingsPanelRef"
-                  class="settings-popover"
+                <button
+                  type="button"
+                  class="icon-circle"
+                  :class="{ active: showChat }"
+                  aria-label="채팅 패널 토글"
+                  @click="toggleChat"
                 >
-                  <label class="settings-row">
-                    <span class="settings-label">볼륨</span>
-                    <input
-                      class="toolbar-slider"
-                      type="range"
-                      min="0"
-                      max="100"
-                      value="60"
-                      aria-label="볼륨 조절"
-                    />
-                  </label>
-                  <label class="settings-row">
-                    <span class="settings-label">화질</span>
-                    <select class="settings-select" aria-label="화질">
-                      <option>자동</option>
-                      <option>1080p</option>
-                      <option>720p</option>
-                      <option>480p</option>
-                    </select>
-                  </label>
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M3 20l1.62-3.24A2 2 0 0 1 6.42 16H20a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v15z" fill="none" stroke="currentColor" stroke-width="1.8" />
+                    <path d="M7 9h10M7 12h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+                  </svg>
+                </button>
+                <div class="toolbar-settings">
+                  <button
+                    ref="settingsButtonRef"
+                    type="button"
+                    class="icon-circle"
+                    aria-controls="player-settings"
+                    :aria-expanded="isSettingsOpen ? 'true' : 'false'"
+                    aria-label="설정"
+                    @click="toggleSettings"
+                  >
+                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M4 6h16M4 12h16M4 18h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+                      <circle cx="9" cy="6" r="2" fill="none" stroke="currentColor" stroke-width="1.8" />
+                      <circle cx="14" cy="12" r="2" fill="none" stroke="currentColor" stroke-width="1.8" />
+                      <circle cx="7" cy="18" r="2" fill="none" stroke="currentColor" stroke-width="1.8" />
+                    </svg>
+                  </button>
+                  <div
+                    v-if="isSettingsOpen"
+                    id="player-settings"
+                    ref="settingsPanelRef"
+                    class="settings-popover settings-popover--overlay"
+                  >
+                    <label class="settings-row">
+                      <span class="settings-label">볼륨</span>
+                      <input
+                        class="toolbar-slider"
+                        type="range"
+                        min="0"
+                        max="100"
+                        value="60"
+                        aria-label="볼륨 조절"
+                      />
+                    </label>
+                    <label class="settings-row">
+                      <span class="settings-label">화질</span>
+                      <select class="settings-select" aria-label="화질">
+                        <option>자동</option>
+                        <option>1080p</option>
+                        <option>720p</option>
+                        <option>480p</option>
+                      </select>
+                    </label>
+                  </div>
+                </div>
+                <button type="button" class="icon-circle" aria-label="전체 화면" @click="toggleFullscreen">
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <aside
+              v-if="showChat"
+              ref="chatPanelRef"
+              class="chat-panel ds-surface"
+            >
+              <header class="chat-head">
+                <h4>실시간 채팅</h4>
+                <button type="button" class="chat-close" aria-label="채팅 닫기" @click="toggleChat">×</button>
+              </header>
+              <div ref="chatListRef" class="chat-messages">
+                <div
+                  v-for="message in messages"
+                  :key="message.id"
+                  class="chat-message"
+                  :class="{ 'chat-message--system': message.kind === 'system' }"
+                >
+                  <div class="chat-meta">
+                    <span class="chat-user">{{ message.user }}</span>
+                    <span class="chat-time">{{ formatChatTime(message.at) }}</span>
+                  </div>
+                  <p class="chat-text">{{ message.text }}</p>
                 </div>
               </div>
-              <button type="button" class="icon-circle" aria-label="전체 화면" @click="toggleFullscreen">
-                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
-                </svg>
-              </button>
-            </div>
+              <div class="chat-input">
+                <input
+                  v-model="input"
+                  type="text"
+                  placeholder="메시지를 입력하세요"
+                  :disabled="!isLoggedIn"
+                  @keydown.enter="sendMessage"
+                />
+                <button type="button" class="btn primary" :disabled="!isLoggedIn || !input.trim()" @click="sendMessage">
+                  전송
+                </button>
+              </div>
+              <p v-if="!isLoggedIn" class="chat-helper">로그인 후 이용하실 수 있습니다.</p>
+            </aside>
           </div>
 
           <button v-if="status === 'ENDED'" type="button" class="vod-btn" @click="handleVod">
             VOD 다시보기
           </button>
         </section>
-
-        <aside
-          v-if="showChat"
-          ref="chatPanelRef"
-          class="panel panel--chat"
-          :style="{ height: playerHeight ? `${playerHeight}px` : undefined }"
-        >
-          <div class="panel__header">
-            <h3 class="panel__title">실시간 채팅</h3>
-            <button type="button" class="chat-close" aria-label="채팅 닫기" @click="toggleChat">×</button>
-          </div>
-          <div ref="chatListRef" class="chat-list">
-            <div
-              v-for="message in messages"
-              :key="message.id"
-              class="chat-message"
-              :class="{ 'chat-message--system': message.kind === 'system' }"
-            >
-              <span class="chat-message__user">{{ message.user }}</span>
-              <p class="chat-message__text">{{ message.text }}</p>
-              <span class="chat-message__time">{{ formatChatTime(message.at) }}</span>
-            </div>
-          </div>
-          <div class="chat-input">
-            <input
-              v-model="input"
-              type="text"
-              placeholder="메시지를 입력하세요"
-              :disabled="!isLoggedIn"
-              @keydown.enter="sendMessage"
-            />
-            <button type="button" :disabled="!isLoggedIn || !input.trim()" @click="sendMessage">
-              전송
-            </button>
-          </div>
-          <p v-if="!isLoggedIn" class="chat-helper">로그인 후 이용하실 수 있습니다.</p>
-        </aside>
       </div>
 
       <section v-if="showProducts" class="panel panel--products">
@@ -617,16 +621,107 @@ onBeforeUnmount(() => {
   color: var(--text-strong);
 }
 
-.panel--player {
+.viewer-stage {
+  display: flex;
   gap: 16px;
+  align-items: stretch;
+  position: relative;
 }
 
-.panel--chat {
-  gap: 12px;
-  min-height: 0;
-  width: min(360px, 100%);
-  margin-left: auto;
+.viewer-stage--chat .player-frame {
+  margin-right: 372px;
+}
+
+.player-frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #10131b;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-weight: 700;
+  min-height: 360px;
+}
+
+.player-frame__label {
+  opacity: 0.8;
+}
+
+.player-actions {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.player-overlay {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.icon-circle {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+
+.icon-circle.active {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+  background: rgba(var(--primary-rgb), 0.12);
+}
+
+.icon {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7px;
+}
+
+.chat-panel {
+  width: 360px;
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px;
   padding: 12px;
+  gap: 10px;
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+}
+
+.chat-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.chat-head h4 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 900;
+  color: var(--text-strong);
 }
 
 .chat-close {
@@ -639,7 +734,7 @@ onBeforeUnmount(() => {
   cursor: pointer;
 }
 
-.chat-list {
+.chat-messages {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -659,22 +754,28 @@ onBeforeUnmount(() => {
   color: #ef4444;
 }
 
-.chat-message__user {
+.chat-meta {
+  display: flex;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.chat-user {
   color: var(--text-strong);
   font-weight: 800;
 }
 
-.chat-message__text {
+.chat-text {
   margin: 0;
   color: var(--text-strong);
   font-weight: 700;
   line-height: 1.4;
 }
 
-.chat-message__time {
+.chat-time {
   color: var(--text-muted);
-  font-size: 0.85rem;
-  font-weight: 700;
 }
 
 .chat-input {
@@ -692,30 +793,20 @@ onBeforeUnmount(() => {
   background: var(--surface);
 }
 
-.chat-input button {
-  border: 1px solid var(--primary-color);
-  color: var(--primary-color);
-  background: rgba(var(--primary-rgb), 0.08);
-  border-radius: 12px;
-  padding: 10px 14px;
-  font-weight: 800;
-  cursor: pointer;
-}
-
 .chat-helper {
   margin: 0;
   color: var(--text-muted);
   font-weight: 700;
 }
 
-.chat-close {
-  border: 1px solid var(--border-color);
-  background: var(--surface);
-  color: var(--text-muted);
-  width: 28px;
-  height: 28px;
-  border-radius: 999px;
-  cursor: pointer;
+.settings-popover--overlay {
+  top: auto;
+  bottom: 0;
+  right: 46px;
+}
+
+.panel--player {
+  gap: 16px;
 }
 
 .player-meta {
