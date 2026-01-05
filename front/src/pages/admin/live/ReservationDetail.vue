@@ -302,17 +302,17 @@ watch(reservationId, loadDetail, { immediate: true })
 .detail-meta {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
   font-weight: 700;
   color: var(--text-muted);
 }
 
 .detail-meta span {
   display: inline-block;
-  min-width: 120px;
+  min-width: 100px;
   color: var(--text-strong);
   font-weight: 800;
-  margin-right: 6px;
+  margin-right: 4px;
 }
 
 .cancel-row {
