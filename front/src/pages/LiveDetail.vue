@@ -436,7 +436,7 @@ onBeforeUnmount(() => {
         </aside>
       </div>
 
-      <section class="panel panel--products">
+      <section v-if="showProducts" class="panel panel--products">
         <div class="panel__header">
           <h3 class="panel__title">라이브 상품</h3>
           <span class="panel__count">{{ products.length }}개</span>
