@@ -423,10 +423,10 @@ const toggleFullscreen = async () => {
       </aside>
 
       <div class="stream-center ds-surface">
-        <div class="stream-overlay stream-overlay--stack">
-          <div class="stream-overlay__row">⏱ 경과 {{ elapsed }}</div>
-          <div class="stream-overlay__row">👥 {{ viewerCount.toLocaleString('ko-KR') }}명 시청 중</div>
-          <div class="stream-overlay__row">❤ {{ likeCount.toLocaleString('ko-KR') }}</div>
+        <div class="stream-overlay stream-overlay--metrics">
+          <div class="overlay-item">⏱ 경과 {{ elapsed }}</div>
+          <div class="overlay-item">👥 {{ viewerCount.toLocaleString('ko-KR') }}명</div>
+          <div class="overlay-item">❤ {{ likeCount.toLocaleString('ko-KR') }}</div>
         </div>
         <div class="stream-fab">
           <button
@@ -476,20 +476,22 @@ const toggleFullscreen = async () => {
           </button>
         </div>
         <div class="stream-center__body">
-          <div v-if="isLoadingStream" class="stream-empty">
-            <p class="stream-title">방송 정보를 불러오는 중입니다.</p>
-            <p class="stream-sub">잠시만 기다려주세요.</p>
-          </div>
-          <div v-else-if="!stream" class="stream-empty">
-            <p class="stream-title">방송 정보를 불러올 수 없습니다.</p>
-            <p class="stream-sub">라이브 관리 페이지에서 다시 시도해주세요.</p>
-            <div class="stream-actions">
-              <button type="button" class="stream-btn" @click="handleGoToList">목록으로 이동</button>
+          <div class="player-frame">
+            <div v-if="isLoadingStream" class="stream-empty">
+              <p class="stream-title">방송 정보를 불러오는 중입니다.</p>
+              <p class="stream-sub">잠시만 기다려주세요.</p>
             </div>
-          </div>
-          <div v-else class="stream-placeholder">
-            <p class="stream-title">송출 화면 (WebRTC Stream)</p>
-            <p class="stream-sub">현재 송출 중인 화면이 표시됩니다.</p>
+            <div v-else-if="!stream" class="stream-empty">
+              <p class="stream-title">방송 정보를 불러올 수 없습니다.</p>
+              <p class="stream-sub">라이브 관리 페이지에서 다시 시도해주세요.</p>
+              <div class="stream-actions">
+                <button type="button" class="stream-btn" @click="handleGoToList">목록으로 이동</button>
+              </div>
+            </div>
+            <div v-else class="stream-placeholder">
+              <p class="stream-title">송출 화면 (WebRTC Stream)</p>
+              <p class="stream-sub">현재 송출 중인 화면이 표시됩니다.</p>
+            </div>
           </div>
         </div>
         <div v-if="showSettings" class="stream-settings ds-surface" role="dialog" aria-label="방송 설정">
@@ -599,10 +601,10 @@ const toggleFullscreen = async () => {
               <div class="chat-meta">
                 <span class="chat-name">{{ item.name }}</span>
                 <span class="chat-time">{{ item.time }}</span>
+                <span v-if="sanctionedUsers[item.name]" class="chat-badge">{{ sanctionedUsers[item.name].type }}</span>
               </div>
-              <span v-if="sanctionedUsers[item.name]" class="chat-badge">{{ sanctionedUsers[item.name].type }}</span>
             </div>
-            <span class="chat-message">{{ item.message }}</span>
+            <p class="chat-message">{{ item.message }}</p>
           </div>
         </div>
         <div class="chat-input">
@@ -832,30 +834,46 @@ const toggleFullscreen = async () => {
   position: relative;
 }
 
+.player-frame {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 16px;
+  background: radial-gradient(circle at 20% 20%, rgba(59, 130, 246, 0.18), rgba(15, 23, 42, 0.9));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+  min-height: 320px;
+}
+
+.player-frame::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.04), rgba(15, 23, 42, 0.4));
+}
+
 .stream-overlay {
   position: absolute;
   top: 14px;
+  right: 14px;
   background: rgba(0, 0, 0, 0.55);
   color: #fff;
   border-radius: 12px;
   padding: 10px 12px;
   display: grid;
-  gap: 6px;
-}
-
-.stream-overlay--stack {
-  left: 14px;
-  top: 14px;
-  display: grid;
-  gap: 6px;
-}
-
-.stream-overlay__row {
-  display: inline-flex;
-  align-items: center;
   gap: 8px;
+  z-index: 2;
+}
+
+.overlay-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-weight: 800;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
 }
 
 .stream-fab {
@@ -891,8 +909,9 @@ const toggleFullscreen = async () => {
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
-  display: block;
-  padding-bottom: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .stream-placeholder {
@@ -937,12 +956,13 @@ const toggleFullscreen = async () => {
 .chat-item {
   display: grid;
   gap: 6px;
-  padding: 8px 10px;
+  padding: 10px;
   border-radius: 12px;
-  background: var(--surface-weak);
+  background: var(--surface);
   flex: 0 0 auto;
   align-self: stretch;
-  border: 1px solid transparent;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.06);
 }
 
 .chat-item--muted {
@@ -964,7 +984,7 @@ const toggleFullscreen = async () => {
 .chat-meta {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 
 .chat-name {
