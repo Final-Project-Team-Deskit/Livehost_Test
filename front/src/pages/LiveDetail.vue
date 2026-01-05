@@ -571,8 +571,8 @@ onBeforeUnmount(() => {
 
 .settings-popover {
   position: absolute;
-  right: 0;
-  top: calc(100% + 6px);
+  top: 0;
+  right: calc(100% + 10px);
   background: var(--surface);
   border: 1px solid var(--border-color);
   border-radius: 12px;
