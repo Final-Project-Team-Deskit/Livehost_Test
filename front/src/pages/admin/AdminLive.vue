@@ -688,7 +688,7 @@ onBeforeUnmount(() => {
 
 .live-section__head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 12px;
@@ -704,10 +704,9 @@ onBeforeUnmount(() => {
 
 .live-section__controls {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  align-items: flex-start;
-  width: 100%;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .filter-row {
