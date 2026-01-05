@@ -38,8 +38,14 @@ const gradientThumb = (from: string, to: string) =>
   `<rect width='320' height='200' fill='url(%23g)'/>` +
   `</svg>`
 
-const sellerNames = ['판매자 A', '판매자 B', '판매자 C']
-const categories = ['홈오피스', '주변기기', '정리/수납'] as const
+const sellerNames = ['판매자 A', '판매자 B', '판매자 C', '판매자 D']
+const categories = ['홈오피스', '주변기기', '정리/수납', '조명'] as const
+
+const today = new Date()
+const formatToday = (hours: number, minutes: number) =>
+  `${today.getFullYear()}.${String(today.getMonth() + 1).padStart(2, '0')}.${String(today.getDate()).padStart(2, '0')} ${String(
+    hours,
+  ).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
 
 const seedLives = (): AdminLiveSummary[] => [
   {
@@ -84,12 +90,52 @@ const seedLives = (): AdminLiveSummary[] => [
     reports: 7,
     category: categories[2],
   },
+  {
+    id: 'live-104',
+    title: '무선 주변기기 라이브 Q&A',
+    subtitle: '키보드/마우스 실시간 비교와 시연',
+    thumb: gradientThumb('1f2937', '0f172a'),
+    startedAt: formatToday(today.getHours(), Math.max(today.getMinutes() - 20, 0)),
+    status: '방송중',
+    sellerName: sellerNames[1],
+    viewers: 920,
+    likes: 312,
+    elapsed: '00:20:00',
+    reports: 14,
+    category: categories[1],
+  },
+  {
+    id: 'live-105',
+    title: '스탠딩 데스크 실시간 리뷰',
+    subtitle: '체형별 맞춤 스탠딩 데스크 세팅',
+    thumb: gradientThumb('0b1324', '334155'),
+    startedAt: formatToday(today.getHours(), Math.max(today.getMinutes() - 10, 0)),
+    status: '방송중',
+    sellerName: sellerNames[3],
+    viewers: 1312,
+    likes: 508,
+    elapsed: '00:10:00',
+    reports: 19,
+    category: categories[0],
+  },
 ]
 
 const readAll = (): AdminLiveSummary[] => {
   const parsed = safeParse<AdminLiveSummary[]>(localStorage.getItem(STORAGE_KEY), [])
-  if (parsed.length > 0) return parsed
   const seeded = seedLives()
+
+  if (parsed.length > 0) {
+    const existingIds = new Set(parsed.map((item) => item.id))
+    const merged = [...parsed]
+    seeded.forEach((item) => {
+      if (!existingIds.has(item.id)) {
+        merged.push(item)
+      }
+    })
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(merged))
+    return merged
+  }
+
   localStorage.setItem(STORAGE_KEY, JSON.stringify(seeded))
   return seeded
 }
