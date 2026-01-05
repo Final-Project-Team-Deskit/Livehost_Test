@@ -1000,6 +1000,13 @@ onBeforeUnmount(() => {
   min-height: 160px;
 }
 
+.live-carousel .empty-section,
+.scheduled-grid .empty-section,
+.vod-grid .empty-section {
+  grid-column: 1 / -1;
+  width: 100%;
+}
+
 @media (max-width: 1200px) {
   .live-grid,
   .scheduled-grid,
