@@ -9,52 +9,50 @@ type Metric = 'daily' | 'monthly' | 'yearly'
 const stopMetric = ref<Metric>('daily')
 const viewerMetric = ref<Metric>('daily')
 
+const formatDay = (date: Date) => {
+  const month = `${date.getMonth() + 1}`.padStart(2, '0')
+  const day = `${date.getDate()}`.padStart(2, '0')
+  return `${month}.${day}`
+}
+
+const buildDailySeries = (values: number[]) => {
+  const today = new Date()
+  const start = new Date(today)
+  start.setDate(today.getDate() - (values.length - 1))
+  return values.map((value, index) => {
+    const current = new Date(start)
+    current.setDate(start.getDate() + index)
+    return { label: formatDay(current), value }
+  })
+}
+
+const buildMonthlySeries = (values: number[]) => {
+  const today = new Date()
+  const start = new Date(today)
+  start.setMonth(today.getMonth() - (values.length - 1), 1)
+  return values.map((value, index) => {
+    const current = new Date(start)
+    current.setMonth(start.getMonth() + index, 1)
+    return { label: `${current.getMonth() + 1}월`, value }
+  })
+}
+
+const buildYearlySeries = (values: number[]) => {
+  const today = new Date()
+  const startYear = today.getFullYear() - (values.length - 1)
+  return values.map((value, index) => ({ label: `${startYear + index}`, value }))
+}
+
 const stopCountData: Record<Metric, Array<{ label: string; value: number }>> = {
-  daily: [
-    { label: '월', value: 6 },
-    { label: '화', value: 4 },
-    { label: '수', value: 7 },
-    { label: '목', value: 5 },
-    { label: '금', value: 3 },
-  ],
-  monthly: [
-    { label: '8월', value: 12 },
-    { label: '9월', value: 16 },
-    { label: '10월', value: 18 },
-    { label: '11월', value: 21 },
-    { label: '12월', value: 14 },
-  ],
-  yearly: [
-    { label: '2021', value: 64 },
-    { label: '2022', value: 73 },
-    { label: '2023', value: 88 },
-    { label: '2024', value: 95 },
-    { label: '2025', value: 52 },
-  ],
+  daily: buildDailySeries([6, 5, 7, 4, 6, 5, 8]),
+  monthly: buildMonthlySeries([12, 14, 16, 18, 19, 21, 23, 20, 18, 17, 19, 22]),
+  yearly: buildYearlySeries([58, 64, 71, 79, 83]),
 }
 
 const viewerSanctionData: Record<Metric, Array<{ label: string; value: number }>> = {
-  daily: [
-    { label: '월', value: 18 },
-    { label: '화', value: 12 },
-    { label: '수', value: 15 },
-    { label: '목', value: 9 },
-    { label: '금', value: 10 },
-  ],
-  monthly: [
-    { label: '8월', value: 210 },
-    { label: '9월', value: 240 },
-    { label: '10월', value: 265 },
-    { label: '11월', value: 292 },
-    { label: '12월', value: 188 },
-  ],
-  yearly: [
-    { label: '2021', value: 1020 },
-    { label: '2022', value: 1180 },
-    { label: '2023', value: 1340 },
-    { label: '2024', value: 1280 },
-    { label: '2025', value: 640 },
-  ],
+  daily: buildDailySeries([18, 15, 12, 14, 17, 13, 19]),
+  monthly: buildMonthlySeries([208, 214, 226, 242, 255, 268, 274, 261, 248, 239, 245, 258]),
+  yearly: buildYearlySeries([980, 1040, 1115, 1205, 1280]),
 }
 
 const topSellerStops = [
