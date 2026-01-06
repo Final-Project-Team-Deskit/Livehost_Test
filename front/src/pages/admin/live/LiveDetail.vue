@@ -21,7 +21,6 @@ const chatText = ref('')
 const chatMessages = ref<{ id: string; user: string; text: string; time: string }[]>([])
 const chatListRef = ref<HTMLDivElement | null>(null)
 const seededLiveId = ref('')
-const isCompactLayout = ref(false)
 const showModerationModal = ref(false)
 const moderationTarget = ref<{ user: string } | null>(null)
 const moderationType = ref('')
@@ -273,25 +272,6 @@ onBeforeUnmount(() => {
 })
 
 watch(liveId, loadDetail, { immediate: true })
-
-const COMPACT_BREAKPOINT = 1200
-
-const handleResize = () => {
-  const isCompact = window.innerWidth <= COMPACT_BREAKPOINT
-  if (isCompact && !isCompactLayout.value && showChat.value) {
-    showChat.value = false
-  }
-  isCompactLayout.value = isCompact
-}
-
-onMounted(() => {
-  handleResize()
-  window.addEventListener('resize', handleResize, { passive: true })
-})
-
-onBeforeUnmount(() => {
-  window.removeEventListener('resize', handleResize)
-})
 </script>
 
 <template>
@@ -347,11 +327,7 @@ onBeforeUnmount(() => {
         </div>
 
         <div v-show="activePane === 'monitor'" id="monitor-pane">
-          <div
-              ref="stageRef"
-              class="monitor-stage"
-              :class="{ 'monitor-stage--chat': showChat, 'monitor-stage--compact': isCompactLayout }"
-          >
+          <div ref="stageRef" class="monitor-stage" :class="{ 'monitor-stage--chat': showChat }">
             <div class="player-wrap">
               <div class="player-frame" :class="{ 'player-frame--fullscreen': isFullscreen }">
                 <div class="player-overlay">
@@ -1173,11 +1149,14 @@ onBeforeUnmount(() => {
   color: #ef4444;
 }
 
+.monitor-stage {
+  --stacked-max-width: 1040px;
+}
+
 @media (max-width: 1200px) {
   .monitor-stage {
     flex-direction: column;
-    align-items: stretch;
-    max-width: 1040px;
+    align-items: center;
   }
 
   .monitor-stage--chat .player-wrap {
@@ -1186,17 +1165,19 @@ onBeforeUnmount(() => {
 
   .player-wrap {
     width: 100%;
+    max-width: var(--stacked-max-width);
   }
 
   .chat-panel {
-    position: relative;
+    position: static;
     width: 100%;
-    max-width: none;
-    max-height: min(46vh, 380px);
+    max-width: var(--stacked-max-width);
+    max-height: 40vh;
+    box-shadow: none;
   }
 
   .chat-messages {
-    max-height: min(36vh, 280px);
+    max-height: 28vh;
   }
 }
 
@@ -1206,27 +1187,20 @@ onBeforeUnmount(() => {
   }
 
   .monitor-stage {
-    flex-direction: column;
     align-items: stretch;
-    position: relative;
   }
 
-  .monitor-stage--chat .player-wrap {
-    margin-right: 0;
+  .player-wrap,
+  .chat-panel {
+    max-width: none;
   }
 
   .chat-panel {
-    position: fixed;
-    inset: auto 14px 14px 14px;
-    width: auto;
-    max-width: none;
-    max-height: min(62vh, 520px);
-    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.24);
-    z-index: 3;
+    max-height: 48vh;
   }
 
   .chat-messages {
-    max-height: min(48vh, 420px);
+    max-height: 36vh;
   }
 }
 </style>
