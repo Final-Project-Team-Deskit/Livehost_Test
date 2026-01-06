@@ -1120,7 +1120,7 @@ watch(liveId, loadDetail, { immediate: true })
 .product-status.is-soldout {
   background: rgba(248, 113, 113, 0.15);
   color: #ef4444;
-}s
+}
 
 @media (max-width: 900px) {
   .player-frame {
