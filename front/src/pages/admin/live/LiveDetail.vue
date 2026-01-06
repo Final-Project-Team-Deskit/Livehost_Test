@@ -11,6 +11,9 @@ const liveId = computed(() => (typeof route.params.liveId === 'string' ? route.p
 const detail = ref<ReturnType<typeof getAdminLiveSummaries>[number] | null>(null)
 
 const stageRef = ref<HTMLDivElement | null>(null)
+const stageWidth = ref(0)
+const stageHeight = computed(() => (stageWidth.value ? (stageWidth.value * 9) / 16 : null))
+let stageObserver: ResizeObserver | null = null
 const isFullscreen = ref(false)
 const showStopModal = ref(false)
 const stopReason = ref('')
@@ -264,11 +267,21 @@ onMounted(() => {
   seedProductThumbs()
   document.addEventListener('fullscreenchange', syncFullscreen)
   window.addEventListener(ADMIN_LIVES_EVENT, loadDetail)
+  if (stageRef.value) {
+    stageObserver = new ResizeObserver((entries) => {
+      const entry = entries[0]
+      if (entry?.contentRect?.width) {
+        stageWidth.value = entry.contentRect.width
+      }
+    })
+    stageObserver.observe(stageRef.value)
+  }
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('fullscreenchange', syncFullscreen)
   window.removeEventListener(ADMIN_LIVES_EVENT, loadDetail)
+  stageObserver?.disconnect()
 })
 
 watch(liveId, loadDetail, { immediate: true })
@@ -327,7 +340,12 @@ watch(liveId, loadDetail, { immediate: true })
         </div>
 
         <div v-show="activePane === 'monitor'" id="monitor-pane">
-          <div ref="stageRef" class="monitor-stage" :class="{ 'monitor-stage--chat': showChat }">
+          <div
+            ref="stageRef"
+            class="monitor-stage"
+            :class="{ 'monitor-stage--chat': showChat }"
+            :style="{ '--monitor-height': stageHeight ? `${stageHeight}px` : undefined }"
+          >
             <div class="player-wrap">
               <div class="player-frame" :class="{ 'player-frame--fullscreen': isFullscreen }">
                 <div class="player-overlay">
@@ -559,11 +577,15 @@ watch(liveId, loadDetail, { immediate: true })
   position: relative;
   width: min(100%, var(--media-max-width, 1200px));
   margin: 0 auto;
+  min-height: var(--monitor-height, clamp(460px, 62vh, 720px));
+  height: var(--monitor-height, auto);
+  max-height: var(--monitor-height, 100vh);
 }
 
 .player-wrap {
   flex: 1;
   min-width: 0;
+  height: var(--monitor-height, auto);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -573,9 +595,9 @@ watch(liveId, loadDetail, { immediate: true })
   position: relative;
   width: 100%;
   height: auto;
-  max-width: calc((100vh - 120px) * (16 / 9));
-  max-height: calc(100vh - 120px);
-  min-height: clamp(360px, auto, 760px);
+  max-width: 100%;
+  max-height: var(--monitor-height, calc(100vh - 180px));
+  min-height: clamp(360px, 56vh, 760px);
   aspect-ratio: 16 / 9;
   background: #0b0f1a;
   border-radius: 18px;
