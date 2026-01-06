@@ -645,7 +645,7 @@ onBeforeUnmount(() => {
   min-height: clamp(220px, 56vw, 720px);
   max-height: calc(100vw * (9 / 16));
   max-width: min(100%, calc((100vh - 180px) * (16 / 9)));
-  overflow: hidden;
+  overflow: auto;
 }
 
 .player-frame--fullscreen,
