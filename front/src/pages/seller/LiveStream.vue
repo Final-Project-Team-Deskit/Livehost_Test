@@ -47,7 +47,7 @@ const showSettings = ref(false)
 const viewerCount = ref(1010)
 const likeCount = ref(1574)
 const elapsed = ref('02:01:44')
-const fullscreenRef = ref<HTMLElement | null>(null)
+const monitorRef = ref<HTMLElement | null>(null)
 const streamGridRef = ref<HTMLElement | null>(null)
 const isFullscreen = ref(false)
 const micEnabled = ref(true)
@@ -71,7 +71,6 @@ const handleFullscreenChange = () => {
 
 const gridWidth = ref(0)
 const gridHeight = computed(() => (gridWidth.value ? (gridWidth.value * 9) / 16 : null))
-const isNarrowLayout = computed(() => gridWidth.value > 0 && gridWidth.value < 1180)
 
 const confirmState = reactive({
   open: false,
@@ -153,37 +152,21 @@ const sortedProducts = computed(() => {
 
 const chatItems = computed(() => chatMessages.value)
 
-const hasSidePanels = computed(() => !isNarrowLayout.value && (showProducts.value || showChat.value))
+const hasSidePanels = computed(() => showProducts.value || showChat.value)
 const gridStyles = computed(() => ({
   gridTemplateColumns: monitorColumns.value,
-  gridTemplateAreas: gridAreas.value,
   '--stream-pane-height': streamPaneHeight.value,
   '--center-height': gridHeight.value ? `${gridHeight.value}px` : undefined,
 }))
 
 const monitorColumns = computed(() => {
-  if (isNarrowLayout.value) return '1fr'
   if (showProducts.value && showChat.value) return '320px minmax(0, 1fr) 320px'
   if (showProducts.value) return '320px minmax(0, 1fr)'
   if (showChat.value) return 'minmax(0, 1fr) 320px'
   return 'minmax(0, 1fr)'
 })
 
-const gridAreas = computed(() => {
-  if (isNarrowLayout.value) {
-    const areas = ['"center"']
-    if (showProducts.value) areas.push('"products"')
-    if (showChat.value) areas.push('"chat"')
-    return areas.join(' ')
-  }
-  if (showProducts.value && showChat.value) return '"products center chat"'
-  if (showProducts.value) return '"products center"'
-  if (showChat.value) return '"center chat"'
-  return '"center"'
-})
-
 const streamPaneHeight = computed(() => {
-  if (isNarrowLayout.value) return 'auto'
   const dynamic = gridHeight.value
   if (dynamic) {
     const min = 320
@@ -397,7 +380,7 @@ const requestEndBroadcast = () => {
 }
 
 const toggleFullscreen = async () => {
-  const el = fullscreenRef.value
+  const el = monitorRef.value
   if (!el) return
   try {
     if (document.fullscreenElement) {
@@ -412,8 +395,7 @@ const toggleFullscreen = async () => {
 </script>
 
 <template>
-<PageContainer>
-  <div ref="fullscreenRef" class="stream-shell">
+  <PageContainer>
     <header class="stream-header">
       <div>
         <h2 class="section-title">{{ displayTitle }}</h2>
@@ -429,17 +411,18 @@ const toggleFullscreen = async () => {
     </header>
 
     <section
-        :ref="(el) => {
-          streamGridRef = el
-        }"
-        class="stream-grid"
-        :class="{
-          'stream-grid--chat': showChat,
-          'stream-grid--products': showProducts,
-        }"
-        :style="gridStyles"
+      :ref="(el) => {
+        monitorRef = el
+        streamGridRef = el
+      }"
+      class="stream-grid"
+      :class="{
+        'stream-grid--chat': showChat,
+        'stream-grid--products': showProducts,
+      }"
+      :style="gridStyles"
     >
-      <aside v-if="showProducts" class="stream-panel stream-panel--products ds-surface">
+      <aside v-if="showProducts" class="stream-panel ds-surface">
         <div class="panel-head">
           <div class="panel-head__left">
             <h3>상품 관리</h3>
@@ -650,7 +633,7 @@ const toggleFullscreen = async () => {
         </div>
       </div>
 
-      <aside v-if="showChat" class="stream-panel stream-panel--chat stream-chat ds-surface">
+      <aside v-if="showChat" class="stream-panel stream-chat ds-surface">
         <div class="panel-head">
           <div class="panel-head__left">
             <h3>실시간 채팅</h3>
@@ -680,18 +663,17 @@ const toggleFullscreen = async () => {
       </aside>
     </section>
     <ConfirmModal
-        v-model="confirmState.open"
-        :title="confirmState.title"
-        :description="confirmState.description"
-        :confirm-text="confirmState.confirmText"
-        :cancel-text="confirmState.cancelText"
-        @confirm="handleConfirmAction"
+      v-model="confirmState.open"
+      :title="confirmState.title"
+      :description="confirmState.description"
+      :confirm-text="confirmState.confirmText"
+      :cancel-text="confirmState.cancelText"
+      @confirm="handleConfirmAction"
     />
     <QCardModal v-model="showQCards" :q-cards="qCards" :initial-index="qCardIndex" @update:initialIndex="qCardIndex = $event" />
     <BasicInfoEditModal v-if="broadcastInfo" v-model="showBasicInfo" :broadcast="broadcastInfo" @save="handleBasicInfoSave" />
     <ChatSanctionModal v-model="showSanctionModal" :username="sanctionTarget" @save="applySanction" />
-  </div>
-</PageContainer>
+  </PageContainer>
 </template>
 
 <style scoped>
@@ -699,12 +681,6 @@ const toggleFullscreen = async () => {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
-}
-
-.stream-shell {
-  display: flex;
-  flex-direction: column;
   gap: 16px;
 }
 
@@ -738,22 +714,9 @@ const toggleFullscreen = async () => {
 .stream-grid {
   display: grid;
   grid-template-columns: 320px minmax(0, 1fr) 320px;
-  grid-template-areas: 'products center chat';
   gap: 18px;
   align-items: start;
   --stream-pane-height: clamp(300px, auto, 675px);
-}
-
-.stream-panel--products {
-  grid-area: products;
-}
-
-.stream-center {
-  grid-area: center;
-}
-
-.stream-panel--chat {
-  grid-area: chat;
 }
 
 .stream-panel {
@@ -1289,44 +1252,6 @@ const toggleFullscreen = async () => {
 }
 
 .stream-grid:fullscreen.stream-grid--products.stream-grid--chat .stream-player {
-  width: min(max(320px, calc(100vw - 720px)), calc(100vh * (16 / 9)));
-  height: min(100vh, max(200px, calc((100vw - 720px) * (9 / 16))));
-}
-
-.stream-shell:fullscreen {
-  background: #0b0f1a;
-}
-
-.stream-shell:fullscreen .stream-grid {
-  gap: 14px;
-}
-
-.stream-shell:fullscreen .stream-panel,
-.stream-shell:fullscreen .stream-center {
-  height: 100vh;
-  max-height: 100vh;
-  min-height: 0;
-}
-
-.stream-shell:fullscreen .stream-player {
-  max-height: 100vh;
-  width: min(100vw, calc(100vh * (16 / 9)));
-  height: min(100vh, calc(100vw * (9 / 16)));
-  border-radius: 0;
-  background: #000;
-}
-
-.stream-shell:fullscreen .stream-grid.stream-grid--chat .stream-player {
-  width: min(max(320px, calc(100vw - 380px)), calc(100vh * (16 / 9)));
-  height: min(100vh, max(200px, calc((100vw - 380px) * (9 / 16))));
-}
-
-.stream-shell:fullscreen .stream-grid.stream-grid--products:not(.stream-grid--chat) .stream-player {
-  width: min(max(320px, calc(100vw - 340px)), calc(100vh * (16 / 9)));
-  height: min(100vh, max(200px, calc((100vw - 340px) * (9 / 16))));
-}
-
-.stream-shell:fullscreen .stream-grid.stream-grid--products.stream-grid--chat .stream-player {
   width: min(max(320px, calc(100vw - 720px)), calc(100vh * (16 / 9)));
   height: min(100vh, max(200px, calc((100vw - 720px) * (9 / 16))));
 }
