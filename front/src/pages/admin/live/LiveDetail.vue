@@ -577,9 +577,6 @@ watch(liveId, loadDetail, { immediate: true })
   position: relative;
   width: min(100%, var(--media-max-width, 1200px));
   margin: 0 auto;
-  min-height: var(--monitor-height, clamp(460px, 62vh, 720px));
-  height: var(--monitor-height, auto);
-  max-height: var(--monitor-height, 760px);
 }
 
 .player-wrap {
@@ -595,13 +592,13 @@ watch(liveId, loadDetail, { immediate: true })
   position: relative;
   width: 100%;
   height: auto;
-  max-width: 100%;
-  max-height: var(--monitor-height, calc(100vh - 180px));
-  min-height: clamp(360px, 56vh, 760px);
+  max-width: calc((100vh - 120px) * (16 / 9));
+  max-height: calc(100vh - 120px);
+  min-height: clamp(360px, auto, 760px);
   aspect-ratio: 16 / 9;
   background: #0b0f1a;
   border-radius: 18px;
-  overflow: hidden;
+  overflow: auto;
   display: flex;
   align-items: center;
   justify-content: center;

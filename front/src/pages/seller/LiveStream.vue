@@ -713,7 +713,7 @@ const toggleFullscreen = async () => {
   grid-template-columns: 320px minmax(0, 1fr) 320px;
   gap: 18px;
   align-items: start;
-  --stream-pane-height: clamp(460px, 62vh, 680px);
+  --stream-pane-height: clamp(300px, auto, 675px);
 }
 
 .stream-panel {
@@ -959,7 +959,7 @@ const toggleFullscreen = async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
+  overflow: auto;
   min-height: 320px;
 }
 
