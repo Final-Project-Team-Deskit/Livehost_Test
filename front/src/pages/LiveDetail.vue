@@ -664,6 +664,22 @@ onBeforeUnmount(() => {
   object-fit: contain;
 }
 
+.player-frame--fullscreen,
+.player-frame:fullscreen {
+  width: min(100vw, calc(100vh * (16 / 9)));
+  height: min(100vh, calc(100vw * (9 / 16)));
+  max-height: 100vh;
+  max-width: 100vw;
+  border-radius: 0;
+  background: #000;
+}
+
+.player-frame:fullscreen iframe,
+.player-frame:fullscreen video,
+.player-frame:fullscreen img {
+  object-fit: contain;
+}
+
 .player-frame__label {
   opacity: 0.8;
 }
