@@ -11,7 +11,6 @@ const liveId = computed(() => (typeof route.params.liveId === 'string' ? route.p
 const detail = ref<ReturnType<typeof getAdminLiveSummaries>[number] | null>(null)
 
 const stageRef = ref<HTMLDivElement | null>(null)
-const stageWidth = ref(0)
 const isFullscreen = ref(false)
 const showStopModal = ref(false)
 const stopReason = ref('')
@@ -77,7 +76,6 @@ const liveProducts = ref(
     ],
 )
 const gradientPalette = ['111827', '0f172a', '1f2937', '334155'] as const
-let stageObserver: ResizeObserver | null = null
 
 const gradientThumb = (from: string, to: string) =>
     `data:image/svg+xml;utf8,` +
@@ -261,36 +259,16 @@ const saveModeration = () => {
   })
 }
 
-const isStackedStage = computed(() => {
-  if (!stageWidth.value) return false
-  const minimumStreamWidth = 640
-  const chatWidth = showChat.value ? 360 : 0
-  const gap = showChat.value ? 16 : 0
-  return stageWidth.value < minimumStreamWidth + chatWidth + gap + 32
-})
-
 onMounted(() => {
   loadDetail()
   seedProductThumbs()
   document.addEventListener('fullscreenchange', syncFullscreen)
   window.addEventListener(ADMIN_LIVES_EVENT, loadDetail)
-  nextTick(() => {
-    if (stageRef.value) {
-      stageObserver = new ResizeObserver((entries) => {
-        const entry = entries[0]
-        if (entry?.contentRect?.width) {
-          stageWidth.value = entry.contentRect.width
-        }
-      })
-      stageObserver.observe(stageRef.value)
-    }
-  })
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('fullscreenchange', syncFullscreen)
   window.removeEventListener(ADMIN_LIVES_EVENT, loadDetail)
-  stageObserver?.disconnect()
 })
 
 watch(liveId, loadDetail, { immediate: true })
@@ -349,7 +327,7 @@ watch(liveId, loadDetail, { immediate: true })
         </div>
 
         <div v-show="activePane === 'monitor'" id="monitor-pane">
-          <div ref="stageRef" class="monitor-stage" :class="{ 'monitor-stage--chat': showChat, 'monitor-stage--stacked': isStackedStage }">
+          <div ref="stageRef" class="monitor-stage" :class="{ 'monitor-stage--chat': showChat }">
             <div class="player-wrap">
               <div class="player-frame" :class="{ 'player-frame--fullscreen': isFullscreen }">
                 <div class="player-overlay">
@@ -841,28 +819,6 @@ watch(liveId, loadDetail, { immediate: true })
   width: 360px;
   height: auto;
   overflow: hidden;
-}
-
-.monitor-stage--stacked {
-  flex-direction: column;
-  align-items: stretch;
-}
-
-.monitor-stage--stacked .player-wrap {
-  margin-right: 0;
-}
-
-.monitor-stage--stacked .chat-panel {
-  position: relative;
-  inset: auto;
-  width: 100%;
-  max-width: none;
-  height: auto;
-  margin-top: 12px;
-}
-
-.monitor-stage--stacked .chat-messages {
-  max-height: 320px;
 }
 
 .chat-input input {
