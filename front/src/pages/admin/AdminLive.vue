@@ -284,25 +284,25 @@ const filteredLive = computed(() => {
 })
 
 const filteredScheduled = computed(() => {
-  let filtered = scheduledItemsWithStatus.value.filter((item) =>
+  const base = scheduledItemsWithStatus.value.filter((item) =>
     SCHEDULED_SECTION_STATUSES.includes(getLifecycleStatus(item)),
   )
-  if (scheduledStatus.value === 'reserved') {
-    filtered = filtered.filter((item) => getLifecycleStatus(item) === 'RESERVED')
-  } else if (scheduledStatus.value === 'canceled') {
-    filtered = filtered.filter((item) => getLifecycleStatus(item) === 'CANCELED')
-  }
-  if (scheduledCategory.value !== 'all') {
-    filtered = filtered.filter((item) => item.category === scheduledCategory.value)
-  }
-  filtered.sort((a, b) => {
-    const aDate = a.startAtMs ?? toDateMs(a.datetime)
-    const bDate = b.startAtMs ?? toDateMs(b.datetime)
-    if (scheduledSort.value === 'latest') return bDate - aDate
-    if (scheduledSort.value === 'oldest') return aDate - bDate
-    return aDate - bDate
-  })
-  return filtered
+  const matchesCategory = scheduledCategory.value === 'all' ? base : base.filter((item) => item.category === scheduledCategory.value)
+  const reserved = matchesCategory.filter((item) => getLifecycleStatus(item) === 'RESERVED')
+  const canceled = matchesCategory.filter((item) => getLifecycleStatus(item) === 'CANCELED')
+
+  const sortScheduled = (items: ReservationItem[]) =>
+    items.slice().sort((a, b) => {
+      const aDate = a.startAtMs ?? toDateMs(a.datetime)
+      const bDate = b.startAtMs ?? toDateMs(b.datetime)
+      if (scheduledSort.value === 'latest') return bDate - aDate
+      if (scheduledSort.value === 'oldest') return aDate - bDate
+      return aDate - bDate
+    })
+
+  if (scheduledStatus.value === 'reserved') return sortScheduled(reserved)
+  if (scheduledStatus.value === 'canceled') return sortScheduled(canceled)
+  return [...sortScheduled(reserved), ...sortScheduled(canceled)]
 })
 
 const filteredVods = computed(() => {
@@ -318,18 +318,24 @@ const filteredVods = computed(() => {
     return true
   })
 
-  filtered.sort((a, b) => {
-    if (vodSort.value === 'latest') return (b.startAtMs ?? 0) - (a.startAtMs ?? 0)
-    if (vodSort.value === 'oldest') return (a.startAtMs ?? 0) - (b.startAtMs ?? 0)
-    if (vodSort.value === 'reports_desc') return (b.metrics.reports ?? 0) - (a.metrics.reports ?? 0)
-    if (vodSort.value === 'likes_desc') return (b.metrics.likes ?? 0) - (a.metrics.likes ?? 0)
-    if (vodSort.value === 'likes_asc') return (a.metrics.likes ?? 0) - (b.metrics.likes ?? 0)
-    if (vodSort.value === 'revenue_desc') return (b.metrics.totalRevenue ?? 0) - (a.metrics.totalRevenue ?? 0)
-    if (vodSort.value === 'revenue_asc') return (a.metrics.totalRevenue ?? 0) - (b.metrics.totalRevenue ?? 0)
-    if (vodSort.value === 'viewers_desc') return (b.metrics.maxViewers ?? 0) - (a.metrics.maxViewers ?? 0)
-    if (vodSort.value === 'viewers_asc') return (a.metrics.maxViewers ?? 0) - (b.metrics.maxViewers ?? 0)
-    return 0
-  })
+  const sortVod = (items: AdminVodItem[]) =>
+    items.slice().sort((a, b) => {
+      if (vodSort.value === 'latest') return (b.startAtMs ?? 0) - (a.startAtMs ?? 0)
+      if (vodSort.value === 'oldest') return (a.startAtMs ?? 0) - (b.startAtMs ?? 0)
+      if (vodSort.value === 'reports_desc') return (b.metrics.reports ?? 0) - (a.metrics.reports ?? 0)
+      if (vodSort.value === 'likes_desc') return (b.metrics.likes ?? 0) - (a.metrics.likes ?? 0)
+      if (vodSort.value === 'likes_asc') return (a.metrics.likes ?? 0) - (b.metrics.likes ?? 0)
+      if (vodSort.value === 'revenue_desc') return (b.metrics.totalRevenue ?? 0) - (a.metrics.totalRevenue ?? 0)
+      if (vodSort.value === 'revenue_asc') return (a.metrics.totalRevenue ?? 0) - (b.metrics.totalRevenue ?? 0)
+      if (vodSort.value === 'viewers_desc') return (b.metrics.maxViewers ?? 0) - (a.metrics.maxViewers ?? 0)
+      if (vodSort.value === 'viewers_asc') return (a.metrics.maxViewers ?? 0) - (b.metrics.maxViewers ?? 0)
+      return 0
+    })
+
+  const vodOnly = filtered.filter((item) => getLifecycleStatus(item) === 'VOD')
+  const stoppedOnly = filtered.filter((item) => getLifecycleStatus(item) === 'STOPPED')
+
+  filtered = [...sortVod(vodOnly), ...sortVod(stoppedOnly)]
 
   return filtered
 })
@@ -342,9 +348,27 @@ const liveCategories = computed(() => Array.from(new Set(liveDisplayItems.value.
 const scheduledCategories = computed(() => Array.from(new Set(scheduledItemsWithStatus.value.map((item) => item.category ?? '기타'))))
 const vodCategories = computed(() => Array.from(new Set(vodDisplayItems.value.map((item) => item.category ?? '기타'))))
 
-const liveSummary = computed<LiveItem[]>(() => filteredLive.value.slice(0, 5))
-const scheduledSummary = computed<ReservationItem[]>(() => filteredScheduled.value.slice(0, 5))
-const vodSummary = computed<AdminVodItem[]>(() => filteredVods.value.slice(0, 5))
+const liveSummary = computed<LiveItem[]>(() =>
+  liveDisplayItems.value
+    .filter((item) => LIVE_SECTION_STATUSES.includes(getLifecycleStatus(item)))
+    .slice()
+    .sort((a, b) => (b.viewers ?? 0) - (a.viewers ?? 0))
+    .slice(0, 5),
+)
+const scheduledSummary = computed<ReservationItem[]>(() =>
+  scheduledItemsWithStatus.value
+    .filter((item) => getLifecycleStatus(item) === 'RESERVED')
+    .slice()
+    .sort((a, b) => (a.startAtMs ?? toDateMs(a.datetime)) - (b.startAtMs ?? toDateMs(b.datetime)))
+    .slice(0, 5),
+)
+const vodSummary = computed<AdminVodItem[]>(() =>
+  vodItemsWithStatus.value
+    .filter((item) => getLifecycleStatus(item) === 'VOD')
+    .slice()
+    .sort((a, b) => (b.startAtMs ?? 0) - (a.startAtMs ?? 0))
+    .slice(0, 5),
+)
 
 const buildLoopItems = <T>(items: T[]): T[] => {
   if (!items.length) return []
@@ -684,10 +708,7 @@ onBeforeUnmount(() => {
           </button>
         </template>
 
-        <article v-else class="live-card ds-surface live-card--empty">
-          <p class="live-card__title">진행 중인 방송이 없습니다.</p>
-          <p class="live-card__meta">라이브 시작 시 목록이 표시됩니다.</p>
-        </article>
+        <p v-else class="empty-section">진행 중인 방송이 없습니다. 라이브 시작 시 목록이 표시됩니다.</p>
       </div>
 
       <div v-else class="carousel-wrap">
@@ -734,10 +755,9 @@ onBeforeUnmount(() => {
               </article>
             </template>
 
-            <article v-else class="live-card ds-surface live-card--empty">
-              <p class="live-card__title">진행 중인 방송이 없습니다.</p>
-              <p class="live-card__meta">라이브 시작 시 목록이 표시됩니다.</p>
-            </article>
+            <p v-else class="empty-section live-carousel__empty">
+              진행 중인 방송이 없습니다. 라이브 시작 시 목록이 표시됩니다.
+            </p>
           </div>
         </div>
 
@@ -895,10 +915,9 @@ onBeforeUnmount(() => {
               </article>
             </template>
 
-            <article v-else class="live-card ds-surface live-card--empty">
-              <p class="live-card__title">예약된 방송이 없습니다.</p>
-              <p class="live-card__meta">예약 데이터를 불러오면 자동으로 표시됩니다.</p>
-            </article>
+            <p v-else class="empty-section live-carousel__empty">
+              예약된 방송이 없습니다. 예약 데이터를 불러오면 자동으로 표시됩니다.
+            </p>
           </div>
         </div>
 
@@ -1060,10 +1079,9 @@ onBeforeUnmount(() => {
               </article>
             </template>
 
-            <article v-else class="live-card ds-surface live-card--empty">
-              <p class="live-card__title">등록된 VOD가 없습니다.</p>
-              <p class="live-card__meta">영상이 업로드되면 자동으로 표시됩니다.</p>
-            </article>
+            <p v-else class="empty-section live-carousel__empty">
+              등록된 VOD가 없습니다. 영상이 업로드되면 자동으로 표시됩니다.
+            </p>
           </div>
         </div>
 
@@ -1232,6 +1250,17 @@ onBeforeUnmount(() => {
   align-items: center;
 }
 
+.empty-section {
+  text-align: center;
+  color: var(--text-muted);
+  font-weight: 800;
+  padding: 18px 12px;
+}
+
+.live-carousel__empty {
+  width: 100%;
+}
+
 .carousel-wrap {
   position: relative;
   padding: 0 8px;
@@ -1308,8 +1337,8 @@ onBeforeUnmount(() => {
 
 .live-badges {
   position: absolute;
-  right: 10px;
   top: 10px;
+  left: 10px;
   display: inline-flex;
   gap: 8px;
   align-items: center;
