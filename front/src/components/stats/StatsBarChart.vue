@@ -15,6 +15,7 @@ const maxValue = computed(() => {
 
 const getStep = (max: number) => {
   if (max <= 0) return 1
+  if (max <= 9) return 1
   const rawStep = Math.max(1, Math.ceil(max / 9))
   const magnitude = 10 ** Math.floor(Math.log10(rawStep))
   const rounded = Math.max(1, Math.round(rawStep / magnitude)) * magnitude
@@ -93,6 +94,8 @@ const barLayoutStyle = computed(() => ({
   gap: 10px;
   width: 100%;
   max-width: 100%;
+  box-sizing: border-box;
+  padding-right: 6px;
 }
 
 .bar-chart__y-axis {
