@@ -250,7 +250,6 @@ onBeforeUnmount(() => {
 })
 
 onMounted(() => {
-  stageRef.value = playerPanelRef.value?.querySelector('.player-frame') as HTMLElement | null
   document.addEventListener('click', handleDocumentClick)
   document.addEventListener('keydown', handleDocumentKeydown)
   document.addEventListener('fullscreenchange', handleFullscreenChange)
@@ -297,7 +296,7 @@ watch(showChat, (visible) => {
             <p v-if="vodItem.sellerName" class="player-seller">{{ vodItem.sellerName }}</p>
           </div>
 
-          <div class="player-frame">
+          <div class="player-frame" ref="stageRef" :class="{ 'player-frame--fullscreen': isFullscreen }">
             <span v-if="status === 'UPCOMING'" class="player-frame__label">아직 시작 전입니다</span>
             <span v-else-if="!vodItem.vodUrl" class="player-frame__label">VOD 준비 중</span>
             <iframe
@@ -405,7 +404,7 @@ watch(showChat, (visible) => {
           v-if="showChat"
           ref="chatPanelRef"
           class="chat-panel ds-surface"
-          :style="{ height: playerHeight ? `${playerHeight}px` : undefined }"
+        :style="{ height: playerHeight ? `${playerHeight}px` : undefined }"
         >
           <header class="chat-head">
             <h4>채팅 기록</h4>
@@ -471,6 +470,7 @@ watch(showChat, (visible) => {
   display: flex;
   flex-direction: column;
   gap: 18px;
+  overflow-x: hidden;
 }
 
 .live-detail-main {
@@ -682,6 +682,7 @@ watch(showChat, (visible) => {
 .player-frame {
   position: relative;
   width: 100%;
+  height: auto;
   aspect-ratio: 16 / 9;
   background: #10131b;
   border-radius: 16px;
@@ -689,8 +690,25 @@ watch(showChat, (visible) => {
   place-items: center;
   color: #fff;
   font-weight: 700;
-  min-height: 360px;
+  min-height: clamp(160px, 46vw, 560px);
+  max-height: calc(100vw * (9 / 16));
+  max-width: min(100%, calc((100vh - 180px) * (16 / 9)));
   overflow: hidden;
+}
+
+.player-frame--fullscreen,
+.player-frame:fullscreen {
+  width: min(100vw, calc(100vh * (16 / 9)));
+  height: min(100vh, calc(100vw * (9 / 16)));
+  max-height: 100vh;
+  max-width: 100vw;
+  border-radius: 0;
+  background: #000;
+}
+
+.player-frame:fullscreen .player-embed,
+.player-frame:fullscreen .player-video {
+  object-fit: contain;
 }
 
 .player-frame__label {
@@ -710,7 +728,7 @@ watch(showChat, (visible) => {
   height: 100%;
   border: 0;
   display: block;
-  object-fit: cover;
+  object-fit: contain;
   background: #0b0f18;
 }
 
@@ -817,6 +835,7 @@ watch(showChat, (visible) => {
 
 .chat-panel {
   width: 360px;
+  max-width: 100%;
   display: flex;
   flex-direction: column;
   border-radius: 16px;
@@ -936,12 +955,6 @@ watch(showChat, (visible) => {
   font-weight: 700;
 }
 
-@media (max-width: 1080px) {
-  .live-detail-main {
-    grid-template-columns: 1fr;
-  }
-}
-
 @media (max-width: 640px) {
   .live-detail-main {
     gap: 14px;
@@ -958,6 +971,17 @@ watch(showChat, (visible) => {
   .product-card__thumb {
     width: 100%;
     height: 160px;
+  }
+}
+
+@media (max-width: 1120px) {
+  .live-detail-main {
+    grid-template-columns: 1fr !important;
+  }
+
+  .chat-panel {
+    width: 100%;
+    height: auto !important;
   }
 }
 </style>
