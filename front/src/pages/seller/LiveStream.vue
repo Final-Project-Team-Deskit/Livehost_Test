@@ -935,10 +935,9 @@ const toggleFullscreen = async () => {
 
 .stream-player {
   position: relative;
-  width: min(100%, calc((100vh - 120px) * (16 / 9)));
-  max-width: 100%;
+  width: 100%;
   height: auto;
-  max-height: 100%;
+  max-height: calc(100vh - 120px);
   aspect-ratio: 16 / 9;
   border-radius: 16px;
   background: #202942;
