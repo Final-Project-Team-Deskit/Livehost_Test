@@ -9,6 +9,12 @@ import {
 } from '../../lib/mocks/adminReservations'
 import { ADMIN_LIVES_EVENT, getAdminLiveSummaries, type AdminLiveSummary } from '../../lib/mocks/adminLives'
 import { ADMIN_VODS_EVENT, getAdminVodSummaries, type AdminVodSummary } from '../../lib/mocks/adminVods'
+import {
+  computeLifecycleStatus,
+  getScheduledEndMs,
+  normalizeBroadcastStatus,
+  type BroadcastStatus,
+} from '../../lib/broadcastStatus'
 
 type LiveTab = 'all' | 'scheduled' | 'live' | 'vod'
 type LoopKind = 'live' | 'scheduled' | 'vod'
@@ -31,6 +37,7 @@ type LiveItem = {
   startedAt?: string
   startedAtMs?: number
   startAtMs?: number
+  lifecycleStatus?: BroadcastStatus
 }
 
 type ReservationItem = LiveItem & {
@@ -38,6 +45,7 @@ type ReservationItem = LiveItem & {
   status: string
   category: string
   startAtMs?: number
+  lifecycleStatus?: BroadcastStatus
 }
 
 type AdminVodItem = LiveItem & {
@@ -48,12 +56,26 @@ type AdminVodItem = LiveItem & {
   startAtMs?: number
   endAtMs?: number
   visibility?: 'public' | 'private'
+  lifecycleStatus?: BroadcastStatus
 }
 
 const router = useRouter()
 const route = useRoute()
 
 const activeTab = ref<LiveTab>('all')
+
+const LIVE_SECTION_STATUSES: BroadcastStatus[] = ['READY', 'ON_AIR', 'ENDED', 'STOPPED']
+const SCHEDULED_SECTION_STATUSES: BroadcastStatus[] = ['RESERVED', 'CANCELED']
+const VOD_SECTION_STATUSES: BroadcastStatus[] = ['VOD', 'STOPPED']
+const statusPriority: Record<BroadcastStatus, number> = {
+  ON_AIR: 0,
+  READY: 1,
+  STOPPED: 2,
+  ENDED: 3,
+  RESERVED: 4,
+  CANCELED: 5,
+  VOD: 6,
+}
 
 const liveCategory = ref<string>('all')
 const liveSort = ref<'reports_desc' | 'latest' | 'viewers_desc' | 'viewers_asc'>('reports_desc')
@@ -125,10 +147,33 @@ const toDateMs = (raw: string | undefined) => {
   return Number.isNaN(parsed) ? 0 : parsed
 }
 
+const withLifecycleStatus = (item: LiveItem): LiveItem => {
+  const startAtMs = item.startAtMs ?? item.startedAtMs ?? toDateMs(item.startedAt ?? item.datetime)
+  const endAtMs = getScheduledEndMs(startAtMs, item.endAtMs)
+  const lifecycleStatus = computeLifecycleStatus({
+    status: item.lifecycleStatus ?? item.status,
+    startAtMs,
+    endAtMs,
+  })
+  return {
+    ...item,
+    startAtMs,
+    endAtMs,
+    lifecycleStatus,
+  }
+}
+
+const getLifecycleStatus = (item: LiveItem): BroadcastStatus => normalizeBroadcastStatus(item.lifecycleStatus ?? item.status)
+
+const isPastScheduledEnd = (item: LiveItem): boolean => {
+  const endAtMs = getScheduledEndMs(item.startAtMs, item.endAtMs)
+  if (!endAtMs) return false
+  return Date.now() > endAtMs
+}
+
 const syncScheduled = () => {
   const items = getAdminReservationSummaries()
   scheduledItems.value = items
-    .filter((item) => item.status !== '취소됨')
     .map((item: AdminReservationSummary) => ({
       id: item.id,
       title: item.title,
@@ -137,15 +182,26 @@ const syncScheduled = () => {
       datetime: item.datetime,
       ctaLabel: item.ctaLabel,
       sellerName: item.sellerName,
-      status: item.status,
+      status: normalizeBroadcastStatus(item.status),
       category: (item as any).category ?? '기타',
       startAtMs: toDateMs(item.datetime),
+      endAtMs: getScheduledEndMs(toDateMs(item.datetime)),
     }))
 }
 
 const syncLives = () => {
-  const items = getAdminLiveSummaries().filter((item) => item.status === '방송중')
-  liveItems.value = items
+  const items = getAdminLiveSummaries()
+  liveItems.value = items.map((item) => {
+    const startAtMs = toDateMs(item.startedAt)
+    const status = normalizeBroadcastStatus(item.status)
+    return {
+      ...item,
+      status,
+      startAtMs,
+      startedAtMs: startAtMs,
+      endAtMs: getScheduledEndMs(startAtMs),
+    }
+  })
 }
 
 const syncVods = () => {
@@ -159,19 +215,65 @@ const syncVods = () => {
       subtitle: '',
       datetime: `업로드: ${item.startedAt}`,
       ctaLabel: '상세보기',
+      status: 'VOD',
       startAtMs,
       endAtMs,
       visibility,
+      lifecycleStatus: 'VOD',
     }
   })
 }
 
+const liveItemsWithStatus = computed(() => liveItems.value.map(withLifecycleStatus))
+const scheduledItemsWithStatus = computed(() => scheduledItems.value.map(withLifecycleStatus))
+const vodItemsWithStatus = computed(() => vodItems.value.map(withLifecycleStatus))
+
+const liveDisplayItems = computed(() => {
+  const byId = new Map<string, LiveItem>()
+  ;[...liveItemsWithStatus.value, ...scheduledItemsWithStatus.value].forEach((item) => {
+    const status = getLifecycleStatus(item)
+    if (!LIVE_SECTION_STATUSES.includes(status)) return
+    if (status === 'STOPPED' && isPastScheduledEnd(item)) return
+    byId.set(item.id, { ...item, lifecycleStatus: status })
+  })
+  return Array.from(byId.values())
+})
+
+const stoppedVodItems = computed<AdminVodItem[]>(() => {
+  const sources = [...liveItemsWithStatus.value, ...scheduledItemsWithStatus.value]
+  return sources
+    .filter((item) => getLifecycleStatus(item) === 'STOPPED' && isPastScheduledEnd(item))
+    .map((item) => ({
+      ...item,
+      statusLabel: 'STOPPED',
+      lifecycleStatus: 'STOPPED',
+      visibility: 'public',
+      datetime: item.datetime ?? (item.startedAt ? `업로드: ${item.startedAt}` : ''),
+      metrics: (item as any).metrics ?? {
+        likes: item.likes ?? 0,
+        reports: item.reports ?? 0,
+        totalRevenue: 0,
+        maxViewers: item.viewers ?? 0,
+        watchTime: 0,
+      },
+      startAtMs: item.startAtMs,
+      endAtMs: item.endAtMs,
+    }))
+})
+
+const vodDisplayItems = computed(() => [...vodItemsWithStatus.value, ...stoppedVodItems.value])
+
 const filteredLive = computed(() => {
-  let filtered = [...liveItems.value]
+  let filtered = [...liveDisplayItems.value]
   if (liveCategory.value !== 'all') {
     filtered = filtered.filter((item) => item.category === liveCategory.value)
   }
   filtered.sort((a, b) => {
+    const aStatus = getLifecycleStatus(a)
+    const bStatus = getLifecycleStatus(b)
+    if (statusPriority[aStatus] !== statusPriority[bStatus]) {
+      return statusPriority[aStatus] - statusPriority[bStatus]
+    }
     if (liveSort.value === 'reports_desc') return (b.reports ?? 0) - (a.reports ?? 0)
     if (liveSort.value === 'latest') return toDateMs(b.startedAt) - toDateMs(a.startedAt)
     if (liveSort.value === 'viewers_desc') return (b.viewers ?? 0) - (a.viewers ?? 0)
@@ -182,11 +284,13 @@ const filteredLive = computed(() => {
 })
 
 const filteredScheduled = computed(() => {
-  let filtered = [...scheduledItems.value]
+  let filtered = scheduledItemsWithStatus.value.filter((item) =>
+    SCHEDULED_SECTION_STATUSES.includes(getLifecycleStatus(item)),
+  )
   if (scheduledStatus.value === 'reserved') {
-    filtered = filtered.filter((item) => item.status !== '취소됨')
+    filtered = filtered.filter((item) => getLifecycleStatus(item) === 'RESERVED')
   } else if (scheduledStatus.value === 'canceled') {
-    filtered = filtered.filter((item) => item.status === '취소됨')
+    filtered = filtered.filter((item) => getLifecycleStatus(item) === 'CANCELED')
   }
   if (scheduledCategory.value !== 'all') {
     filtered = filtered.filter((item) => item.category === scheduledCategory.value)
@@ -205,7 +309,7 @@ const filteredVods = computed(() => {
   const startMs = vodStartDate.value ? Date.parse(`${vodStartDate.value}T00:00:00`) : null
   const endMs = vodEndDate.value ? Date.parse(`${vodEndDate.value}T23:59:59`) : null
 
-  let filtered = [...vodItems.value].filter((item) => {
+  let filtered = [...vodDisplayItems.value].filter((item) => {
     const dateMs = item.startAtMs ?? toDateMs(item.startedAt)
     if (startMs && dateMs < startMs) return false
     if (endMs && dateMs > endMs) return false
@@ -234,11 +338,11 @@ const visibleLiveGridItems = computed(() => filteredLive.value.slice(0, liveVisi
 const visibleScheduledItems = computed(() => filteredScheduled.value.slice(0, scheduledVisibleCount.value))
 const visibleVodItems = computed(() => filteredVods.value.slice(0, vodVisibleCount.value))
 
-const liveCategories = computed(() => Array.from(new Set(liveItems.value.map((item) => item.category ?? '기타'))))
-const scheduledCategories = computed(() => Array.from(new Set(scheduledItems.value.map((item) => item.category ?? '기타'))))
-const vodCategories = computed(() => Array.from(new Set(vodItems.value.map((item) => item.category ?? '기타'))))
+const liveCategories = computed(() => Array.from(new Set(liveDisplayItems.value.map((item) => item.category ?? '기타'))))
+const scheduledCategories = computed(() => Array.from(new Set(scheduledItemsWithStatus.value.map((item) => item.category ?? '기타'))))
+const vodCategories = computed(() => Array.from(new Set(vodDisplayItems.value.map((item) => item.category ?? '기타'))))
 
-const liveSummary = computed<AdminLiveSummary[]>(() => filteredLive.value.slice(0, 5))
+const liveSummary = computed<LiveItem[]>(() => filteredLive.value.slice(0, 5))
 const scheduledSummary = computed<ReservationItem[]>(() => filteredScheduled.value.slice(0, 5))
 const vodSummary = computed<AdminVodItem[]>(() => filteredVods.value.slice(0, 5))
 
@@ -556,7 +660,7 @@ onBeforeUnmount(() => {
             <div class="live-thumb">
               <img class="live-thumb__img" :src="item.thumb" :alt="item.title" loading="lazy" />
               <div class="live-badges">
-                <span class="badge badge--live">{{ item.status }}</span>
+                <span class="badge badge--live">{{ getLifecycleStatus(item) }}</span>
                 <span class="badge badge--viewer">시청자 {{ item.viewers }}명</span>
               </div>
             </div>
@@ -615,7 +719,7 @@ onBeforeUnmount(() => {
                 <div class="live-thumb">
                   <img class="live-thumb__img" :src="item.thumb" :alt="item.title" loading="lazy" />
                   <div class="live-badges">
-                    <span class="badge badge--live">{{ item.status }}</span>
+                    <span class="badge badge--live">{{ getLifecycleStatus(item) }}</span>
                     <span class="badge badge--viewer">시청자 {{ item.viewers }}명</span>
                   </div>
                 </div>
@@ -710,8 +814,11 @@ onBeforeUnmount(() => {
               <div class="live-thumb">
                 <img class="live-thumb__img" :src="item.thumb" :alt="item.title" loading="lazy" />
                 <div class="live-badges">
-                  <span class="badge badge--scheduled" :class="{ 'badge--cancelled': item.status === '취소됨' }">
-                    {{ item.status }}
+                  <span
+                    class="badge badge--scheduled"
+                    :class="{ 'badge--cancelled': getLifecycleStatus(item) === 'CANCELED' }"
+                  >
+                    {{ getLifecycleStatus(item) }}
                   </span>
                   <span class="badge badge--viewer">{{ formatDDay(item) }}</span>
                 </div>
@@ -768,8 +875,11 @@ onBeforeUnmount(() => {
                 <div class="live-thumb">
                   <img class="live-thumb__img" :src="item.thumb" :alt="item.title" loading="lazy" />
                   <div class="live-badges">
-                    <span class="badge badge--scheduled" :class="{ 'badge--cancelled': item.status === '취소됨' }">
-                      {{ item.status }}
+                    <span
+                      class="badge badge--scheduled"
+                      :class="{ 'badge--cancelled': getLifecycleStatus(item) === 'CANCELED' }"
+                    >
+                      {{ getLifecycleStatus(item) }}
                     </span>
                     <span class="badge badge--viewer">{{ formatDDay(item) }}</span>
                   </div>

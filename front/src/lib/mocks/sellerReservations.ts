@@ -112,7 +112,7 @@ const detailsById: Record<
 > = {
   'sch-1': {
     category: '홈오피스',
-    status: '예약됨',
+    status: 'RESERVED',
     notice: defaultNotice,
     cueQuestions: [
       '이번 방송에서 가장 기대되는 아이템은 무엇인가요?',
@@ -120,10 +120,10 @@ const detailsById: Record<
     ],
     products: defaultProducts,
   },
-  'sch-2': { category: '정리/수납', status: '예약됨', notice: defaultNotice, products: defaultProducts },
+  'sch-2': { category: '정리/수납', status: 'RESERVED', notice: defaultNotice, products: defaultProducts },
   'sch-3': {
     category: '주변기기',
-    status: '취소됨',
+    status: 'CANCELED',
     notice: defaultNotice,
     cueQuestions: [
       '모델별 키감 차이가 있나요?',
@@ -133,11 +133,11 @@ const detailsById: Record<
     standbyThumb: gradientThumb('1f2937', '0f172a'),
     cancelReason: '판매자 일정 변경으로 인해 취소되었습니다.',
   },
-  'sch-4': { category: '의자', status: '예약됨', notice: defaultNotice, products: defaultProducts },
-  'sch-5': { category: '노트북 액세서리', status: '예약됨', notice: defaultNotice, products: defaultProducts },
+  'sch-4': { category: '의자', status: 'RESERVED', notice: defaultNotice, products: defaultProducts },
+  'sch-5': { category: '노트북 액세서리', status: 'RESERVED', notice: defaultNotice, products: defaultProducts },
   'sch-6': {
     category: '공간 배치',
-    status: '취소됨',
+    status: 'CANCELED',
     notice: defaultNotice,
     products: defaultProducts,
     cancelReason: '재고 수급 문제로 일정이 조정되었습니다.',
@@ -148,7 +148,7 @@ export const sellerReservationDetails: Record<string, SellerReservationDetail> =
   (acc, summary) => {
     const detail = detailsById[summary.id] ?? {
       category: '기타',
-      status: '예약됨',
+      status: 'RESERVED',
       notice: defaultNotice,
       products: defaultProducts,
     }
@@ -163,7 +163,7 @@ const firstDetail =
   ({
     ...sellerReservationSummaries[0],
     category: '기타',
-    status: '예약됨',
+    status: 'RESERVED',
     notice: defaultNotice,
     products: defaultProducts,
   } as SellerReservationDetail)

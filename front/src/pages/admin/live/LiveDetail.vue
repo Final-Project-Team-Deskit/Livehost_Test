@@ -132,7 +132,7 @@ const loadDetail = () => {
 }
 
 const openStopConfirm = () => {
-  if (!detail.value || detail.value.status === '송출중지') return
+  if (!detail.value || detail.value.status === 'STOPPED') return
   showStopModal.value = true
   error.value = ''
 }
@@ -282,8 +282,8 @@ watch(liveId, loadDetail, { immediate: true })
       <button type="button" class="back-link" @click="goBack">← 뒤로 가기</button>
       <div class="header-actions">
         <button type="button" class="btn" @click="goToList">목록으로</button>
-        <button type="button" class="btn danger" :disabled="detail.status === '송출중지'" @click="openStopConfirm">
-          {{ detail.status === '송출중지' ? '송출 중지됨' : '방송 송출 중지' }}
+        <button type="button" class="btn danger" :disabled="detail.status === 'STOPPED'" @click="openStopConfirm">
+          {{ detail.status === 'STOPPED' ? '송출 중지됨' : '방송 송출 중지' }}
         </button>
       </div>
     </header>
