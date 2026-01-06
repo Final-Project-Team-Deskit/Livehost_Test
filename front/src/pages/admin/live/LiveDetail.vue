@@ -11,6 +11,7 @@ const liveId = computed(() => (typeof route.params.liveId === 'string' ? route.p
 const detail = ref<ReturnType<typeof getAdminLiveSummaries>[number] | null>(null)
 
 const stageRef = ref<HTMLDivElement | null>(null)
+const fullscreenRef = ref<HTMLDivElement | null>(null)
 const isFullscreen = ref(false)
 const showStopModal = ref(false)
 const stopReason = ref('')
@@ -168,7 +169,7 @@ const syncFullscreen = () => {
 }
 
 const toggleFullscreen = async () => {
-  const el = stageRef.value
+  const el = fullscreenRef.value || stageRef.value
   if (!el) return
   try {
     if (document.fullscreenElement) {
@@ -275,7 +276,7 @@ watch(liveId, loadDetail, { immediate: true })
 </script>
 
 <template>
-  <div v-if="detail" class="live-detail">
+  <div v-if="detail" ref="fullscreenRef" class="live-detail">
     <header class="detail-header">
       <button type="button" class="back-link" @click="goBack">← 뒤로 가기</button>
       <div class="header-actions">
@@ -790,7 +791,25 @@ watch(liveId, loadDetail, { immediate: true })
   justify-content: center;
 }
 
+.live-detail:fullscreen {
+  background: #0b0f1a;
+}
+
+.live-detail:fullscreen .monitor-stage {
+  height: 100vh;
+  max-height: 100vh;
+  align-items: center;
+  justify-content: center;
+}
+
 .monitor-stage:fullscreen .player-wrap {
+  height: 100vh;
+  max-height: 100vh;
+  display: flex;
+  justify-content: center;
+}
+
+.live-detail:fullscreen .player-wrap {
   height: 100vh;
   max-height: 100vh;
   display: flex;
@@ -806,12 +825,36 @@ watch(liveId, loadDetail, { immediate: true })
   background: #000;
 }
 
+.live-detail:fullscreen .player-frame {
+  max-height: 100vh;
+  max-width: none;
+  height: min(100vh, calc(100vw * (9 / 16)));
+  width: min(100vw, calc(100vh * (16 / 9)));
+  border-radius: 0;
+  background: #000;
+}
+
 .monitor-stage:fullscreen.monitor-stage--chat .player-frame {
   width: min(max(320px, calc(100vw - 380px)), calc(100vh * (16 / 9)));
   height: min(100vh, max(200px, calc((100vw - 380px) * (9 / 16))));
 }
 
+.live-detail:fullscreen .monitor-stage.monitor-stage--chat .player-frame {
+  width: min(max(320px, calc(100vw - 380px)), calc(100vh * (16 / 9)));
+  height: min(100vh, max(200px, calc((100vw - 380px) * (9 / 16))));
+}
+
 .monitor-stage--chat .chat-panel {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 360px;
+  height: auto;
+  overflow: hidden;
+}
+
+.live-detail:fullscreen .monitor-stage--chat .chat-panel {
   position: absolute;
   right: 0;
   top: 0;
@@ -1016,12 +1059,14 @@ watch(liveId, loadDetail, { immediate: true })
 }
 
 .tab-list {
-  display: inline-flex;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   background: rgba(15, 23, 42, 0.08);
   padding: 4px;
   border-radius: 12px;
   gap: 6px;
-  width: fit-content;
+  width: 100%;
+  align-items: stretch;
 }
 
 .tab {
@@ -1033,6 +1078,7 @@ watch(liveId, loadDetail, { immediate: true })
   font-weight: 800;
   cursor: pointer;
   transition: background 0.2s ease, color 0.2s ease;
+  width: 100%;
 }
 
 .tab--active {
@@ -1149,22 +1195,40 @@ watch(liveId, loadDetail, { immediate: true })
   color: #ef4444;
 }
 
+@media (max-width: 1200px) {
+  .monitor-stage {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .player-wrap {
+    width: 100%;
+  }
+
+  .monitor-stage--chat .player-wrap {
+    margin-right: 0;
+  }
+
+  .player-frame {
+    max-width: 100%;
+  }
+
+  .monitor-stage--chat .chat-panel,
+  .chat-panel {
+    position: static;
+    width: 100%;
+    height: auto;
+    max-height: 420px;
+  }
+}
+
 @media (max-width: 900px) {
   .player-frame {
     min-height: 46vh;
   }
 
   .monitor-stage {
-    position: relative;
-  }
-
-  .chat-panel {
-    position: absolute;
-    top: 12px;
-    right: 12px;
-    bottom: 12px;
-    width: min(360px, 88vw);
-    z-index: 2;
+    gap: 12px;
   }
 }
 </style>
