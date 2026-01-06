@@ -154,16 +154,6 @@ const sortedProducts = computed(() => {
 const chatItems = computed(() => chatMessages.value)
 
 const hasSidePanels = computed(() => showProducts.value || showChat.value)
-const panelWidth = computed(() => {
-  const count = Number(showProducts.value) + Number(showChat.value)
-  if (!gridWidth.value || !count) return 320
-  const minStreamWidth = 720
-  const gap = count === 2 ? 36 : count === 1 ? 18 : 0
-  const available = gridWidth.value - minStreamWidth - gap
-  const target = Math.floor(available / Math.max(count, 1))
-  const clamped = Math.min(320, Math.max(240, target))
-  return clamped
-})
 const gridStyles = computed(() => ({
   '--grid-template-columns': monitorColumns.value,
   '--stream-pane-height': streamPaneHeight.value,
@@ -174,10 +164,9 @@ const stackedOrders = computed(() =>
 )
 
 const monitorColumns = computed(() => {
-  const side = `${panelWidth.value}px`
-  if (showProducts.value && showChat.value) return `${side} minmax(0, 1fr) ${side}`
-  if (showProducts.value) return `${side} minmax(0, 1fr)`
-  if (showChat.value) return `minmax(0, 1fr) ${side}`
+  if (showProducts.value && showChat.value) return '320px minmax(0, 1fr) 320px'
+  if (showProducts.value) return '320px minmax(0, 1fr)'
+  if (showChat.value) return 'minmax(0, 1fr) 320px'
   return 'minmax(0, 1fr)'
 })
 
