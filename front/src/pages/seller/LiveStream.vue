@@ -385,6 +385,10 @@ const toggleFullscreen = async () => {
     <section
       ref="monitorRef"
       class="stream-grid"
+      :class="{
+        'stream-grid--chat': showChat,
+        'stream-grid--products': showProducts,
+      }"
       :style="{ gridTemplateColumns: monitorColumns, '--stream-pane-height': streamPaneHeight }"
     >
       <aside v-if="showProducts" class="stream-panel ds-surface">
@@ -434,7 +438,7 @@ const toggleFullscreen = async () => {
 
       <div class="stream-center ds-surface">
         <div class="stream-center__body">
-          <div class="stream-player">
+          <div class="stream-player" :class="{ 'stream-player--fullscreen': isFullscreen }">
             <div class="stream-overlay stream-overlay--stack">
               <div class="stream-overlay__row">⏱ 경과 {{ elapsed }}</div>
               <div class="stream-overlay__row">👥 {{ viewerCount.toLocaleString('ko-KR') }}명</div>
@@ -922,6 +926,14 @@ const toggleFullscreen = async () => {
   min-height: 320px;
 }
 
+.stream-player--fullscreen {
+  max-height: none;
+  width: min(100vw, calc(100vh * (16 / 9)));
+  height: min(100vh, calc(100vw * (9 / 16)));
+  border-radius: 0;
+  background: #000;
+}
+
 .stream-placeholder {
   display: grid;
   gap: 8px;
@@ -1180,7 +1192,25 @@ const toggleFullscreen = async () => {
 
 .stream-grid:fullscreen .stream-player {
   max-height: 100vh;
-  width: min(100%, calc(100vh * (16 / 9)));
+  width: min(100vw, calc(100vh * (16 / 9)));
+  height: min(100vh, calc(100vw * (9 / 16)));
+  border-radius: 0;
+  background: #000;
+}
+
+.stream-grid:fullscreen.stream-grid--chat .stream-player {
+  width: min(max(320px, calc(100vw - 380px)), calc(100vh * (16 / 9)));
+  height: min(100vh, max(200px, calc((100vw - 380px) * (9 / 16))));
+}
+
+.stream-grid:fullscreen.stream-grid--products:not(.stream-grid--chat) .stream-player {
+  width: min(max(320px, calc(100vw - 340px)), calc(100vh * (16 / 9)));
+  height: min(100vh, max(200px, calc((100vw - 340px) * (9 / 16))));
+}
+
+.stream-grid:fullscreen.stream-grid--products.stream-grid--chat .stream-player {
+  width: min(max(320px, calc(100vw - 720px)), calc(100vh * (16 / 9)));
+  height: min(100vh, max(200px, calc((100vw - 720px) * (9 / 16))));
 }
 
 @media (max-width: 960px) {
