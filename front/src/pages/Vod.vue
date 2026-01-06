@@ -702,6 +702,11 @@ watch(showChat, (visible) => {
   background: #000;
 }
 
+.player-frame:fullscreen .player-embed,
+.player-frame:fullscreen .player-video {
+  object-fit: contain;
+}
+
 .player-frame__label {
   position: absolute;
   z-index: 2;

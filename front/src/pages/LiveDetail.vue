@@ -655,6 +655,12 @@ onBeforeUnmount(() => {
   background: #000;
 }
 
+.player-frame:fullscreen iframe,
+.player-frame:fullscreen video,
+.player-frame:fullscreen img {
+  object-fit: contain;
+}
+
 .player-frame__label {
   opacity: 0.8;
 }
