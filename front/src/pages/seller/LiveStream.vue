@@ -848,11 +848,11 @@ const toggleFullscreen = async () => {
   height: auto;
   aspect-ratio: 16 / 9;
   border-radius: 16px;
-  background: #0b0f1a;
+  background: #232c44;
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
+  overflow: auto;
   min-height: 320px;
 }
 
@@ -941,7 +941,7 @@ const toggleFullscreen = async () => {
   max-height: 100%;
   aspect-ratio: 16 / 9;
   border-radius: 16px;
-  background: #0b0f1a;
+  background: #202942;
   display: flex;
   align-items: center;
   justify-content: center;
