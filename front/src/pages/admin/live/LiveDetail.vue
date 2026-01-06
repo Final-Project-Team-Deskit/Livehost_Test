@@ -1149,22 +1149,59 @@ watch(liveId, loadDetail, { immediate: true })
   color: #ef4444;
 }
 
+.monitor-stage {
+  --stacked-max-width: 1040px;
+}
+
+@media (max-width: 1200px) {
+  .monitor-stage {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .monitor-stage--chat .player-wrap {
+    margin-right: 0;
+  }
+
+  .player-wrap {
+    width: 100%;
+    max-width: var(--stacked-max-width);
+  }
+
+  .monitor-stage--chat .chat-panel {
+    position: static;
+    inset: auto;
+    width: 100%;
+    max-width: var(--stacked-max-width);
+    max-height: 40vh;
+    box-shadow: none;
+  }
+
+  .chat-messages {
+    max-height: 28vh;
+  }
+}
+
 @media (max-width: 900px) {
   .player-frame {
     min-height: 46vh;
   }
 
   .monitor-stage {
-    position: relative;
+    align-items: stretch;
+  }
+
+  .player-wrap,
+  .chat-panel {
+    max-width: none;
   }
 
   .chat-panel {
-    position: absolute;
-    top: 12px;
-    right: 12px;
-    bottom: 12px;
-    width: min(360px, 88vw);
-    z-index: 2;
+    max-height: 48vh;
+  }
+
+  .chat-messages {
+    max-height: 36vh;
   }
 }
 </style>
