@@ -14,7 +14,8 @@ const maxValue = computed(() => {
 })
 
 const getStep = (max: number) => {
-  if (max <= 10) return 5
+  if (max <= 40) return 5
+  if (max <= 90) return 10
   if (max <= 100) return 20
   if (max <= 400) return 50
   if (max <= 900) return 100
@@ -47,8 +48,8 @@ const yTicks = computed(() => {
 
 const topTick = computed(() => (yTicks.value.length ? yTicks.value[0] : maxValue.value || 1))
 
-const barGap = computed(() => `${Math.max(8, Math.min(18, Math.round(120 / dataLength.value)))}px`)
-const minBarWidth = computed(() => Math.max(32, Math.min(100, Math.floor(520 / dataLength.value))))
+const barGap = computed(() => `${Math.max(6, Math.min(16, Math.floor(140 / (dataLength.value + 2))))}px`)
+const minBarWidth = computed(() => Math.max(20, Math.min(80, Math.floor(680 / (dataLength.value + 2)))))
 const barLayoutStyle = computed(() => ({
   gap: barGap.value,
   gridTemplateColumns: `repeat(${dataLength.value}, minmax(${minBarWidth.value}px, 1fr))`,
