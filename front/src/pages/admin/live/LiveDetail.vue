@@ -329,7 +329,7 @@ watch(liveId, loadDetail, { immediate: true })
         <div v-show="activePane === 'monitor'" id="monitor-pane">
           <div ref="stageRef" class="monitor-stage" :class="{ 'monitor-stage--chat': showChat }">
             <div class="player-wrap">
-              <div class="player-frame">
+              <div class="player-frame" :class="{ 'player-frame--fullscreen': isFullscreen }">
                 <div class="player-overlay">
                   <div class="overlay-item">⏱ {{ detail.elapsed }}</div>
                   <div class="overlay-item">👥 {{ detail.viewers }}명</div>
@@ -340,6 +340,7 @@ watch(liveId, loadDetail, { immediate: true })
                   <button type="button" class="icon-circle" :class="{ active: showChat }" @click="toggleChat" :title="showChat ? '채팅 닫기' : '채팅 보기'">
                     <svg aria-hidden="true" class="icon" viewBox="0 0 24 24" focusable="false">
                       <path d="M3 20l1.62-3.24A2 2 0 0 1 6.42 16H20a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v15z" />
+                      <path d="M7 9h10M7 12h6" stroke-linecap="round" stroke-width="1.8" />
                     </svg>
                   </button>
                   <button type="button" class="icon-circle ghost" :class="{ active: isFullscreen }" @click="toggleFullscreen" :title="isFullscreen ? '전체화면 종료' : '전체화면'">
@@ -582,6 +583,15 @@ watch(liveId, loadDetail, { immediate: true })
   justify-content: center;
 }
 
+.player-frame--fullscreen {
+  max-height: none;
+  max-width: none;
+  height: min(100vh, calc(100vw * (9 / 16)));
+  width: min(100vw, calc(100vh * (16 / 9)));
+  border-radius: 0;
+  background: #000;
+}
+
 .player-label {
   color: rgba(255, 255, 255, 0.6);
   font-weight: 800;
@@ -757,6 +767,21 @@ watch(liveId, loadDetail, { immediate: true })
 
 .monitor-stage--chat .player-wrap {
   margin-right: 372px;
+}
+
+.monitor-stage:fullscreen,
+.monitor-stage:fullscreen .player-wrap {
+  height: 100vh;
+  max-height: 100vh;
+}
+
+.monitor-stage:fullscreen .player-frame {
+  max-height: 100vh;
+  max-width: none;
+  height: min(100vh, calc(100vw * (9 / 16)));
+  width: min(100vw, calc(100vh * (16 / 9)));
+  border-radius: 0;
+  background: #000;
 }
 
 .monitor-stage--chat .chat-panel {
