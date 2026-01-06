@@ -96,7 +96,6 @@ const isSettingsOpen = ref(false)
 const settingsButtonRef = ref<HTMLElement | null>(null)
 const settingsPanelRef = ref<HTMLElement | null>(null)
 const playerPanelRef = ref<HTMLElement | null>(null)
-const chatPanelRef = ref<HTMLElement | null>(null)
 const playerHeight = ref<number | null>(null)
 let panelResizeObserver: ResizeObserver | null = null
 
@@ -390,7 +389,6 @@ onBeforeUnmount(() => {
 
         <aside
           v-if="showChat"
-          ref="chatPanelRef"
           class="chat-panel ds-surface"
           :style="{ height: playerHeight ? `${playerHeight}px` : undefined }"
         >
