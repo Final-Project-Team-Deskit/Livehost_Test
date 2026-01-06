@@ -693,6 +693,7 @@ const toggleFullscreen = async () => {
 .stream-panel {
   padding: 16px;
   gap: 12px;
+  height: calc(100br )
   max-height: var(--stream-pane-height);
   overflow: hidden;
   display: flex;
@@ -903,11 +904,12 @@ const toggleFullscreen = async () => {
   align-items: center;
   justify-content: center;
   min-width: 0;
-  min-height: 270px;
-  max-height: 700px;
+  height: auto;
+  min-height: 300px;
+  max-height: 675px;
   position: relative;
   background: #1c1d21;
-  width: min(100%, var(--media-max-width, 1200px));
+  width: 100%;
   margin: 0 auto;
 }
 
