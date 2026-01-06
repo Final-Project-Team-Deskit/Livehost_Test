@@ -911,8 +911,7 @@ const toggleFullscreen = async () => {
   position: relative;
   width: 100%;
   height: auto;
-  max-width: calc((100vh - 120px - 32px) * (16 / 9));
-  max-height: calc(100vh - 120px - 32px);
+  max-height: calc(100vh - 120px);
   aspect-ratio: 16 / 9;
   border-radius: 16px;
   background: #0b0f1a;
