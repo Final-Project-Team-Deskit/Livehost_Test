@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type ComponentPublicInstance } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '../../components/PageHeader.vue'
 import {
@@ -11,23 +11,26 @@ import { ADMIN_LIVES_EVENT, getAdminLiveSummaries, type AdminLiveSummary } from 
 import { ADMIN_VODS_EVENT, getAdminVodSummaries, type AdminVodSummary } from '../../lib/mocks/adminVods'
 
 type LiveTab = 'all' | 'scheduled' | 'live' | 'vod'
+type LoopKind = 'live' | 'scheduled' | 'vod'
 
 type LiveItem = {
   id: string
   title: string
-  subtitle: string
+  subtitle?: string
   thumb: string
-  datetime: string
+  datetime?: string
   statusBadge?: string
   viewerBadge?: string
-  ctaLabel: string
+  ctaLabel?: string
   sellerName?: string
   status?: string
   viewers?: number
+  likes?: number
   reports?: number
   category?: string
   startedAt?: string
   startedAtMs?: number
+  startAtMs?: number
 }
 
 type ReservationItem = LiveItem & {
@@ -54,8 +57,7 @@ const activeTab = ref<LiveTab>('all')
 
 const liveCategory = ref<string>('all')
 const liveSort = ref<'reports_desc' | 'latest' | 'viewers_desc' | 'viewers_asc'>('reports_desc')
-const liveVisibleCount = ref(5)
-const liveCarouselRef = ref<HTMLElement | null>(null)
+const liveVisibleCount = ref(8)
 
 const scheduledStatus = ref<'all' | 'reserved' | 'canceled'>('all')
 const scheduledCategory = ref<string>('all')
@@ -82,7 +84,32 @@ const vodVisibleCount = ref(8)
 const liveItems = ref<AdminLiveSummary[]>([])
 const scheduledItems = ref<ReservationItem[]>([])
 const vodItems = ref<AdminVodItem[]>([])
-const liveAutoTimer = ref<number | null>(null)
+const loopGap = 14
+const carouselRefs = ref<Record<LoopKind, HTMLElement | null>>({
+  live: null,
+  scheduled: null,
+  vod: null,
+})
+const slideWidths = ref<Record<LoopKind, number>>({
+  live: 0,
+  scheduled: 0,
+  vod: 0,
+})
+const loopIndex = ref<Record<LoopKind, number>>({
+  live: 1,
+  scheduled: 1,
+  vod: 1,
+})
+const loopTransition = ref<Record<LoopKind, boolean>>({
+  live: true,
+  scheduled: true,
+  vod: true,
+})
+const autoTimers = ref<Record<LoopKind, number | null>>({
+  live: null,
+  scheduled: null,
+  vod: null,
+})
 
 const visibleLive = computed(() => activeTab.value === 'all' || activeTab.value === 'live')
 const visibleScheduled = computed(() => activeTab.value === 'all' || activeTab.value === 'scheduled')
@@ -203,7 +230,7 @@ const filteredVods = computed(() => {
   return filtered
 })
 
-const visibleLiveItems = computed(() => filteredLive.value.slice(0, liveVisibleCount.value))
+const visibleLiveGridItems = computed(() => filteredLive.value.slice(0, liveVisibleCount.value))
 const visibleScheduledItems = computed(() => filteredScheduled.value.slice(0, scheduledVisibleCount.value))
 const visibleVodItems = computed(() => filteredVods.value.slice(0, vodVisibleCount.value))
 
@@ -211,7 +238,24 @@ const liveCategories = computed(() => Array.from(new Set(liveItems.value.map((it
 const scheduledCategories = computed(() => Array.from(new Set(scheduledItems.value.map((item) => item.category ?? '기타'))))
 const vodCategories = computed(() => Array.from(new Set(vodItems.value.map((item) => item.category ?? '기타'))))
 
-const liveCarouselItems = computed(() => visibleLiveItems.value.slice(0, 5))
+const liveSummary = computed<AdminLiveSummary[]>(() => filteredLive.value.slice(0, 5))
+const scheduledSummary = computed<ReservationItem[]>(() => filteredScheduled.value.slice(0, 5))
+const vodSummary = computed<AdminVodItem[]>(() => filteredVods.value.slice(0, 5))
+
+const buildLoopItems = <T>(items: T[]): T[] => {
+  if (!items.length) return []
+  if (items.length === 1) {
+    const single = items[0]!
+    return [single, single, single]
+  }
+  const first = items[0]!
+  const last = items[items.length - 1]!
+  return [last, ...items, first]
+}
+
+const liveLoopItems = computed<AdminLiveSummary[]>(() => buildLoopItems(liveSummary.value))
+const scheduledLoopItems = computed<ReservationItem[]>(() => buildLoopItems(scheduledSummary.value))
+const vodLoopItems = computed<AdminVodItem[]>(() => buildLoopItems(vodSummary.value))
 
 const openReservationDetail = (id: string) => {
   if (!id) return
@@ -247,24 +291,114 @@ const refreshTabFromQuery = () => {
   }
 }
 
-const scrollLiveCarousel = (dir: 'prev' | 'next') => {
-  const el = liveCarouselRef.value
-  if (!el) return
-  const offset = el.clientWidth * 0.9
-  el.scrollBy({ left: dir === 'next' ? offset : -offset, behavior: 'smooth' })
+const setCarouselRef = (kind: LoopKind) => (el: Element | ComponentPublicInstance | null) => {
+  const target =
+    el && typeof el === 'object' && '$el' in el ? ((el as ComponentPublicInstance).$el as HTMLElement | null) : ((el as HTMLElement) || null)
+  carouselRefs.value[kind] = target
+  nextTick(() => updateSlideWidth(kind))
 }
 
-const stopLiveAutoSlide = () => {
-  if (liveAutoTimer.value) {
-    window.clearInterval(liveAutoTimer.value)
-    liveAutoTimer.value = null
+const updateSlideWidth = (kind: LoopKind) => {
+  const root = carouselRefs.value[kind]
+  if (!root) return
+  const card = root.querySelector<HTMLElement>('.live-card')
+  slideWidths.value[kind] = card?.offsetWidth ?? 280
+}
+
+const getTrackStyle = (kind: LoopKind) => {
+  const width = (slideWidths.value[kind] || 280) + loopGap
+  const translate = loopIndex.value[kind] * width
+  return {
+    transform: `translateX(-${translate}px)`,
+    transition: loopTransition.value[kind] ? 'transform 0.6s ease' : 'none',
   }
 }
 
-const startLiveAutoSlide = () => {
-  stopLiveAutoSlide()
-  if (!liveCarouselItems.value.length) return
-  liveAutoTimer.value = window.setInterval(() => scrollLiveCarousel('next'), 3200)
+const loopItemsFor = (kind: LoopKind) => {
+  if (kind === 'live') return liveLoopItems.value
+  if (kind === 'scheduled') return scheduledLoopItems.value
+  return vodLoopItems.value
+}
+
+const baseItemsFor = (kind: LoopKind) => {
+  if (kind === 'live') return liveSummary.value
+  if (kind === 'scheduled') return scheduledSummary.value
+  return vodSummary.value
+}
+
+const handleLoopTransitionEnd = (kind: LoopKind) => {
+  const items = loopItemsFor(kind)
+  if (!items.length) return
+  const lastIndex = items.length - 1
+  if (loopIndex.value[kind] === lastIndex) {
+    loopTransition.value[kind] = false
+    loopIndex.value[kind] = 1
+    requestAnimationFrame(() => {
+      loopTransition.value[kind] = true
+    })
+  } else if (loopIndex.value[kind] === 0) {
+    loopTransition.value[kind] = false
+    loopIndex.value[kind] = lastIndex - 1
+    requestAnimationFrame(() => {
+      loopTransition.value[kind] = true
+    })
+  }
+}
+
+const stepCarousel = (kind: LoopKind, delta: -1 | 1) => {
+  const items = loopItemsFor(kind)
+  if (items.length <= 1) return
+  const lastIndex = items.length - 1
+  loopTransition.value[kind] = true
+  const nextIndex = loopIndex.value[kind] + delta
+  if (nextIndex > lastIndex) {
+    loopIndex.value[kind] = lastIndex
+  } else if (nextIndex < 0) {
+    loopIndex.value[kind] = 0
+  } else {
+    loopIndex.value[kind] = nextIndex
+  }
+  restartAutoLoop(kind)
+}
+
+const startAutoLoop = (kind: LoopKind) => {
+  stopAutoLoop(kind)
+  if (baseItemsFor(kind).length <= 1) return
+  autoTimers.value[kind] = window.setInterval(() => {
+    stepCarousel(kind, 1)
+  }, 3200)
+}
+
+const stopAutoLoop = (kind: LoopKind) => {
+  const timer = autoTimers.value[kind]
+  if (timer) window.clearInterval(timer)
+  autoTimers.value[kind] = null
+}
+
+const restartAutoLoop = (kind: LoopKind) => {
+  stopAutoLoop(kind)
+  startAutoLoop(kind)
+}
+
+const resetLoop = (kind: LoopKind) => {
+  loopIndex.value[kind] = loopItemsFor(kind).length > 1 ? 1 : 0
+  loopTransition.value[kind] = true
+  nextTick(() => {
+    updateSlideWidth(kind)
+    startAutoLoop(kind)
+  })
+}
+
+const resetAllLoops = () => {
+  resetLoop('live')
+  resetLoop('scheduled')
+  resetLoop('vod')
+}
+
+const handleResize = () => {
+  updateSlideWidth('live')
+  updateSlideWidth('scheduled')
+  updateSlideWidth('vod')
 }
 
 watch(
@@ -273,8 +407,8 @@ watch(
 )
 
 watch([liveCategory, liveSort], () => {
-  liveVisibleCount.value = 5
-  startLiveAutoSlide()
+  liveVisibleCount.value = 8
+  resetLoop('live')
 })
 
 watch([scheduledStatus, scheduledCategory, scheduledSort], () => {
@@ -285,22 +419,47 @@ watch([vodStartDate, vodEndDate, vodVisibility, vodCategory, vodSort], () => {
   vodVisibleCount.value = 8
 })
 
+watch(
+  () => liveSummary.value,
+  () => resetLoop('live'),
+  { deep: true },
+)
+
+watch(
+  () => scheduledSummary.value,
+  () => resetLoop('scheduled'),
+  { deep: true },
+)
+
+watch(
+  () => vodSummary.value,
+  () => resetLoop('vod'),
+  { deep: true },
+)
+
 onMounted(() => {
   refreshTabFromQuery()
   syncLives()
   syncScheduled()
   syncVods()
-  startLiveAutoSlide()
+  nextTick(() => {
+    resetAllLoops()
+    handleResize()
+  })
   window.addEventListener(ADMIN_LIVES_EVENT, syncLives)
   window.addEventListener(ADMIN_RESERVATIONS_EVENT, syncScheduled)
   window.addEventListener(ADMIN_VODS_EVENT, syncVods)
+  window.addEventListener('resize', handleResize)
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener(ADMIN_LIVES_EVENT, syncLives)
   window.removeEventListener(ADMIN_RESERVATIONS_EVENT, syncScheduled)
   window.removeEventListener(ADMIN_VODS_EVENT, syncVods)
-  stopLiveAutoSlide()
+  window.removeEventListener('resize', handleResize)
+  stopAutoLoop('live')
+  stopAutoLoop('scheduled')
+  stopAutoLoop('vod')
 })
 </script>
 
@@ -381,44 +540,109 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div class="carousel-wrap" :class="{ 'carousel-wrap--empty': !liveCarouselItems.length }">
-        <button v-if="liveCarouselItems.length" type="button" class="carousel-btn prev" @click="scrollLiveCarousel('prev')" aria-label="이전">
+      <div
+        v-if="activeTab === 'live'"
+        class="live-grid"
+        :class="{ 'live-grid--empty': !visibleLiveGridItems.length }"
+        aria-label="방송 중 목록"
+      >
+        <template v-if="visibleLiveGridItems.length">
+          <article
+            v-for="item in visibleLiveGridItems"
+            :key="item.id"
+            class="live-card ds-surface live-card--clickable"
+            @click="openLiveDetail(item.id)"
+          >
+            <div class="live-thumb">
+              <img class="live-thumb__img" :src="item.thumb" :alt="item.title" loading="lazy" />
+              <div class="live-badges">
+                <span class="badge badge--live">{{ item.status }}</span>
+                <span class="badge badge--viewer">시청자 {{ item.viewers }}명</span>
+              </div>
+            </div>
+            <div class="live-body">
+              <div class="live-meta">
+                <p class="live-title">{{ item.title }}</p>
+                <p class="live-date">시작: {{ item.startedAt }}</p>
+                <p class="live-seller">{{ item.sellerName }}</p>
+                <p class="live-viewers">신고 {{ item.reports ?? 0 }}건 · 좋아요 {{ item.likes }}</p>
+              </div>
+            </div>
+          </article>
+
+          <button
+            v-if="filteredLive.length > visibleLiveGridItems.length"
+            type="button"
+            class="live-more"
+            @click="liveVisibleCount += 6"
+          >
+            더 보기
+          </button>
+        </template>
+
+        <article v-else class="live-card ds-surface live-card--empty">
+          <p class="live-card__title">진행 중인 방송이 없습니다.</p>
+          <p class="live-card__meta">라이브 시작 시 목록이 표시됩니다.</p>
+        </article>
+      </div>
+
+      <div v-else class="carousel-wrap">
+        <button
+          type="button"
+          class="carousel-btn carousel-btn--left"
+          aria-label="방송 중 왼쪽 이동"
+          @click="stepCarousel('live', -1)"
+        >
           ‹
         </button>
-        <div
-          ref="liveCarouselRef"
-          class="live-carousel"
-          :class="{ 'live-carousel--empty': !liveCarouselItems.length }"
-          aria-label="방송 중 목록"
-        >
-          <template v-if="liveCarouselItems.length">
-            <article
-              v-for="item in liveCarouselItems"
-              :key="item.id"
-              class="live-card ds-surface live-card--clickable"
-              @click="openLiveDetail(item.id)"
-            >
-              <div class="live-thumb">
-                <img class="live-thumb__img" :src="item.thumb" :alt="item.title" loading="lazy" />
-                <div class="live-badges">
-                  <span class="badge badge--live">{{ item.status }}</span>
-                  <span class="badge badge--viewer">시청자 {{ item.viewers }}명</span>
-                </div>
-              </div>
-              <div class="live-body">
-                <div class="live-meta">
-                  <p class="live-title">{{ item.title }}</p>
-                  <p class="live-date">시작: {{ item.startedAt }}</p>
-                  <p class="live-seller">{{ item.sellerName }}</p>
-                  <p class="live-viewers">신고 {{ item.reports ?? 0 }}건 · 좋아요 {{ item.likes }}</p>
-                </div>
-              </div>
-            </article>
-          </template>
 
-          <p v-else class="empty-section">진행 중인 방송이 없습니다.</p>
+        <div class="live-carousel live-carousel--loop">
+          <div
+            class="live-carousel__track"
+            :class="{ 'live-carousel__track--empty': !liveLoopItems.length }"
+            :style="getTrackStyle('live')"
+            :ref="setCarouselRef('live')"
+            aria-label="방송 중 목록"
+            @transitionend="handleLoopTransitionEnd('live')"
+          >
+            <template v-if="liveLoopItems.length">
+              <article
+                v-for="(item, idx) in liveLoopItems"
+                :key="`${item.id}-${idx}`"
+                class="live-card ds-surface live-card--clickable"
+                @click="openLiveDetail(item.id)"
+              >
+                <div class="live-thumb">
+                  <img class="live-thumb__img" :src="item.thumb" :alt="item.title" loading="lazy" />
+                  <div class="live-badges">
+                    <span class="badge badge--live">{{ item.status }}</span>
+                    <span class="badge badge--viewer">시청자 {{ item.viewers }}명</span>
+                  </div>
+                </div>
+                <div class="live-body">
+                  <div class="live-meta">
+                    <p class="live-title">{{ item.title }}</p>
+                    <p class="live-date">시작: {{ item.startedAt }}</p>
+                    <p class="live-seller">{{ item.sellerName }}</p>
+                    <p class="live-viewers">신고 {{ item.reports ?? 0 }}건 · 좋아요 {{ item.likes }}</p>
+                  </div>
+                </div>
+              </article>
+            </template>
+
+            <article v-else class="live-card ds-surface live-card--empty">
+              <p class="live-card__title">진행 중인 방송이 없습니다.</p>
+              <p class="live-card__meta">라이브 시작 시 목록이 표시됩니다.</p>
+            </article>
+          </div>
         </div>
-        <button v-if="liveCarouselItems.length" type="button" class="carousel-btn next" @click="scrollLiveCarousel('next')" aria-label="다음">
+
+        <button
+          type="button"
+          class="carousel-btn carousel-btn--right"
+          aria-label="방송 중 오른쪽 이동"
+          @click="stepCarousel('live', 1)"
+        >
           ›
         </button>
       </div>
@@ -470,7 +694,12 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div class="scheduled-grid" :class="{ 'scheduled-grid--empty': !visibleScheduledItems.length }" aria-label="예약 방송 목록">
+      <div
+        v-if="activeTab === 'scheduled'"
+        class="scheduled-grid"
+        :class="{ 'scheduled-grid--empty': !visibleScheduledItems.length }"
+        aria-label="예약 방송 목록"
+      >
         <template v-if="visibleScheduledItems.length">
           <article
             v-for="item in visibleScheduledItems"
@@ -496,9 +725,81 @@ onBeforeUnmount(() => {
               </div>
             </div>
           </article>
+
+          <button
+            v-if="filteredScheduled.length > visibleScheduledItems.length"
+            type="button"
+            class="live-more"
+            @click="scheduledVisibleCount += 6"
+          >
+            더 보기
+          </button>
         </template>
 
         <p v-else class="empty-section">예약된 방송이 없습니다.</p>
+      </div>
+
+      <div v-else class="carousel-wrap">
+        <button
+          type="button"
+          class="carousel-btn carousel-btn--left"
+          aria-label="예약 방송 왼쪽 이동"
+          @click="stepCarousel('scheduled', -1)"
+        >
+          ‹
+        </button>
+
+        <div class="live-carousel live-carousel--loop">
+          <div
+            class="live-carousel__track"
+            :class="{ 'live-carousel__track--empty': !scheduledLoopItems.length }"
+            :style="getTrackStyle('scheduled')"
+            :ref="setCarouselRef('scheduled')"
+            aria-label="예약 방송 목록"
+            @transitionend="handleLoopTransitionEnd('scheduled')"
+          >
+            <template v-if="scheduledLoopItems.length">
+              <article
+                v-for="(item, idx) in scheduledLoopItems"
+                :key="`${item.id}-${idx}`"
+                class="live-card ds-surface live-card--clickable"
+                @click="openReservationDetail(item.id)"
+              >
+                <div class="live-thumb">
+                  <img class="live-thumb__img" :src="item.thumb" :alt="item.title" loading="lazy" />
+                  <div class="live-badges">
+                    <span class="badge badge--scheduled" :class="{ 'badge--cancelled': item.status === '취소됨' }">
+                      {{ item.status }}
+                    </span>
+                    <span class="badge badge--viewer">{{ formatDDay(item) }}</span>
+                  </div>
+                </div>
+                <div class="live-body">
+                  <div class="live-meta">
+                    <p class="live-title">{{ item.title }}</p>
+                    <p class="live-date">{{ item.datetime }}</p>
+                    <p class="live-seller">{{ item.sellerName }}</p>
+                    <p class="live-viewers">{{ item.category }}</p>
+                  </div>
+                </div>
+              </article>
+            </template>
+
+            <article v-else class="live-card ds-surface live-card--empty">
+              <p class="live-card__title">예약된 방송이 없습니다.</p>
+              <p class="live-card__meta">예약 데이터를 불러오면 자동으로 표시됩니다.</p>
+            </article>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          class="carousel-btn carousel-btn--right"
+          aria-label="예약 방송 오른쪽 이동"
+          @click="stepCarousel('scheduled', 1)"
+        >
+          ›
+        </button>
       </div>
     </section>
 
@@ -562,7 +863,12 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div class="vod-grid" :class="{ 'vod-grid--empty': !visibleVodItems.length }" aria-label="VOD 목록">
+      <div
+        v-if="activeTab === 'vod'"
+        class="vod-grid"
+        :class="{ 'vod-grid--empty': !visibleVodItems.length }"
+        aria-label="VOD 목록"
+      >
         <template v-if="visibleVodItems.length">
           <article
             v-for="item in visibleVodItems"
@@ -586,9 +892,79 @@ onBeforeUnmount(() => {
               </div>
             </div>
           </article>
+
+          <button
+            v-if="filteredVods.length > visibleVodItems.length"
+            type="button"
+            class="live-more"
+            @click="vodVisibleCount += 6"
+          >
+            더 보기
+          </button>
         </template>
 
         <p v-else class="empty-section">등록된 VOD가 없습니다.</p>
+      </div>
+
+      <div v-else class="carousel-wrap">
+        <button
+          type="button"
+          class="carousel-btn carousel-btn--left"
+          aria-label="VOD 왼쪽 이동"
+          @click="stepCarousel('vod', -1)"
+        >
+          ‹
+        </button>
+
+        <div class="live-carousel live-carousel--loop">
+          <div
+            class="live-carousel__track"
+            :class="{ 'live-carousel__track--empty': !vodLoopItems.length }"
+            :style="getTrackStyle('vod')"
+            :ref="setCarouselRef('vod')"
+            aria-label="VOD 목록"
+            @transitionend="handleLoopTransitionEnd('vod')"
+          >
+            <template v-if="vodLoopItems.length">
+              <article
+                v-for="(item, idx) in vodLoopItems"
+                :key="`${item.id}-${idx}`"
+                class="live-card ds-surface live-card--clickable"
+                @click="openVodDetail(item.id)"
+              >
+                <div class="live-thumb">
+                  <img class="live-thumb__img" :src="item.thumb" :alt="item.title" loading="lazy" />
+                  <div class="live-badges">
+                    <span class="badge badge--vod">{{ item.statusLabel }}</span>
+                    <span class="badge badge--viewer">신고 {{ item.metrics.reports }}</span>
+                  </div>
+                </div>
+                <div class="live-body">
+                  <div class="live-meta">
+                    <p class="live-title">{{ item.title }}</p>
+                    <p class="live-date">{{ item.datetime }}</p>
+                    <p class="live-seller">{{ item.sellerName }}</p>
+                    <p class="live-viewers">좋아요 {{ item.metrics.likes }} · 시청 {{ item.metrics.maxViewers }}</p>
+                  </div>
+                </div>
+              </article>
+            </template>
+
+            <article v-else class="live-card ds-surface live-card--empty">
+              <p class="live-card__title">등록된 VOD가 없습니다.</p>
+              <p class="live-card__meta">영상이 업로드되면 자동으로 표시됩니다.</p>
+            </article>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          class="carousel-btn carousel-btn--right"
+          aria-label="VOD 오른쪽 이동"
+          @click="stepCarousel('vod', 1)"
+        >
+          ›
+        </button>
       </div>
     </section>
   </div>
@@ -716,18 +1092,6 @@ onBeforeUnmount(() => {
   padding: 4px 6px;
 }
 
-.filter-row {
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-  flex-wrap: wrap;
-  padding: 12px;
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  background: var(--surface);
-  width: 100%;
-}
-
 .control-stack {
   display: flex;
   flex-direction: column;
@@ -741,56 +1105,6 @@ onBeforeUnmount(() => {
   align-items: flex-end;
 }
 
-.more-row {
-  width: 100%;
-  display: flex;
-  justify-content: flex-end;
-}
-
-.carousel-wrap {
-  position: relative;
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 10px;
-}
-
-.carousel-wrap--empty {
-  grid-template-columns: 1fr;
-}
-
-.live-carousel {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(280px, 320px);
-  gap: 14px;
-  overflow-x: auto;
-  padding: 10px 4px;
-  scroll-snap-type: x mandatory;
-  -webkit-overflow-scrolling: touch;
-}
-
-.live-carousel--empty {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  width: 100%;
-}
-
-.vod-filter-row {
-  align-items: flex-end;
-}
-
-.more-row {
-  width: 100%;
-  display: flex;
-  justify-content: flex-end;
-}
-
-.carousel-wrap {
-  position: relative;
-}
-
 .live-grid,
 .scheduled-grid,
 .vod-grid {
@@ -800,114 +1114,59 @@ onBeforeUnmount(() => {
 }
 
 .scheduled-grid--empty,
-.vod-grid--empty {
+.vod-grid--empty,
+.live-grid--empty {
   display: flex;
   justify-content: center;
   align-items: center;
 }
 
-.carousel-btn {
-  border: 1px solid var(--border-color);
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  display: grid;
-  place-items: center;
-  background: var(--surface);
-  font-weight: 900;
-  color: var(--text-strong);
-  cursor: pointer;
-}
-
-.carousel-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.live-grid,
-.scheduled-grid,
-.vod-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
+.carousel-wrap {
+  position: relative;
+  padding: 0 8px;
 }
 
 .carousel-btn {
-  border: 1px solid var(--border-color);
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  display: grid;
-  place-items: center;
-  background: var(--surface);
-  font-weight: 900;
-  color: var(--text-strong);
-  cursor: pointer;
-}
-
-.carousel-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.live-grid,
-.scheduled-grid,
-.vod-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
-}
-
-.carousel-btn {
   border: 1px solid var(--border-color);
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  display: grid;
-  place-items: center;
-  background: var(--surface);
+  background: #fff;
   font-weight: 900;
-  color: var(--text-strong);
   cursor: pointer;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
 }
 
-.carousel-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.carousel-btn--left {
+  left: -6px;
 }
 
-.live-grid,
-.scheduled-grid,
-.vod-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
+.carousel-btn--right {
+  right: -6px;
 }
 
-.carousel-btn {
-  border: 1px solid var(--border-color);
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  display: grid;
-  place-items: center;
-  background: var(--surface);
-  font-weight: 900;
-  color: var(--text-strong);
-  cursor: pointer;
+.live-carousel {
+  overflow: hidden;
+  padding: 10px 6px;
 }
 
-.carousel-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.live-carousel__track {
+  display: flex;
+  gap: 14px;
+  will-change: transform;
 }
 
-.live-grid,
-.scheduled-grid,
-.vod-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
+.live-carousel__track--empty {
+  justify-content: center;
+  width: 100%;
+}
+
+.live-carousel__track .live-card {
+  flex: 0 0 clamp(260px, 26vw, 320px);
+  min-width: 260px;
 }
 
 .live-card {
@@ -1040,22 +1299,14 @@ onBeforeUnmount(() => {
   font-weight: 700;
 }
 
-.empty-section {
-  margin: 12px auto;
-  text-align: center;
-  color: var(--text-muted);
-  font-weight: 800;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 160px;
-}
-
-.live-carousel .empty-section,
-.scheduled-grid .empty-section,
-.vod-grid .empty-section {
+.live-more {
   grid-column: 1 / -1;
-  width: 100%;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px dashed var(--border-color);
+  background: var(--surface);
+  font-weight: 900;
+  cursor: pointer;
 }
 
 @media (max-width: 1200px) {
@@ -1067,6 +1318,11 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 960px) {
+  .live-header {
+    grid-template-columns: 1fr;
+    justify-items: start;
+  }
+
   .live-grid,
   .scheduled-grid,
   .vod-grid {
@@ -1075,9 +1331,8 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 720px) {
-  .live-header {
-    grid-template-columns: 1fr;
-    justify-items: start;
+  .carousel-wrap {
+    padding: 0;
   }
 
   .live-grid,
@@ -1088,10 +1343,6 @@ onBeforeUnmount(() => {
 
   .live-section__controls {
     align-items: flex-start;
-  }
-
-  .more-row {
-    justify-content: flex-start;
   }
 }
 </style>
