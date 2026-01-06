@@ -16,7 +16,7 @@ const formatValue = (value: number) => {
   return value.toLocaleString('ko-KR')
 }
 
-const toWidth = (value: number) => {
+const toHeight = (value: number) => {
   if (!maxValue.value) return '0%'
   return `${Math.round((value / maxValue.value) * 100)}%`
 }
@@ -24,14 +24,18 @@ const toWidth = (value: number) => {
 
 <template>
   <div class="bar-chart">
-    <div v-for="(item, index) in data" :key="`${item.label}-${index}`" class="bar-row">
-      <span class="bar-label">{{ item.label }}</span>
-      <div class="bar-track">
-        <div class="bar-fill" :style="{ width: toWidth(item.value) }"></div>
-        <span class="bar-value">{{ formatValue(item.value) }}</span>
+    <div v-if="data.length" class="bar-chart__bars">
+      <div v-for="(item, index) in data" :key="`${item.label}-${index}`" class="bar-chart__item">
+        <div
+          class="bar-chart__bar"
+          :style="{ height: toHeight(item.value) }"
+          :data-value="formatValue(item.value)"
+          tabindex="0"
+        ></div>
+        <span class="bar-chart__label">{{ item.label }}</span>
       </div>
     </div>
-    <p v-if="!data.length" class="empty">데이터가 없습니다.</p>
+    <p v-else class="empty">데이터가 없습니다.</p>
   </div>
 </template>
 
@@ -42,48 +46,74 @@ const toWidth = (value: number) => {
   gap: 10px;
 }
 
-.bar-row {
-  display: grid;
-  grid-template-columns: 92px 1fr;
-  gap: 10px;
-  align-items: center;
+.bar-chart__bars {
+  display: flex;
+  gap: 14px;
+  align-items: flex-end;
+  min-height: 220px;
+  padding: 8px 4px 0;
 }
 
-.bar-label {
+.bar-chart__item {
+  flex: 1;
+  min-width: 56px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.bar-chart__bar {
+  position: relative;
+  width: 100%;
+  max-width: 68px;
+  background: linear-gradient(180deg, rgba(var(--primary-rgb), 0.9), rgba(var(--primary-rgb), 0.6));
+  border-radius: 14px 14px 8px 8px;
+  transition: height 0.2s ease, box-shadow 0.2s ease;
+  min-height: 10px;
+}
+
+.bar-chart__bar::after {
+  content: attr(data-value);
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  transform: translate(-50%, -6px);
+  background: var(--surface);
+  color: var(--text-strong);
+  border: 1px solid var(--border-color);
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.bar-chart__bar:hover,
+.bar-chart__bar:focus-visible {
+  box-shadow: 0 12px 24px rgba(var(--primary-rgb), 0.16);
+}
+
+.bar-chart__bar:hover::after,
+.bar-chart__bar:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, -10px);
+}
+
+.bar-chart__label {
   font-weight: 800;
   color: var(--text-muted);
   font-size: 0.95rem;
 }
 
-.bar-track {
-  position: relative;
-  background: var(--surface-weak);
-  border-radius: 999px;
-  min-height: 36px;
-  display: flex;
-  align-items: center;
-  overflow: hidden;
-}
-
-.bar-fill {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(90deg, rgba(var(--primary-rgb), 0.9), rgba(var(--primary-rgb), 0.6));
-  border-radius: 999px;
-  transition: width 0.2s ease;
-}
-
-.bar-value {
-  position: relative;
-  padding: 0 12px;
-  font-weight: 800;
-  color: var(--text-strong);
-  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.06);
-}
-
 .empty {
+  display: flex;
   margin: 0;
   color: var(--text-muted);
   font-weight: 700;
+  justify-content: center;
 }
 </style>
