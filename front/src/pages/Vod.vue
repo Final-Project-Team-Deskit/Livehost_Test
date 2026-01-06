@@ -689,10 +689,10 @@ watch(showChat, (visible) => {
   place-items: center;
   color: #fff;
   font-weight: 700;
-  min-height: clamp(220px, 56vw, 720px);
+  min-height: clamp(160px, 46vw, 560px);
   max-height: calc(100vw * (9 / 16));
   max-width: min(100%, calc((100vh - 180px) * (16 / 9)));
-  overflow: auto;
+  overflow: hidden;
 }
 
 .player-frame--fullscreen,

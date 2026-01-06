@@ -642,10 +642,26 @@ onBeforeUnmount(() => {
   place-items: center;
   color: #fff;
   font-weight: 700;
-  min-height: clamp(220px, 56vw, 720px);
+  min-height: clamp(160px, 46vw, 560px);
   max-height: calc(100vw * (9 / 16));
   max-width: min(100%, calc((100vh - 180px) * (16 / 9)));
-  overflow: auto;
+  overflow: hidden;
+}
+
+.player-frame--fullscreen,
+.player-frame:fullscreen {
+  width: min(100vw, calc(100vh * (16 / 9)));
+  height: min(100vh, calc(100vw * (9 / 16)));
+  max-height: 100vh;
+  max-width: 100vw;
+  border-radius: 0;
+  background: #000;
+}
+
+.player-frame:fullscreen iframe,
+.player-frame:fullscreen video,
+.player-frame:fullscreen img {
+  object-fit: contain;
 }
 
 .player-frame--fullscreen,
