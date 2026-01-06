@@ -113,20 +113,20 @@ public class BroadcastResultRepositoryImpl implements BroadcastResultRepositoryC
         }
     }
 
-    // [New Helper 1] 차트용 기간 (Trend): 최근 30일, 최근 1년, 최근 10년
+    // [New Helper 1] 차트용 기간 (Trend): 최근 13일, 최근 1년, 최근 10년
     private BooleanExpression getChartPeriodCondition(String type, com.querydsl.core.types.dsl.DateTimePath<LocalDateTime> path) {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime startDate;
 
         if ("DAILY".equalsIgnoreCase(type)) {
             // 일별 차트: 최근 30일
-            startDate = now.minusDays(29).with(LocalTime.MIN);
+            startDate = now.minusDays(6).with(LocalTime.MIN);
         } else if ("MONTHLY".equalsIgnoreCase(type)) {
             // 월별 차트: 최근 12개월 (1년)
             startDate = now.minusMonths(11).withDayOfMonth(1).with(LocalTime.MIN);
         } else {
             // 연도별 차트: 최근 10년
-            startDate = now.minusYears(9).withDayOfYear(1).with(LocalTime.MIN);
+            startDate = now.minusYears(4).withDayOfYear(1).with(LocalTime.MIN);
         }
         return path.goe(startDate);
     }

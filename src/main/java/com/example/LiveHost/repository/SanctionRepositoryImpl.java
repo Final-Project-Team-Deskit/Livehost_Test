@@ -127,13 +127,13 @@ public class SanctionRepositoryImpl implements SanctionRepositoryCustom {
 
         if ("DAILY".equalsIgnoreCase(type)) {
             // 일별 차트: 최근 30일 (2주)
-            startDate = now.minusDays(29).with(LocalTime.MIN);
+            startDate = now.minusDays(6).with(LocalTime.MIN);
         } else if ("MONTHLY".equalsIgnoreCase(type)) {
             // 월별 차트: 최근 12개월 (1년)
             startDate = now.minusMonths(11).withDayOfMonth(1).with(LocalTime.MIN);
         } else {
             // 연도별 차트: 최근 10년
-            startDate = now.minusYears(9).withDayOfYear(1).with(LocalTime.MIN);
+            startDate = now.minusYears(4).withDayOfYear(1).with(LocalTime.MIN);
         }
         return path.goe(startDate);
     }
