@@ -1286,6 +1286,7 @@ const toggleFullscreen = async () => {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  align-items: stretch;
 }
 
 .stream-grid--stacked .stream-center,
@@ -1293,18 +1294,19 @@ const toggleFullscreen = async () => {
   height: auto;
   max-height: none;
   min-height: 0;
+  width: 100%;
 }
 
 .stream-grid--stacked .stream-center {
-  order: 0;
+  order: 0 !important;
 }
 
 .stream-grid--stacked .stream-panel--chat {
-  order: 1;
+  order: 1 !important;
 }
 
 .stream-grid--stacked .stream-panel--products {
-  order: 2;
+  order: 2 !important;
 }
 
 .stream-grid--stacked .panel-head {
