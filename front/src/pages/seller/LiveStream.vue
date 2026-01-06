@@ -1230,6 +1230,10 @@ const toggleFullscreen = async () => {
   max-width: 100%;
 }
 
+.stream-grid:not(.stream-grid--products):not(.stream-grid--chat) {
+  gap: 0;
+}
+
 @media (max-width: 960px) {
   .stream-grid {
     grid-template-columns: 1fr;

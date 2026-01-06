@@ -404,7 +404,7 @@ watch(showChat, (visible) => {
           v-if="showChat"
           ref="chatPanelRef"
           class="chat-panel ds-surface"
-          :style="{ height: playerHeight ? `${playerHeight}px` : undefined }"
+        :style="{ height: playerHeight ? `${playerHeight}px` : undefined }"
         >
           <header class="chat-head">
             <h4>채팅 기록</h4>
@@ -470,6 +470,7 @@ watch(showChat, (visible) => {
   display: flex;
   flex-direction: column;
   gap: 18px;
+  overflow-x: hidden;
 }
 
 .live-detail-main {
@@ -834,6 +835,7 @@ watch(showChat, (visible) => {
 
 .chat-panel {
   width: 360px;
+  max-width: 100%;
   display: flex;
   flex-direction: column;
   border-radius: 16px;
@@ -953,12 +955,6 @@ watch(showChat, (visible) => {
   font-weight: 700;
 }
 
-@media (max-width: 1080px) {
-  .live-detail-main {
-    grid-template-columns: 1fr;
-  }
-}
-
 @media (max-width: 640px) {
   .live-detail-main {
     gap: 14px;
@@ -975,6 +971,17 @@ watch(showChat, (visible) => {
   .product-card__thumb {
     width: 100%;
     height: 160px;
+  }
+}
+
+@media (max-width: 1120px) {
+  .live-detail-main {
+    grid-template-columns: 1fr !important;
+  }
+
+  .chat-panel {
+    width: 100%;
+    height: auto !important;
   }
 }
 </style>

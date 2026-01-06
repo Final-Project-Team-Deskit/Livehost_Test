@@ -273,6 +273,7 @@ onBeforeUnmount(() => {
     <section v-else class="live-detail-layout">
       <div
         class="live-detail-main"
+        :class="{ 'live-detail-main--chat': showChat }"
         :style="{
           gridTemplateColumns: showChat ? 'minmax(0, 1.6fr) minmax(0, 0.95fr)' : 'minmax(0, 1fr)',
         }"
@@ -464,6 +465,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 18px;
+  overflow-x: hidden;
 }
 
 .live-detail-main {
@@ -664,22 +666,6 @@ onBeforeUnmount(() => {
   object-fit: contain;
 }
 
-.player-frame--fullscreen,
-.player-frame:fullscreen {
-  width: min(100vw, calc(100vh * (16 / 9)));
-  height: min(100vh, calc(100vw * (9 / 16)));
-  max-height: 100vh;
-  max-width: 100vw;
-  border-radius: 0;
-  background: #000;
-}
-
-.player-frame:fullscreen iframe,
-.player-frame:fullscreen video,
-.player-frame:fullscreen img {
-  object-fit: contain;
-}
-
 .player-frame__label {
   opacity: 0.8;
 }
@@ -744,6 +730,7 @@ onBeforeUnmount(() => {
 
 .chat-panel {
   width: 360px;
+  max-width: 100%;
   display: flex;
   flex-direction: column;
   border-radius: 16px;
@@ -937,6 +924,17 @@ onBeforeUnmount(() => {
 
   .chat-input {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1120px) {
+  .live-detail-main {
+    grid-template-columns: 1fr !important;
+  }
+
+  .chat-panel {
+    width: 100%;
+    height: auto !important;
   }
 }
 </style>
