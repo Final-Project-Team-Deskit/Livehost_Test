@@ -3,7 +3,6 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PageContainer from '../components/PageContainer.vue'
 import PageHeader from '../components/PageHeader.vue'
-import ConfirmModal from '../components/ConfirmModal.vue'
 import { allLiveItems } from '../lib/home-data'
 import { getLiveStatus, parseLiveDate } from '../lib/live/utils'
 import { useNow } from '../lib/live/useNow'
@@ -206,40 +205,6 @@ onMounted(() => {
   scrollToBottom()
 })
 
-const WATCH_HISTORY_CONSENT_KEY = 'deskit_live_watch_history_consent_v1'
-const hasWatchHistoryConsent = ref(false)
-const showWatchHistoryConsent = ref(false)
-
-const requestWatchHistoryConsent = () => {
-  try {
-    hasWatchHistoryConsent.value =
-      typeof localStorage !== 'undefined' && localStorage.getItem(WATCH_HISTORY_CONSENT_KEY) === 'true'
-  } catch {
-    hasWatchHistoryConsent.value = false
-  }
-
-  if (!hasWatchHistoryConsent.value) {
-    showWatchHistoryConsent.value = true
-  }
-}
-
-const handleConfirmWatchHistory = () => {
-  hasWatchHistoryConsent.value = true
-  showWatchHistoryConsent.value = false
-  try {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(WATCH_HISTORY_CONSENT_KEY, 'true')
-    }
-  } catch {
-    return
-  }
-}
-
-const handleCancelWatchHistory = () => {
-  showWatchHistoryConsent.value = false
-  router.push({ name: 'live' }).catch(() => {})
-}
-
 onMounted(() => {
   panelResizeObserver = new ResizeObserver(() => {
     syncChatHeight()
@@ -250,7 +215,6 @@ onMounted(() => {
   nextTick(() => {
     syncChatHeight()
   })
-  requestWatchHistoryConsent()
 })
 
 const handleDocumentClick = (event: MouseEvent) => {
@@ -299,15 +263,6 @@ onBeforeUnmount(() => {
 
 <template>
   <PageContainer>
-    <ConfirmModal
-      v-model="showWatchHistoryConsent"
-      title="시청 기록 수집 안내"
-      description="라이브 방송 입장 시 시청 기록이 수집됩니다. 계속 진행하시겠습니까?"
-      confirm-text="동의하고 입장하기"
-      cancel-text="취소"
-      @confirm="handleConfirmWatchHistory"
-      @cancel="handleCancelWatchHistory"
-    />
     <PageHeader eyebrow="DESKIT LIVE" title="라이브 상세" />
 
     <div v-if="!liveItem" class="empty-state">
