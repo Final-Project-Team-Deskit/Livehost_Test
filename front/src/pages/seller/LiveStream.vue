@@ -899,10 +899,23 @@ const toggleFullscreen = async () => {
   opacity: 0.6;
 }
 
+.stream-center {
+  padding: 24px;
+  height: var(--stream-pane-height);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  position: relative;
+  aspect-ratio: 16 / 9;
+  max-height: calc(100vh - 180px);
+}
+
 .stream-center__body {
   flex: 1 1 auto;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
