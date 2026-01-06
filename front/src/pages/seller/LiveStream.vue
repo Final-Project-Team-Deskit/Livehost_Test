@@ -48,6 +48,7 @@ const viewerCount = ref(1010)
 const likeCount = ref(1574)
 const elapsed = ref('02:01:44')
 const monitorRef = ref<HTMLElement | null>(null)
+const streamCenterRef = ref<HTMLElement | null>(null)
 const isFullscreen = ref(false)
 const micEnabled = ref(true)
 const videoEnabled = ref(true)
@@ -57,6 +58,7 @@ const selectedCamera = ref('기본 카메라')
 const micInputLevel = ref(70)
 const chatText = ref('')
 const chatListRef = ref<HTMLElement | null>(null)
+let centerObserver: ResizeObserver | null = null
 
 const showQCards = ref(false)
 const showBasicInfo = ref(false)
@@ -66,6 +68,9 @@ const qCardIndex = ref(0)
 const handleFullscreenChange = () => {
   isFullscreen.value = Boolean(document.fullscreenElement)
 }
+
+const centerWidth = ref(0)
+const centerHeight = computed(() => (centerWidth.value ? (centerWidth.value * 9) / 16 : null))
 
 const confirmState = reactive({
   open: false,
@@ -147,6 +152,13 @@ const sortedProducts = computed(() => {
 
 const chatItems = computed(() => chatMessages.value)
 
+const hasSidePanels = computed(() => showProducts.value || showChat.value)
+const gridStyles = computed(() => ({
+  gridTemplateColumns: monitorColumns.value,
+  '--stream-pane-height': streamPaneHeight.value,
+  '--center-height': centerHeight.value ? `${centerHeight.value}px` : undefined,
+}))
+
 const monitorColumns = computed(() => {
   if (showProducts.value && showChat.value) return '320px minmax(0, 1fr) 320px'
   if (showProducts.value) return '320px minmax(0, 1fr)'
@@ -155,6 +167,12 @@ const monitorColumns = computed(() => {
 })
 
 const streamPaneHeight = computed(() => {
+  const dynamic = centerHeight.value
+  if (dynamic) {
+    const min = 320
+    const max = 760
+    return `${Math.min(Math.max(dynamic, min), max)}px`
+  }
   if (showProducts.value && showChat.value) return 'clamp(460px, 62vh, 680px)'
   if (showProducts.value || showChat.value) return 'clamp(520px, 68vh, 760px)'
   return 'clamp(560px, 74vh, 880px)'
@@ -222,11 +240,21 @@ const handleKeydown = (event: KeyboardEvent) => {
 onMounted(() => {
   window.addEventListener('keydown', handleKeydown)
   document.addEventListener('fullscreenchange', handleFullscreenChange)
+  if (streamCenterRef.value) {
+    centerObserver = new ResizeObserver((entries) => {
+      const entry = entries[0]
+      if (entry?.contentRect?.width) {
+        centerWidth.value = entry.contentRect.width
+      }
+    })
+    centerObserver.observe(streamCenterRef.value)
+  }
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleKeydown)
   document.removeEventListener('fullscreenchange', handleFullscreenChange)
+  centerObserver?.disconnect()
 })
 
 const openConfirm = (options: Partial<typeof confirmState>, onConfirm: () => void) => {
@@ -385,7 +413,11 @@ const toggleFullscreen = async () => {
     <section
       ref="monitorRef"
       class="stream-grid"
-      :style="{ gridTemplateColumns: monitorColumns, '--stream-pane-height': streamPaneHeight }"
+      :class="{
+        'stream-grid--chat': showChat,
+        'stream-grid--products': showProducts,
+      }"
+      :style="gridStyles"
     >
       <aside v-if="showProducts" class="stream-panel ds-surface">
         <div class="panel-head">
@@ -432,9 +464,15 @@ const toggleFullscreen = async () => {
         </div>
       </aside>
 
-      <div class="stream-center ds-surface">
+      <div ref="streamCenterRef" class="stream-center ds-surface">
         <div class="stream-center__body">
-          <div class="stream-player">
+          <div
+            class="stream-player"
+            :class="{
+              'stream-player--fullscreen': isFullscreen,
+              'stream-player--constrained': hasSidePanels,
+            }"
+          >
             <div class="stream-overlay stream-overlay--stack">
               <div class="stream-overlay__row">⏱ 경과 {{ elapsed }}</div>
               <div class="stream-overlay__row">👥 {{ viewerCount.toLocaleString('ko-KR') }}명</div>
@@ -682,6 +720,7 @@ const toggleFullscreen = async () => {
   padding: 16px;
   gap: 12px;
   height: var(--stream-pane-height);
+  max-height: var(--stream-pane-height);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -892,9 +931,12 @@ const toggleFullscreen = async () => {
   justify-content: center;
   min-width: 0;
   min-height: var(--stream-pane-height);
-  max-height: calc(100vh - 120px);
+  height: var(--stream-pane-height);
+  max-height: var(--stream-pane-height);
   position: relative;
   background: #1c1d21;
+  width: min(100%, var(--media-max-width, 1200px));
+  margin: 0 auto;
 }
 
 .stream-center__body {
@@ -911,7 +953,6 @@ const toggleFullscreen = async () => {
   position: relative;
   width: 100%;
   height: auto;
-  max-height: calc(100vh - 120px);
   aspect-ratio: 16 / 9;
   border-radius: 16px;
   background: #0b0f1a;
@@ -920,6 +961,18 @@ const toggleFullscreen = async () => {
   justify-content: center;
   overflow: hidden;
   min-height: 320px;
+}
+
+.stream-player--fullscreen {
+  max-height: none;
+  width: min(100vw, calc(100vh * (16 / 9)));
+  height: min(100vh, calc(100vw * (9 / 16)));
+  border-radius: 0;
+  background: #000;
+}
+
+.stream-player--constrained {
+  max-width: min(100%, calc((100vh - 120px) * (16 / 9)));
 }
 
 .stream-placeholder {
@@ -1180,7 +1233,33 @@ const toggleFullscreen = async () => {
 
 .stream-grid:fullscreen .stream-player {
   max-height: 100vh;
-  width: min(100%, calc(100vh * (16 / 9)));
+  width: min(100vw, calc(100vh * (16 / 9)));
+  height: min(100vh, calc(100vw * (9 / 16)));
+  border-radius: 0;
+  background: #000;
+}
+
+.stream-grid:fullscreen.stream-grid--chat .stream-player {
+  width: min(max(320px, calc(100vw - 380px)), calc(100vh * (16 / 9)));
+  height: min(100vh, max(200px, calc((100vw - 380px) * (9 / 16))));
+}
+
+.stream-grid:fullscreen.stream-grid--products:not(.stream-grid--chat) .stream-player {
+  width: min(max(320px, calc(100vw - 340px)), calc(100vh * (16 / 9)));
+  height: min(100vh, max(200px, calc((100vw - 340px) * (9 / 16))));
+}
+
+.stream-grid:fullscreen.stream-grid--products.stream-grid--chat .stream-player {
+  width: min(max(320px, calc(100vw - 720px)), calc(100vh * (16 / 9)));
+  height: min(100vh, max(200px, calc((100vw - 720px) * (9 / 16))));
+}
+
+.stream-grid:not(.stream-grid--products):not(.stream-grid--chat) .stream-player {
+  max-width: 100%;
+}
+
+.stream-grid:not(.stream-grid--products):not(.stream-grid--chat) {
+  gap: 0;
 }
 
 @media (max-width: 960px) {
