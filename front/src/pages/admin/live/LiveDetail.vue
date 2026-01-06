@@ -12,6 +12,7 @@ const detail = ref<ReturnType<typeof getAdminLiveSummaries>[number] | null>(null
 
 const stageRef = ref<HTMLDivElement | null>(null)
 const isFullscreen = ref(false)
+const modalHost = computed(() => (isFullscreen.value && stageRef.value ? stageRef.value : 'body'))
 const showStopModal = ref(false)
 const stopReason = ref('')
 const stopDetail = ref('')
@@ -420,62 +421,64 @@ watch(liveId, loadDetail, { immediate: true })
       </div>
     </section>
 
-    <div v-if="showStopModal" class="stop-modal">
-      <div class="stop-modal__backdrop" @click="closeStopModal"></div>
-      <div class="stop-modal__card ds-surface">
-        <header class="stop-modal__head">
-          <h3>방송 송출 중지</h3>
-          <button type="button" class="close-btn" @click="closeStopModal">×</button>
-        </header>
-        <div class="stop-modal__body">
-          <label class="field">
-            <span class="field__label">유형</span>
-            <select v-model="stopReason" class="field-input">
-              <option value="">선택해주세요</option>
-              <option v-for="option in reasonOptions" :key="option" :value="option">{{ option }}</option>
-            </select>
-          </label>
-          <label v-if="stopReason === '기타'" class="field">
-            <span class="field__label">중지 사유(기타 선택 시)</span>
-            <textarea v-model="stopDetail" class="field-input" rows="4" placeholder="사유를 입력해주세요."></textarea>
-          </label>
-          <p v-if="error" class="error">{{ error }}</p>
-        </div>
-        <div class="stop-modal__actions">
-          <button type="button" class="btn ghost" @click="closeStopModal">취소</button>
-          <button type="button" class="btn primary" @click="handleStopSave">저장</button>
+    <Teleport :to="modalHost">
+      <div v-if="showStopModal" class="stop-modal">
+        <div class="stop-modal__backdrop" @click="closeStopModal"></div>
+        <div class="stop-modal__card ds-surface">
+          <header class="stop-modal__head">
+            <h3>방송 송출 중지</h3>
+            <button type="button" class="close-btn" @click="closeStopModal">×</button>
+          </header>
+          <div class="stop-modal__body">
+            <label class="field">
+              <span class="field__label">유형</span>
+              <select v-model="stopReason" class="field-input">
+                <option value="">선택해주세요</option>
+                <option v-for="option in reasonOptions" :key="option" :value="option">{{ option }}</option>
+              </select>
+            </label>
+            <label v-if="stopReason === '기타'" class="field">
+              <span class="field__label">중지 사유(기타 선택 시)</span>
+              <textarea v-model="stopDetail" class="field-input" rows="4" placeholder="사유를 입력해주세요."></textarea>
+            </label>
+            <p v-if="error" class="error">{{ error }}</p>
+          </div>
+          <div class="stop-modal__actions">
+            <button type="button" class="btn ghost" @click="closeStopModal">취소</button>
+            <button type="button" class="btn primary" @click="handleStopSave">저장</button>
+          </div>
         </div>
       </div>
-    </div>
 
-    <div v-if="showModerationModal" class="moderation-modal">
-      <div class="moderation-modal__backdrop" @click="closeModeration"></div>
-      <div class="moderation-modal__card ds-surface">
-        <header class="moderation-modal__head">
-          <h3>채팅 관리</h3>
-          <button type="button" class="close-btn" @click="closeModeration">×</button>
-        </header>
-        <div class="moderation-modal__body">
-          <p class="moderation-target">대상: {{ moderationTarget?.user }}</p>
-          <label class="field">
-            <span class="field__label">제재 유형</span>
-            <select v-model="moderationType" class="field-input">
-              <option value="">선택해주세요</option>
-              <option value="채팅 금지">채팅 금지</option>
-              <option value="강제 퇴장">강제 퇴장</option>
-            </select>
-          </label>
-          <label class="field">
-            <span class="field__label">제재 사유</span>
-            <textarea v-model="moderationReason" class="field-input" rows="4" placeholder="사유를 입력해주세요."></textarea>
-          </label>
-        </div>
-        <div class="moderation-modal__actions">
-          <button type="button" class="btn ghost" @click="closeModeration">취소</button>
-          <button type="button" class="btn primary" @click="saveModeration">저장</button>
+      <div v-if="showModerationModal" class="moderation-modal">
+        <div class="moderation-modal__backdrop" @click="closeModeration"></div>
+        <div class="moderation-modal__card ds-surface">
+          <header class="moderation-modal__head">
+            <h3>채팅 관리</h3>
+            <button type="button" class="close-btn" @click="closeModeration">×</button>
+          </header>
+          <div class="moderation-modal__body">
+            <p class="moderation-target">대상: {{ moderationTarget?.user }}</p>
+            <label class="field">
+              <span class="field__label">제재 유형</span>
+              <select v-model="moderationType" class="field-input">
+                <option value="">선택해주세요</option>
+                <option value="채팅 금지">채팅 금지</option>
+                <option value="강제 퇴장">강제 퇴장</option>
+              </select>
+            </label>
+            <label class="field">
+              <span class="field__label">제재 사유</span>
+              <textarea v-model="moderationReason" class="field-input" rows="4" placeholder="사유를 입력해주세요."></textarea>
+            </label>
+          </div>
+          <div class="moderation-modal__actions">
+            <button type="button" class="btn ghost" @click="closeModeration">취소</button>
+            <button type="button" class="btn primary" @click="saveModeration">저장</button>
+          </div>
         </div>
       </div>
-    </div>
+    </Teleport>
   </div>
 </template>
 
@@ -1013,6 +1016,7 @@ watch(liveId, loadDetail, { immediate: true })
   display: flex;
   flex-direction: column;
   gap: 12px;
+  align-items: flex-start;
 }
 
 .tab-list {
@@ -1021,7 +1025,8 @@ watch(liveId, loadDetail, { immediate: true })
   padding: 4px;
   border-radius: 12px;
   gap: 6px;
-  width: fit-content;
+  width: 100%;
+  flex-wrap: wrap;
 }
 
 .tab {
@@ -1033,6 +1038,8 @@ watch(liveId, loadDetail, { immediate: true })
   font-weight: 800;
   cursor: pointer;
   transition: background 0.2s ease, color 0.2s ease;
+  flex: 1 1 140px;
+  text-align: center;
 }
 
 .tab--active {
@@ -1147,6 +1154,52 @@ watch(liveId, loadDetail, { immediate: true })
 .product-status.is-soldout {
   background: rgba(248, 113, 113, 0.15);
   color: #ef4444;
+}
+
+@media (max-width: 1280px) {
+  .monitor-stage {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .monitor-stage--chat .player-wrap {
+    margin-right: 0;
+  }
+
+  .monitor-stage--chat .chat-panel {
+    position: static;
+    width: 100%;
+    height: auto;
+  }
+
+  .player-frame {
+    max-width: 100%;
+    min-height: clamp(320px, 50vw, 560px);
+  }
+
+  .overlay-actions {
+    right: 10px;
+    bottom: 10px;
+    flex-direction: row;
+  }
+}
+
+@media (max-width: 720px) {
+  .tab-list {
+    gap: 8px;
+  }
+
+  .tab {
+    flex: 1 1 120px;
+  }
+
+  .monitor-stage {
+    gap: 12px;
+  }
+
+  .player-frame {
+    min-height: 280px;
+  }
 }
 
 @media (max-width: 900px) {

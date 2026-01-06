@@ -50,6 +50,7 @@ const elapsed = ref('02:01:44')
 const monitorRef = ref<HTMLElement | null>(null)
 const streamGridRef = ref<HTMLElement | null>(null)
 const isFullscreen = ref(false)
+const modalTarget = computed(() => (isFullscreen.value && monitorRef.value ? monitorRef.value : 'body'))
 const micEnabled = ref(true)
 const videoEnabled = ref(true)
 const volume = ref(43)
@@ -71,6 +72,7 @@ const handleFullscreenChange = () => {
 
 const gridWidth = ref(0)
 const gridHeight = computed(() => (gridWidth.value ? (gridWidth.value * 9) / 16 : null))
+const isStackedLayout = computed(() => gridWidth.value > 0 && gridWidth.value < 1180)
 
 const confirmState = reactive({
   open: false,
@@ -152,14 +154,31 @@ const sortedProducts = computed(() => {
 
 const chatItems = computed(() => chatMessages.value)
 
+const stackedAreas = computed(() => {
+  const rows = ['"center"']
+  if (showProducts.value) rows.push('"products"')
+  if (showChat.value) rows.push('"chat"')
+  return rows.join(' ')
+})
+
+const gridTemplateAreas = computed(() => {
+  if (isStackedLayout.value) return stackedAreas.value
+  if (showProducts.value && showChat.value) return '"products center chat"'
+  if (showProducts.value) return '"products center"'
+  if (showChat.value) return '"center chat"'
+  return '"center"'
+})
+
 const hasSidePanels = computed(() => showProducts.value || showChat.value)
 const gridStyles = computed(() => ({
   gridTemplateColumns: monitorColumns.value,
-  '--stream-pane-height': streamPaneHeight.value,
-  '--center-height': gridHeight.value ? `${gridHeight.value}px` : undefined,
+  gridTemplateAreas: gridTemplateAreas.value,
+  '--stream-pane-height': isStackedLayout.value ? 'auto' : streamPaneHeight.value,
+  '--center-height': !isStackedLayout.value && gridHeight.value ? `${gridHeight.value}px` : undefined,
 }))
 
 const monitorColumns = computed(() => {
+  if (isStackedLayout.value) return '1fr'
   if (showProducts.value && showChat.value) return '320px minmax(0, 1fr) 320px'
   if (showProducts.value) return '320px minmax(0, 1fr)'
   if (showChat.value) return 'minmax(0, 1fr) 320px'
@@ -419,10 +438,11 @@ const toggleFullscreen = async () => {
       :class="{
         'stream-grid--chat': showChat,
         'stream-grid--products': showProducts,
+        'stream-grid--stacked': isStackedLayout,
       }"
       :style="gridStyles"
     >
-      <aside v-if="showProducts" class="stream-panel ds-surface">
+      <aside v-if="showProducts" class="stream-panel stream-products ds-surface">
         <div class="panel-head">
           <div class="panel-head__left">
             <h3>상품 관리</h3>
@@ -662,17 +682,19 @@ const toggleFullscreen = async () => {
         </div>
       </aside>
     </section>
-    <ConfirmModal
-      v-model="confirmState.open"
-      :title="confirmState.title"
-      :description="confirmState.description"
-      :confirm-text="confirmState.confirmText"
-      :cancel-text="confirmState.cancelText"
-      @confirm="handleConfirmAction"
-    />
-    <QCardModal v-model="showQCards" :q-cards="qCards" :initial-index="qCardIndex" @update:initialIndex="qCardIndex = $event" />
-    <BasicInfoEditModal v-if="broadcastInfo" v-model="showBasicInfo" :broadcast="broadcastInfo" @save="handleBasicInfoSave" />
-    <ChatSanctionModal v-model="showSanctionModal" :username="sanctionTarget" @save="applySanction" />
+    <Teleport :to="modalTarget">
+      <ConfirmModal
+        v-model="confirmState.open"
+        :title="confirmState.title"
+        :description="confirmState.description"
+        :confirm-text="confirmState.confirmText"
+        :cancel-text="confirmState.cancelText"
+        @confirm="handleConfirmAction"
+      />
+      <QCardModal v-model="showQCards" :q-cards="qCards" :initial-index="qCardIndex" @update:initialIndex="qCardIndex = $event" />
+      <BasicInfoEditModal v-if="broadcastInfo" v-model="showBasicInfo" :broadcast="broadcastInfo" @save="handleBasicInfoSave" />
+      <ChatSanctionModal v-model="showSanctionModal" :username="sanctionTarget" @save="applySanction" />
+    </Teleport>
   </PageContainer>
 </template>
 
@@ -717,6 +739,19 @@ const toggleFullscreen = async () => {
   gap: 18px;
   align-items: start;
   --stream-pane-height: clamp(300px, auto, 675px);
+  grid-template-areas: "products center chat";
+}
+
+.stream-products {
+  grid-area: products;
+}
+
+.stream-center {
+  grid-area: center;
+}
+
+.stream-chat {
+  grid-area: chat;
 }
 
 .stream-panel {
@@ -1262,6 +1297,38 @@ const toggleFullscreen = async () => {
 
 .stream-grid:not(.stream-grid--products):not(.stream-grid--chat) {
   gap: 0;
+}
+
+.stream-grid--stacked {
+  grid-template-columns: 1fr;
+  gap: 14px;
+  align-items: stretch;
+}
+
+.stream-grid--stacked .stream-panel,
+.stream-grid--stacked .stream-center {
+  height: auto;
+  max-height: none;
+  min-height: 0;
+}
+
+.stream-grid--stacked .stream-panel {
+  overflow: visible;
+}
+
+.stream-grid--stacked .stream-center {
+  order: -1;
+  width: 100%;
+}
+
+.stream-grid--stacked .stream-player--constrained {
+  max-width: 100%;
+}
+
+.stream-grid--stacked .stream-settings {
+  position: static;
+  transform: none;
+  width: 100%;
 }
 
 @media (max-width: 960px) {
