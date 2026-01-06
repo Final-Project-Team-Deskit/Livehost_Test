@@ -345,16 +345,16 @@ watch(liveId, loadDetail, { immediate: true })
                   </button>
                   <button type="button" class="icon-circle ghost" :class="{ active: isFullscreen }" @click="toggleFullscreen" :title="isFullscreen ? '전체화면 종료' : '전체화면'">
                     <svg v-if="!isFullscreen" aria-hidden="true" class="icon" viewBox="0 0 24 24" focusable="false">
-                      <path d="M15 3h6v6" />
-                      <path d="M9 21H3v-6" />
-                      <path d="M21 3 14 10" />
-                      <path d="M3 21 10 14" />
+                      <path d="M4 9V4h5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+                      <path d="M20 9V4h-5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+                      <path d="M4 15v5h5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+                      <path d="M20 15v5h-5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
                     </svg>
                     <svg v-else aria-hidden="true" class="icon" viewBox="0 0 24 24" focusable="false">
-                      <path d="M9 9H3V3" />
-                      <path d="m3 9 6-6" />
-                      <path d="M15 15h6v6" />
-                      <path d="m21 15-6 6" />
+                      <path d="M9 5H5v4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+                      <path d="M15 19h4v-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+                      <path d="M9 19H5v-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+                      <path d="M15 5h4v4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
                     </svg>
                   </button>
                 </div>
@@ -805,8 +805,8 @@ watch(liveId, loadDetail, { immediate: true })
 }
 
 .monitor-stage:fullscreen.monitor-stage--chat .player-frame {
-  width: min(calc(100vw - 380px), calc(100vh * (16 / 9)));
-  height: min(100vh, calc((100vw - 380px) * (9 / 16)));
+  width: min(max(320px, calc(100vw - 380px)), calc(100vh * (16 / 9)));
+  height: min(100vh, max(200px, calc((100vw - 380px) * (9 / 16))));
 }
 
 .monitor-stage--chat .chat-panel {

@@ -385,7 +385,10 @@ const toggleFullscreen = async () => {
     <section
       ref="monitorRef"
       class="stream-grid"
-      :class="{ 'stream-grid--chat': showChat }"
+      :class="{
+        'stream-grid--chat': showChat,
+        'stream-grid--products': showProducts,
+      }"
       :style="{ gridTemplateColumns: monitorColumns, '--stream-pane-height': streamPaneHeight }"
     >
       <aside v-if="showProducts" class="stream-panel ds-surface">
@@ -1196,8 +1199,18 @@ const toggleFullscreen = async () => {
 }
 
 .stream-grid:fullscreen.stream-grid--chat .stream-player {
-  width: min(calc(100vw - 380px), calc(100vh * (16 / 9)));
-  height: min(100vh, calc((100vw - 380px) * (9 / 16)));
+  width: min(max(320px, calc(100vw - 380px)), calc(100vh * (16 / 9)));
+  height: min(100vh, max(200px, calc((100vw - 380px) * (9 / 16))));
+}
+
+.stream-grid:fullscreen.stream-grid--products:not(.stream-grid--chat) .stream-player {
+  width: min(max(320px, calc(100vw - 340px)), calc(100vh * (16 / 9)));
+  height: min(100vh, max(200px, calc((100vw - 340px) * (9 / 16))));
+}
+
+.stream-grid:fullscreen.stream-grid--products.stream-grid--chat .stream-player {
+  width: min(max(320px, calc(100vw - 720px)), calc(100vh * (16 / 9)));
+  height: min(100vh, max(200px, calc((100vw - 720px) * (9 / 16))));
 }
 
 @media (max-width: 960px) {

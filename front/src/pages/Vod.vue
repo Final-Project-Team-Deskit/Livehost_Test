@@ -688,7 +688,8 @@ watch(showChat, (visible) => {
   place-items: center;
   color: #fff;
   font-weight: 700;
-  min-height: 360px;
+  min-height: clamp(220px, 56vw, 720px);
+  max-height: calc(100vw * (9 / 16));
   overflow: hidden;
 }
 
