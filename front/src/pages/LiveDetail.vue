@@ -639,14 +639,14 @@ onBeforeUnmount(() => {
   max-width: calc((100vh - 180px) * (16 / 9));
   max-height: calc(100vh - 180px);
   aspect-ratio: 16 / 9;
-  background: #10131b;
+  background: #272d3b;
   border-radius: 16px;
   display: grid;
   place-items: center;
   color: #fff;
   font-weight: 700;
   min-height: 360px;
-  overflow: hidden;
+  overflow: auto;
 }
 
 .player-frame__label {

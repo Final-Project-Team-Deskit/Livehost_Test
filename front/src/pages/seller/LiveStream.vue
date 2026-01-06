@@ -861,13 +861,13 @@ const toggleFullscreen = async () => {
   right: 16px;
   display: grid;
   grid-auto-rows: 1fr;
-  gap: 8px;
+  gap: 6px;
   justify-items: end;
 }
 
 .fab-btn {
-  width: 44px;
-  height: 44px;
+  width: 42px;
+  height: 42px;
   border-radius: 50%;
   border: 1px solid rgba(255, 255, 255, 0.15);
   background: rgba(0, 0, 0, 0.45);
@@ -885,7 +885,6 @@ const toggleFullscreen = async () => {
 }
 
 .stream-center {
-  padding: 16px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -895,7 +894,7 @@ const toggleFullscreen = async () => {
   min-height: var(--stream-pane-height);
   max-height: calc(100vh - 120px);
   position: relative;
-  background: #0b0f1a;
+  background: #1c1d21;
 }
 
 .stream-center__body {

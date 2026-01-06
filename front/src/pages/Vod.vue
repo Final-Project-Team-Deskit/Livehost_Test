@@ -292,6 +292,7 @@ watch(showChat, (visible) => {
               <span v-else-if="status === 'ENDED'" class="status-ended">방송 종료</span>
             </div>
             <h3 class="player-title">{{ vodItem.title }}</h3>
+            <span> {{ formatSchedule(vodItem.startAt, vodItem.endAt)}}</span>
             <p v-if="vodItem.description" class="player-desc">{{ vodItem.description }}</p>
             <p v-if="vodItem.sellerName" class="player-seller">{{ vodItem.sellerName }}</p>
           </div>
@@ -433,7 +434,7 @@ watch(showChat, (visible) => {
             />
             <button type="button" class="btn primary" disabled>전송</button>
           </div>
-          <p class="chat-helper">VOD에서는 채팅 기록만 볼 수 있어요.</p>
+<!--          <p class="chat-helper">VOD에서는 채팅 기록만 볼 수 있어요.</p>-->
         </aside>
       </div>
 
