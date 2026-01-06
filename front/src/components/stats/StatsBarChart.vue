@@ -93,7 +93,6 @@ const barLayoutStyle = computed(() => ({
   gap: 10px;
   width: 100%;
   max-width: 100%;
-  overflow: hidden;
 }
 
 .bar-chart__y-axis {
