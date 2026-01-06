@@ -918,14 +918,15 @@ const toggleFullscreen = async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
+  overflow: auto;
   min-height: 320px;
 }
 
 .stream-player--fullscreen {
-  max-height: none;
-  width: min(100vw, calc(100vh * (16 / 9)));
-  height: min(100vh, calc(100vw * (9 / 16)));
+  width: 100%;
+  height: auto;
+  max-width: min(100vw, calc(100vh * (16 / 9)));
+  max-height: min(100vh, calc(100vw * (9 / 16)));
   border-radius: 0;
   background: #000;
 }

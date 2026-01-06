@@ -571,23 +571,23 @@ watch(liveId, loadDetail, { immediate: true })
   position: relative;
   width: 100%;
   height: auto;
-  max-width: calc((100vh - 180px) * (16 / 9));
-  max-height: calc(100vh - 180px);
+  max-width: calc((100vh - 120px) * (16 / 9));
+  max-height: calc(100vh - 120px);
   min-height: clamp(360px, 56vh, 760px);
   aspect-ratio: 16 / 9;
   background: #0b0f1a;
   border-radius: 18px;
-  overflow: hidden;
+  overflow: auto;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .player-frame--fullscreen {
-  max-height: none;
-  max-width: none;
-  height: min(100vh, calc(100vw * (9 / 16)));
-  width: min(100vw, calc(100vh * (16 / 9)));
+  height: 100%;
+  width: auto;
+  max-height: min(100vh, calc(100vw * (9 / 16)));
+  max-width: min(100vw, calc(100vh * (16 / 9)));
   border-radius: 0;
   background: #000;
 }
@@ -1120,7 +1120,7 @@ watch(liveId, loadDetail, { immediate: true })
 .product-status.is-soldout {
   background: rgba(248, 113, 113, 0.15);
   color: #ef4444;
-}
+}s
 
 @media (max-width: 900px) {
   .player-frame {
