@@ -907,6 +907,8 @@ const toggleFullscreen = async () => {
   max-height: 700px;
   position: relative;
   background: #1c1d21;
+  width: min(100%, var(--media-max-width, 1200px));
+  margin: 0 auto;
 }
 
 .stream-center__body {
@@ -923,8 +925,6 @@ const toggleFullscreen = async () => {
   position: relative;
   width: 100%;
   height: auto;
-  max-height: calc(100vh - 120px);
-  max-width: min(100%, calc((100vh - 120px) * (16 / 9)));
   aspect-ratio: 16 / 9;
   border-radius: 16px;
   background: #0b0f1a;
