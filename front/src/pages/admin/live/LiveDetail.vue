@@ -11,9 +11,6 @@ const liveId = computed(() => (typeof route.params.liveId === 'string' ? route.p
 const detail = ref<ReturnType<typeof getAdminLiveSummaries>[number] | null>(null)
 
 const stageRef = ref<HTMLDivElement | null>(null)
-const stageWidth = ref(0)
-const stageHeight = computed(() => (stageWidth.value ? (stageWidth.value * 9) / 16 : null))
-let stageObserver: ResizeObserver | null = null
 const isFullscreen = ref(false)
 const showStopModal = ref(false)
 const stopReason = ref('')
@@ -31,64 +28,64 @@ const moderationReason = ref('')
 const moderatedUsers = ref<Record<string, { type: string; reason: string; at: string }>>({})
 const activePane = ref<'monitor' | 'products'>('monitor')
 const liveProducts = ref(
-  [
-    {
-      id: 'p-1',
-      name: '모던 스탠딩 데스크',
-      option: '1200mm · 오프화이트',
-      price: '₩229,000',
-      sale: '₩189,000',
-      status: '판매중',
-      thumb: '',
-      sold: 128,
-      stock: 42,
-    },
-    {
-      id: 'p-2',
-      name: '무선 기계식 키보드',
-      option: '갈축 · 무선',
-      price: '₩139,000',
-      sale: '₩109,000',
-      status: '판매중',
-      thumb: '',
-      sold: 93,
-      stock: 65,
-    },
-    {
-      id: 'p-3',
-      name: '프리미엄 데스크 매트',
-      option: '900mm · 샌드',
-      price: '₩59,000',
-      sale: '₩45,000',
-      status: '품절',
-      thumb: '',
-      sold: 210,
-      stock: 0,
-    },
-    {
-      id: 'p-4',
-      name: '알루미늄 모니터암',
-      option: '싱글 · 블랙',
-      price: '₩169,000',
-      sale: '₩129,000',
-      status: '판매중',
-      thumb: '',
-      sold: 77,
-      stock: 18,
-    },
-  ],
+    [
+      {
+        id: 'p-1',
+        name: '모던 스탠딩 데스크',
+        option: '1200mm · 오프화이트',
+        price: '₩229,000',
+        sale: '₩189,000',
+        status: '판매중',
+        thumb: '',
+        sold: 128,
+        stock: 42,
+      },
+      {
+        id: 'p-2',
+        name: '무선 기계식 키보드',
+        option: '갈축 · 무선',
+        price: '₩139,000',
+        sale: '₩109,000',
+        status: '판매중',
+        thumb: '',
+        sold: 93,
+        stock: 65,
+      },
+      {
+        id: 'p-3',
+        name: '프리미엄 데스크 매트',
+        option: '900mm · 샌드',
+        price: '₩59,000',
+        sale: '₩45,000',
+        status: '품절',
+        thumb: '',
+        sold: 210,
+        stock: 0,
+      },
+      {
+        id: 'p-4',
+        name: '알루미늄 모니터암',
+        option: '싱글 · 블랙',
+        price: '₩169,000',
+        sale: '₩129,000',
+        status: '판매중',
+        thumb: '',
+        sold: 77,
+        stock: 18,
+      },
+    ],
 )
 const gradientPalette = ['111827', '0f172a', '1f2937', '334155'] as const
 
 const gradientThumb = (from: string, to: string) =>
-  `data:image/svg+xml;utf8,` +
-  `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 200'>` +
-  `<defs><linearGradient id='g' x1='0' x2='1' y1='0' y2='1'>` +
-  `<stop offset='0' stop-color='%23${from}'/>` +
-  `<stop offset='1' stop-color='%23${to}'/>` +
-  `</linearGradient></defs>` +
-  `<rect width='320' height='200' fill='url(%23g)'/>` +
-  `</svg>`
+    `data:image/svg+xml;utf8,` +
+    `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 200'>` +
+    `<defs><linearGradient id='g' x1='0' x2='1' y1='0' y2='1'>` +
+    `<stop offset='0' stop-color='%23${from}'/>` +
+    `<stop offset='1' stop-color='%23${to}'/>` +
+    `</linearGradient></defs>` +
+    `<rect width='320' height='200' fill='url(%23g)'/>` +
+    `</svg>`
 const seedProductThumbs = () => {
   liveProducts.value = liveProducts.value.map((item, index) => ({
     ...item,
@@ -267,21 +264,11 @@ onMounted(() => {
   seedProductThumbs()
   document.addEventListener('fullscreenchange', syncFullscreen)
   window.addEventListener(ADMIN_LIVES_EVENT, loadDetail)
-  if (stageRef.value) {
-    stageObserver = new ResizeObserver((entries) => {
-      const entry = entries[0]
-      if (entry?.contentRect?.width) {
-        stageWidth.value = entry.contentRect.width
-      }
-    })
-    stageObserver.observe(stageRef.value)
-  }
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('fullscreenchange', syncFullscreen)
   window.removeEventListener(ADMIN_LIVES_EVENT, loadDetail)
-  stageObserver?.disconnect()
 })
 
 watch(liveId, loadDetail, { immediate: true })
@@ -316,36 +303,31 @@ watch(liveId, loadDetail, { immediate: true })
       <div class="player-tabs">
         <div class="tab-list" role="tablist" aria-label="모니터링 패널">
           <button
-            type="button"
-            class="tab"
-            :class="{ 'tab--active': activePane === 'monitor' }"
-            role="tab"
-            aria-controls="monitor-pane"
-            :aria-selected="activePane === 'monitor'"
-            @click="activePane = 'monitor'"
+              type="button"
+              class="tab"
+              :class="{ 'tab--active': activePane === 'monitor' }"
+              role="tab"
+              aria-controls="monitor-pane"
+              :aria-selected="activePane === 'monitor'"
+              @click="activePane = 'monitor'"
           >
             모니터링
           </button>
           <button
-            type="button"
-            class="tab"
-            :class="{ 'tab--active': activePane === 'products' }"
-            role="tab"
-            aria-controls="products-pane"
-            :aria-selected="activePane === 'products'"
-            @click="activePane = 'products'"
+              type="button"
+              class="tab"
+              :class="{ 'tab--active': activePane === 'products' }"
+              role="tab"
+              aria-controls="products-pane"
+              :aria-selected="activePane === 'products'"
+              @click="activePane = 'products'"
           >
             상품
           </button>
         </div>
 
         <div v-show="activePane === 'monitor'" id="monitor-pane">
-          <div
-            ref="stageRef"
-            class="monitor-stage"
-            :class="{ 'monitor-stage--chat': showChat }"
-            :style="{ '--monitor-height': stageHeight ? `${stageHeight}px` : undefined }"
-          >
+          <div ref="stageRef" class="monitor-stage" :class="{ 'monitor-stage--chat': showChat }">
             <div class="player-wrap">
               <div class="player-frame" :class="{ 'player-frame--fullscreen': isFullscreen }">
                 <div class="player-overlay">
@@ -387,11 +369,11 @@ watch(liveId, loadDetail, { immediate: true })
               </header>
               <div ref="chatListRef" class="chat-messages">
                 <div
-                  v-for="msg in chatMessages"
-                  :key="msg.id"
-                  class="chat-message"
-                  :class="{ 'chat-message--system': msg.user === 'SYSTEM', 'chat-message--muted': moderatedUsers[msg.user] }"
-                  @contextmenu.prevent="openModeration(msg)"
+                    v-for="msg in chatMessages"
+                    :key="msg.id"
+                    class="chat-message"
+                    :class="{ 'chat-message--system': msg.user === 'SYSTEM', 'chat-message--muted': moderatedUsers[msg.user] }"
+                    @contextmenu.prevent="openModeration(msg)"
                 >
                   <div class="chat-meta">
                     <span class="chat-user">{{ msg.user }}</span>
@@ -575,17 +557,13 @@ watch(liveId, loadDetail, { immediate: true })
   gap: 16px;
   align-items: center;
   position: relative;
-  width: min(100%, var(--media-max-width, 1200px));
+  width: 100%;
   margin: 0 auto;
-  min-height: var(--monitor-height, clamp(460px, 62vh, 720px));
-  height: var(--monitor-height, auto);
-  max-height: var(--monitor-height, 760px);
 }
 
 .player-wrap {
   flex: 1;
   min-width: 0;
-  height: var(--monitor-height, auto);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -595,9 +573,9 @@ watch(liveId, loadDetail, { immediate: true })
   position: relative;
   width: 100%;
   height: auto;
-  max-width: 100%;
-  max-height: var(--monitor-height, calc(100vh - 180px));
-  min-height: clamp(360px, 56vh, 760px);
+  max-width: calc((100vh - 120px) * (16 / 9));
+  max-height: calc(100vh - 120px);
+  min-height: clamp(360px, auto, 760px);
   aspect-ratio: 16 / 9;
   background: #0b0f1a;
   border-radius: 18px;

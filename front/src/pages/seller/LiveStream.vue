@@ -170,7 +170,7 @@ const streamPaneHeight = computed(() => {
   const dynamic = gridHeight.value
   if (dynamic) {
     const min = 320
-    const max = 760
+    const max = 675
     return `${Math.min(Math.max(dynamic, min), max)}px`
   }
   if (showProducts.value && showChat.value) return 'clamp(460px, 62vh, 680px)'
@@ -883,7 +883,7 @@ const toggleFullscreen = async () => {
   padding: 10px 12px;
   display: inline-flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   z-index: 2;
   width: fit-content;
   min-width: 0;
@@ -894,7 +894,7 @@ const toggleFullscreen = async () => {
   align-items: center;
   gap: 8px;
   font-weight: 800;
-  font-size: 0.9rem;
+  font-size: 0.8rem;
 }
 
 .stream-fab {
@@ -908,8 +908,8 @@ const toggleFullscreen = async () => {
 }
 
 .fab-btn {
-  width: 42px;
-  height: 42px;
+  width: 39px;
+  height: 39px;
   border-radius: 50%;
   border: 1px solid rgba(255, 255, 255, 0.15);
   background: rgba(0, 0, 0, 0.45);
@@ -938,8 +938,7 @@ const toggleFullscreen = async () => {
   max-height: var(--stream-pane-height);
   position: relative;
   background: #1c1d21;
-  width: min(100%, var(--media-max-width, 1200px));
-  margin: 0 auto;
+  width: 100%;
 }
 
 .stream-center__body {
