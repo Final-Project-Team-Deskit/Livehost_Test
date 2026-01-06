@@ -630,11 +630,14 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  align-items: center;
 }
 
 .player-frame {
   position: relative;
   width: 100%;
+  max-width: calc((100vh - 180px) * (16 / 9));
+  max-height: calc(100vh - 180px);
   aspect-ratio: 16 / 9;
   background: #272d3b;
   border-radius: 16px;

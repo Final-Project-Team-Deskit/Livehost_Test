@@ -608,6 +608,7 @@ watch(showChat, (visible) => {
 
 .panel--player {
   gap: 16px;
+  align-items: center;
 }
 
 .player-meta {
@@ -682,6 +683,8 @@ watch(showChat, (visible) => {
 .player-frame {
   position: relative;
   width: 100%;
+  max-width: calc((100vh - 180px) * (16 / 9));
+  max-height: calc(100vh - 180px);
   aspect-ratio: 16 / 9;
   background: #10131b;
   border-radius: 16px;
@@ -710,7 +713,7 @@ watch(showChat, (visible) => {
   height: 100%;
   border: 0;
   display: block;
-  object-fit: cover;
+  object-fit: contain;
   background: #0b0f18;
 }
 
