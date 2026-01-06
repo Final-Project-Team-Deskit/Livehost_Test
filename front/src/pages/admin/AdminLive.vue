@@ -1011,6 +1011,7 @@ onBeforeUnmount(() => {
 
 .filter-row {
   display: flex;
+  width: 100%;
   flex-wrap: wrap;
   gap: 12px;
   align-items: flex-start;

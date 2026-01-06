@@ -257,6 +257,7 @@ onMounted(() => {
   window.addEventListener('keydown', handleKeydown)
   document.addEventListener('fullscreenchange', handleFullscreenChange)
   window.addEventListener('resize', handleResize)
+  monitorRef.value = streamGridRef.value
   updateGridWidth()
   if (streamGridRef.value) {
     gridObserver = new ResizeObserver((entries) => {
@@ -430,10 +431,7 @@ const toggleFullscreen = async () => {
     </header>
 
     <section
-      :ref="(el: HTMLElement | null) => {
-        monitorRef.value = el
-        streamGridRef.value = el
-      }"
+      ref="streamGridRef"
       class="stream-grid"
       :class="{
         'stream-grid--chat': showChat,
