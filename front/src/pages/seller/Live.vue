@@ -729,26 +729,28 @@ onBeforeUnmount(() => {
         :class="{ 'live-livegrid--has-data': !!currentLive }"
       >
         <article v-if="currentLive" class="live-feature ds-surface">
-          <div class="live-feature__top">
-            <div class="live-feature__content">
-              <div class="live-feature__title-row">
-                <h4>{{ currentLive.title }}</h4>
+          <div class="live-feature__layout">
+            <div class="live-feature__thumb">
+              <img :src="currentLive.thumb" :alt="currentLive.title" loading="lazy" />
+              <span v-if="currentLive.statusBadge" class="badge badge--live live-feature__badge">
+                {{ currentLive.statusBadge }}
+              </span>
+            </div>
+            <div class="live-feature__info">
+              <div>
+                <div class="live-feature__title-row">
+                  <h4>{{ currentLive.title }}</h4>
+                </div>
+                <p class="live-feature__seller">{{ currentLive.subtitle }}</p>
+                <div class="live-feature__meta">
+                  <span v-if="currentLive.viewerBadge" class="meta-pill">{{ currentLive.viewerBadge }}</span>
+                  <span class="meta-pill">경과 시간 · 00:32:18</span>
+                  <span class="meta-pill">시작 · 13:24</span>
+                </div>
               </div>
-              <p class="live-feature__seller">{{ currentLive.subtitle }}</p>
-              <div class="live-feature__thumb">
-                <img :src="currentLive.thumb" :alt="currentLive.title" loading="lazy" />
-                <span v-if="currentLive.statusBadge" class="badge badge--live live-feature__badge">
-                  {{ currentLive.statusBadge }}
-                </span>
-              </div>
-              <div class="live-feature__meta">
-                <span v-if="currentLive.viewerBadge" class="meta-pill">{{ currentLive.viewerBadge }}</span>
-                <span class="meta-pill">경과 시간 · 00:32:18</span>
-                <span class="meta-pill">시작 · 13:24</span>
-              </div>
+              <button type="button" class="live-feature__cta" @click="handleCta('live', currentLive!)">방송 입장</button>
             </div>
           </div>
-          <button type="button" class="live-feature__cta" @click="handleCta('live', currentLive!)">방송 입장</button>
         </article>
         <article v-else class="live-feature ds-surface live-feature--empty">
           <p class="live-card__title">현재 진행 중인 방송이 없습니다.</p>
@@ -790,26 +792,28 @@ onBeforeUnmount(() => {
 
       <div v-else class="live-feature-wrap">
         <article v-if="currentLive" class="live-feature ds-surface">
-          <div class="live-feature__top">
-            <div class="live-feature__content">
-              <div class="live-feature__title-row">
-                <h4>{{ currentLive.title }}</h4>
+          <div class="live-feature__layout">
+            <div class="live-feature__thumb">
+              <img :src="currentLive.thumb" :alt="currentLive.title" loading="lazy" />
+              <span v-if="currentLive.statusBadge" class="badge badge--live live-feature__badge">
+                {{ currentLive.statusBadge }}
+              </span>
+            </div>
+            <div class="live-feature__info">
+              <div>
+                <div class="live-feature__title-row">
+                  <h4>{{ currentLive.title }}</h4>
+                </div>
+                <p class="live-feature__seller">{{ currentLive.subtitle }}</p>
+                <div class="live-feature__meta">
+                  <span v-if="currentLive.viewerBadge" class="meta-pill">{{ currentLive.viewerBadge }}</span>
+                  <span class="meta-pill">경과 시간 · 00:32:18</span>
+                  <span class="meta-pill">시작 · 13:24</span>
+                </div>
               </div>
-              <p class="live-feature__seller">{{ currentLive.subtitle }}</p>
-              <div class="live-feature__thumb">
-                <img :src="currentLive.thumb" :alt="currentLive.title" loading="lazy" />
-                <span v-if="currentLive.statusBadge" class="badge badge--live live-feature__badge">
-                  {{ currentLive.statusBadge }}
-                </span>
-              </div>
-              <div class="live-feature__meta">
-                <span v-if="currentLive.viewerBadge" class="meta-pill">{{ currentLive.viewerBadge }}</span>
-                <span class="meta-pill">경과 시간 · 00:32:18</span>
-                <span class="meta-pill">시작 · 13:24</span>
-              </div>
+              <button type="button" class="live-feature__cta" @click="handleCta('live', currentLive!)">방송 입장</button>
             </div>
           </div>
-          <button type="button" class="live-feature__cta" @click="handleCta('live', currentLive!)">방송 입장</button>
         </article>
         <article v-else class="live-feature ds-surface live-feature--empty">
           <p class="live-card__title">등록된 방송이 없습니다.</p>
@@ -1337,20 +1341,12 @@ onBeforeUnmount(() => {
   width: 100%;
   border-radius: 14px;
   padding: 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
 }
 
-.live-feature__top {
+.live-feature__layout {
   display: flex;
-  gap: 12px;
-}
-
-.live-feature__content {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 12px;
+  gap: 14px;
+  align-items: stretch;
 }
 
 .live-feature__title-row {
@@ -1374,7 +1370,10 @@ onBeforeUnmount(() => {
 
 .live-feature__thumb {
   position: relative;
-  width: 100%;
+  flex: 0 0 320px;
+  width: 320px;
+  max-width: 420px;
+  min-width: 280px;
   aspect-ratio: 16 / 9;
   border-radius: 12px;
   overflow: hidden;
@@ -1392,6 +1391,15 @@ onBeforeUnmount(() => {
   position: absolute;
   top: 10px;
   left: 10px;
+}
+
+.live-feature__info {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
 }
 
 .live-feature__meta {
@@ -1430,6 +1438,10 @@ onBeforeUnmount(() => {
 .live-feature--empty {
   align-items: center;
   text-align: center;
+}
+
+.live-feature--empty .live-feature__layout {
+  display: block;
 }
 
 .live-livegrid {
@@ -1890,6 +1902,21 @@ onBeforeUnmount(() => {
   .live-header {
     grid-template-columns: 1fr;
     justify-items: start;
+  }
+
+  .live-feature__layout {
+    flex-direction: column;
+  }
+
+  .live-feature__thumb {
+    flex: 0 0 auto;
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+  }
+
+  .live-feature__info {
+    align-items: flex-start;
   }
 
   .live-carousel {
