@@ -922,7 +922,7 @@ const toggleFullscreen = async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
+  overflow: auto;
   min-height: 320px;
 }
 
