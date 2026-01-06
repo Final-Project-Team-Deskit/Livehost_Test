@@ -167,6 +167,8 @@ const syncFullscreen = () => {
   isFullscreen.value = Boolean(document.fullscreenElement)
 }
 
+const modalHostTarget = computed(() => (isFullscreen.value && stageRef.value ? stageRef.value : 'body'))
+
 const toggleFullscreen = async () => {
   const el = stageRef.value
   if (!el) return
@@ -420,62 +422,64 @@ watch(liveId, loadDetail, { immediate: true })
       </div>
     </section>
 
-    <div v-if="showStopModal" class="stop-modal">
-      <div class="stop-modal__backdrop" @click="closeStopModal"></div>
-      <div class="stop-modal__card ds-surface">
-        <header class="stop-modal__head">
-          <h3>방송 송출 중지</h3>
-          <button type="button" class="close-btn" @click="closeStopModal">×</button>
-        </header>
-        <div class="stop-modal__body">
-          <label class="field">
-            <span class="field__label">유형</span>
-            <select v-model="stopReason" class="field-input">
-              <option value="">선택해주세요</option>
-              <option v-for="option in reasonOptions" :key="option" :value="option">{{ option }}</option>
-            </select>
-          </label>
-          <label v-if="stopReason === '기타'" class="field">
-            <span class="field__label">중지 사유(기타 선택 시)</span>
-            <textarea v-model="stopDetail" class="field-input" rows="4" placeholder="사유를 입력해주세요."></textarea>
-          </label>
-          <p v-if="error" class="error">{{ error }}</p>
-        </div>
-        <div class="stop-modal__actions">
-          <button type="button" class="btn ghost" @click="closeStopModal">취소</button>
-          <button type="button" class="btn primary" @click="handleStopSave">저장</button>
+    <Teleport :to="modalHostTarget">
+      <div v-if="showStopModal" class="stop-modal">
+        <div class="stop-modal__backdrop" @click="closeStopModal"></div>
+        <div class="stop-modal__card ds-surface">
+          <header class="stop-modal__head">
+            <h3>방송 송출 중지</h3>
+            <button type="button" class="close-btn" @click="closeStopModal">×</button>
+          </header>
+          <div class="stop-modal__body">
+            <label class="field">
+              <span class="field__label">유형</span>
+              <select v-model="stopReason" class="field-input">
+                <option value="">선택해주세요</option>
+                <option v-for="option in reasonOptions" :key="option" :value="option">{{ option }}</option>
+              </select>
+            </label>
+            <label v-if="stopReason === '기타'" class="field">
+              <span class="field__label">중지 사유(기타 선택 시)</span>
+              <textarea v-model="stopDetail" class="field-input" rows="4" placeholder="사유를 입력해주세요."></textarea>
+            </label>
+            <p v-if="error" class="error">{{ error }}</p>
+          </div>
+          <div class="stop-modal__actions">
+            <button type="button" class="btn ghost" @click="closeStopModal">취소</button>
+            <button type="button" class="btn primary" @click="handleStopSave">저장</button>
+          </div>
         </div>
       </div>
-    </div>
 
-    <div v-if="showModerationModal" class="moderation-modal">
-      <div class="moderation-modal__backdrop" @click="closeModeration"></div>
-      <div class="moderation-modal__card ds-surface">
-        <header class="moderation-modal__head">
-          <h3>채팅 관리</h3>
-          <button type="button" class="close-btn" @click="closeModeration">×</button>
-        </header>
-        <div class="moderation-modal__body">
-          <p class="moderation-target">대상: {{ moderationTarget?.user }}</p>
-          <label class="field">
-            <span class="field__label">제재 유형</span>
-            <select v-model="moderationType" class="field-input">
-              <option value="">선택해주세요</option>
-              <option value="채팅 금지">채팅 금지</option>
-              <option value="강제 퇴장">강제 퇴장</option>
-            </select>
-          </label>
-          <label class="field">
-            <span class="field__label">제재 사유</span>
-            <textarea v-model="moderationReason" class="field-input" rows="4" placeholder="사유를 입력해주세요."></textarea>
-          </label>
-        </div>
-        <div class="moderation-modal__actions">
-          <button type="button" class="btn ghost" @click="closeModeration">취소</button>
-          <button type="button" class="btn primary" @click="saveModeration">저장</button>
+      <div v-if="showModerationModal" class="moderation-modal">
+        <div class="moderation-modal__backdrop" @click="closeModeration"></div>
+        <div class="moderation-modal__card ds-surface">
+          <header class="moderation-modal__head">
+            <h3>채팅 관리</h3>
+            <button type="button" class="close-btn" @click="closeModeration">×</button>
+          </header>
+          <div class="moderation-modal__body">
+            <p class="moderation-target">대상: {{ moderationTarget?.user }}</p>
+            <label class="field">
+              <span class="field__label">제재 유형</span>
+              <select v-model="moderationType" class="field-input">
+                <option value="">선택해주세요</option>
+                <option value="채팅 금지">채팅 금지</option>
+                <option value="강제 퇴장">강제 퇴장</option>
+              </select>
+            </label>
+            <label class="field">
+              <span class="field__label">제재 사유</span>
+              <textarea v-model="moderationReason" class="field-input" rows="4" placeholder="사유를 입력해주세요."></textarea>
+            </label>
+          </div>
+          <div class="moderation-modal__actions">
+            <button type="button" class="btn ghost" @click="closeModeration">취소</button>
+            <button type="button" class="btn primary" @click="saveModeration">저장</button>
+          </div>
         </div>
       </div>
-    </div>
+    </Teleport>
   </div>
 </template>
 

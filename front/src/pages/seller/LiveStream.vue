@@ -50,6 +50,7 @@ const elapsed = ref('02:01:44')
 const monitorRef = ref<HTMLElement | null>(null)
 const streamGridRef = ref<HTMLElement | null>(null)
 const isFullscreen = ref(false)
+const modalHostTarget = computed(() => (isFullscreen.value && monitorRef.value ? monitorRef.value : 'body'))
 const micEnabled = ref(true)
 const videoEnabled = ref(true)
 const volume = ref(43)
@@ -695,17 +696,19 @@ const toggleFullscreen = async () => {
         </div>
       </aside>
     </section>
-    <ConfirmModal
-      v-model="confirmState.open"
-      :title="confirmState.title"
-      :description="confirmState.description"
-      :confirm-text="confirmState.confirmText"
-      :cancel-text="confirmState.cancelText"
-      @confirm="handleConfirmAction"
-    />
-    <QCardModal v-model="showQCards" :q-cards="qCards" :initial-index="qCardIndex" @update:initialIndex="qCardIndex = $event" />
-    <BasicInfoEditModal v-if="broadcastInfo" v-model="showBasicInfo" :broadcast="broadcastInfo" @save="handleBasicInfoSave" />
-    <ChatSanctionModal v-model="showSanctionModal" :username="sanctionTarget" @save="applySanction" />
+    <Teleport :to="modalHostTarget">
+      <ConfirmModal
+        v-model="confirmState.open"
+        :title="confirmState.title"
+        :description="confirmState.description"
+        :confirm-text="confirmState.confirmText"
+        :cancel-text="confirmState.cancelText"
+        @confirm="handleConfirmAction"
+      />
+      <QCardModal v-model="showQCards" :q-cards="qCards" :initial-index="qCardIndex" @update:initialIndex="qCardIndex = $event" />
+      <BasicInfoEditModal v-if="broadcastInfo" v-model="showBasicInfo" :broadcast="broadcastInfo" @save="handleBasicInfoSave" />
+      <ChatSanctionModal v-model="showSanctionModal" :username="sanctionTarget" @save="applySanction" />
+    </Teleport>
   </PageContainer>
 </template>
 
