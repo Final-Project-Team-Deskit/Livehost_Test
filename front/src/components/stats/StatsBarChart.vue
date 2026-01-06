@@ -49,8 +49,8 @@ const yTicks = computed(() => {
 
 const topTick = computed(() => (yTicks.value.length ? yTicks.value[0] : maxValue.value || 1))
 
-const barGap = computed(() => `${Math.max(6, Math.min(18, Math.floor(180 / (dataLength.value + 4))))}px`)
-const minBarWidth = computed(() => Math.max(18, Math.min(72, Math.floor(640 / (dataLength.value + 3)))))
+const barGap = computed(() => `${Math.max(6, Math.min(14, Math.floor(160 / (dataLength.value + 5))))}px`)
+const minBarWidth = computed(() => Math.max(16, Math.min(60, Math.floor(520 / (dataLength.value + 3)))))
 const barLayoutStyle = computed(() => ({
   gap: barGap.value,
   gridTemplateColumns: `repeat(${dataLength.value}, minmax(${minBarWidth.value}px, 1fr))`,
@@ -91,6 +91,9 @@ const barLayoutStyle = computed(() => ({
   grid-template-columns: 1fr auto;
   align-items: flex-end;
   gap: 10px;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .bar-chart__y-axis {
@@ -115,6 +118,8 @@ const barLayoutStyle = computed(() => ({
   align-items: end;
   min-height: 240px;
   padding: 8px 4px 0;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .bar-chart__item {
