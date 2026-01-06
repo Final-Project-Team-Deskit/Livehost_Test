@@ -681,6 +681,7 @@ watch(showChat, (visible) => {
 .player-frame {
   position: relative;
   width: 100%;
+  height: auto;
   aspect-ratio: 16 / 9;
   background: #10131b;
   border-radius: 16px;
@@ -690,7 +691,8 @@ watch(showChat, (visible) => {
   font-weight: 700;
   min-height: clamp(220px, 56vw, 720px);
   max-height: calc(100vw * (9 / 16));
-  overflow: hidden;
+  max-width: min(100%, calc((100vh - 180px) * (16 / 9)));
+  overflow: auto;
 }
 
 .player-frame--fullscreen,
