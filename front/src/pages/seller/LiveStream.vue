@@ -153,6 +153,14 @@ const sortedProducts = computed(() => {
 const chatItems = computed(() => chatMessages.value)
 
 const hasSidePanels = computed(() => showProducts.value || showChat.value)
+const shouldStackGrid = computed(() => {
+  if (!gridWidth.value) return false
+  const desiredStreamWidth = 600
+  const sideWidth = (showProducts.value ? 320 : 0) + (showChat.value ? 320 : 0)
+  const columnCount = 1 + (showProducts.value ? 1 : 0) + (showChat.value ? 1 : 0)
+  const gapWidth = Math.max(columnCount - 1, 0) * 18
+  return gridWidth.value < desiredStreamWidth + sideWidth + gapWidth + 16
+})
 const gridStyles = computed(() => ({
   gridTemplateColumns: monitorColumns.value,
   '--stream-pane-height': streamPaneHeight.value,
@@ -160,6 +168,7 @@ const gridStyles = computed(() => ({
 }))
 
 const monitorColumns = computed(() => {
+  if (shouldStackGrid.value) return '1fr'
   if (showProducts.value && showChat.value) return '320px minmax(0, 1fr) 320px'
   if (showProducts.value) return '320px minmax(0, 1fr)'
   if (showChat.value) return 'minmax(0, 1fr) 320px'
@@ -167,6 +176,7 @@ const monitorColumns = computed(() => {
 })
 
 const streamPaneHeight = computed(() => {
+  if (shouldStackGrid.value) return 'auto'
   const dynamic = gridHeight.value
   if (dynamic) {
     const min = 320
@@ -419,6 +429,7 @@ const toggleFullscreen = async () => {
       :class="{
         'stream-grid--chat': showChat,
         'stream-grid--products': showProducts,
+        'stream-grid--stacked': shouldStackGrid,
       }"
       :style="gridStyles"
     >
@@ -1262,6 +1273,28 @@ const toggleFullscreen = async () => {
 
 .stream-grid:not(.stream-grid--products):not(.stream-grid--chat) {
   gap: 0;
+}
+
+.stream-grid--stacked {
+  grid-template-columns: 1fr;
+  align-items: stretch;
+}
+
+.stream-grid--stacked .stream-panel {
+  height: auto;
+  max-height: none;
+  overflow: visible;
+}
+
+.stream-grid--stacked .stream-center {
+  order: -1;
+  height: auto;
+  max-height: none;
+  min-height: 0;
+}
+
+.stream-grid--stacked .stream-player {
+  max-width: 100%;
 }
 
 @media (max-width: 960px) {
