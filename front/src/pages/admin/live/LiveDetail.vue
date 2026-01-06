@@ -557,6 +557,8 @@ watch(liveId, loadDetail, { immediate: true })
   gap: 16px;
   align-items: center;
   position: relative;
+  width: min(100%, var(--media-max-width, 1200px));
+  margin: 0 auto;
 }
 
 .player-wrap {
