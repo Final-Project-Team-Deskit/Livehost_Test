@@ -554,19 +554,25 @@ watch(liveId, loadDetail, { immediate: true })
 .monitor-stage {
   display: flex;
   gap: 16px;
-  align-items: stretch;
+  align-items: center;
   position: relative;
 }
 
 .player-wrap {
   flex: 1;
   min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .player-frame {
   position: relative;
   width: 100%;
-  min-height: 56vh;
+  height: auto;
+  max-width: calc((100vh - 180px) * (16 / 9));
+  max-height: calc(100vh - 180px);
+  min-height: clamp(360px, 56vh, 760px);
   aspect-ratio: 16 / 9;
   background: #0b0f1a;
   border-radius: 18px;
