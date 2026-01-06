@@ -245,7 +245,6 @@ const handleFullscreenChange = () => {
 }
 
 onMounted(() => {
-  stageRef.value = playerPanelRef.value?.querySelector('.player-frame') as HTMLElement | null
   document.addEventListener('click', handleDocumentClick)
   document.addEventListener('keydown', handleDocumentKeydown)
   document.addEventListener('fullscreenchange', handleFullscreenChange)
@@ -296,7 +295,7 @@ onBeforeUnmount(() => {
             <p v-if="liveItem.description" class="player-desc">{{ liveItem.description }}</p>
           </div>
 
-          <div class="player-frame">
+          <div ref="stageRef" class="player-frame" :class="{ 'player-frame--fullscreen': isFullscreen }">
             <span class="player-frame__label" v-if="status === 'ENDED'">대기 화면</span>
             <span class="player-frame__label" v-else>LIVE 플레이어</span>
             <div class="player-actions">
@@ -643,7 +642,23 @@ onBeforeUnmount(() => {
   color: #fff;
   font-weight: 700;
   min-height: 360px;
-  overflow: auto;
+  overflow: hidden;
+}
+
+.player-frame--fullscreen,
+.player-frame:fullscreen {
+  width: min(100vw, calc(100vh * (16 / 9)));
+  height: min(100vh, calc(100vw * (9 / 16)));
+  max-height: 100vh;
+  max-width: 100vw;
+  border-radius: 0;
+  background: #000;
+}
+
+.player-frame:fullscreen iframe,
+.player-frame:fullscreen video,
+.player-frame:fullscreen img {
+  object-fit: contain;
 }
 
 .player-frame__label {
@@ -666,6 +681,18 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
+}
+
+.player-frame iframe,
+.player-frame video,
+.player-frame img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border: 0;
+  background: #000;
 }
 
 .icon-circle {
