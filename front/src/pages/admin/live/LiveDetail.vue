@@ -329,7 +329,7 @@ watch(liveId, loadDetail, { immediate: true })
         <div v-show="activePane === 'monitor'" id="monitor-pane">
           <div ref="stageRef" class="monitor-stage" :class="{ 'monitor-stage--chat': showChat }">
             <div class="player-wrap">
-              <div class="player-frame">
+              <div class="player-frame" :class="{ 'player-frame--fullscreen': isFullscreen }">
                 <div class="player-overlay">
                   <div class="overlay-item">⏱ {{ detail.elapsed }}</div>
                   <div class="overlay-item">👥 {{ detail.viewers }}명</div>
@@ -339,21 +339,22 @@ watch(liveId, loadDetail, { immediate: true })
                 <div class="overlay-actions">
                   <button type="button" class="icon-circle" :class="{ active: showChat }" @click="toggleChat" :title="showChat ? '채팅 닫기' : '채팅 보기'">
                     <svg aria-hidden="true" class="icon" viewBox="0 0 24 24" focusable="false">
-                      <path d="M3 20l1.62-3.24A2 2 0 0 1 6.42 16H20a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v15z" />
+                      <path d="M3 20l1.62-3.24A2 2 0 0 1 6.42 16H20a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v15z" stroke="currentColor" stroke-width="1.7" />
+                      <path d="M7 9h10M7 12h6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
                     </svg>
                   </button>
                   <button type="button" class="icon-circle ghost" :class="{ active: isFullscreen }" @click="toggleFullscreen" :title="isFullscreen ? '전체화면 종료' : '전체화면'">
                     <svg v-if="!isFullscreen" aria-hidden="true" class="icon" viewBox="0 0 24 24" focusable="false">
-                      <path d="M15 3h6v6" />
-                      <path d="M9 21H3v-6" />
-                      <path d="M21 3 14 10" />
-                      <path d="M3 21 10 14" />
+                      <path d="M4 9V4h5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+                      <path d="M20 9V4h-5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+                      <path d="M4 15v5h5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+                      <path d="M20 15v5h-5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
                     </svg>
                     <svg v-else aria-hidden="true" class="icon" viewBox="0 0 24 24" focusable="false">
-                      <path d="M9 9H3V3" />
-                      <path d="m3 9 6-6" />
-                      <path d="M15 15h6v6" />
-                      <path d="m21 15-6 6" />
+                      <path d="M9 5H5v4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+                      <path d="M15 19h4v-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+                      <path d="M9 19H5v-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+                      <path d="M15 5h4v4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
                     </svg>
                   </button>
                 </div>
@@ -556,6 +557,8 @@ watch(liveId, loadDetail, { immediate: true })
   gap: 16px;
   align-items: center;
   position: relative;
+  width: min(100%, var(--media-max-width, 1200px));
+  margin: 0 auto;
 }
 
 .player-wrap {
@@ -580,6 +583,27 @@ watch(liveId, loadDetail, { immediate: true })
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.player-frame--fullscreen {
+  max-height: none;
+  max-width: none;
+  height: min(100vh, calc(100vw * (9 / 16)));
+  width: min(100vw, calc(100vh * (16 / 9)));
+  border-radius: 0;
+  background: #000;
+}
+
+.player-frame iframe,
+.player-frame video,
+.player-frame img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border: 0;
+  background: #000;
 }
 
 .player-label {
@@ -757,6 +781,34 @@ watch(liveId, loadDetail, { immediate: true })
 
 .monitor-stage--chat .player-wrap {
   margin-right: 372px;
+}
+
+.monitor-stage:fullscreen {
+  height: 100vh;
+  max-height: 100vh;
+  align-items: center;
+  justify-content: center;
+}
+
+.monitor-stage:fullscreen .player-wrap {
+  height: 100vh;
+  max-height: 100vh;
+  display: flex;
+  justify-content: center;
+}
+
+.monitor-stage:fullscreen .player-frame {
+  max-height: 100vh;
+  max-width: none;
+  height: min(100vh, calc(100vw * (9 / 16)));
+  width: min(100vw, calc(100vh * (16 / 9)));
+  border-radius: 0;
+  background: #000;
+}
+
+.monitor-stage:fullscreen.monitor-stage--chat .player-frame {
+  width: min(max(320px, calc(100vw - 380px)), calc(100vh * (16 / 9)));
+  height: min(100vh, max(200px, calc((100vw - 380px) * (9 / 16))));
 }
 
 .monitor-stage--chat .chat-panel {
