@@ -154,6 +154,12 @@ const monitorColumns = computed(() => {
   return 'minmax(0, 1fr)'
 })
 
+const streamPaneHeight = computed(() => {
+  if (showProducts.value && showChat.value) return 'clamp(460px, 62vh, 680px)'
+  if (showProducts.value || showChat.value) return 'clamp(520px, 68vh, 760px)'
+  return 'clamp(560px, 74vh, 880px)'
+})
+
 const qCards = computed(() => broadcastInfo.value?.qCards ?? stream.value?.qCards ?? [])
 const displayTitle = computed(() => broadcastInfo.value?.title ?? stream.value?.title ?? '방송 진행')
 const displayDatetime = computed(
@@ -376,7 +382,11 @@ const toggleFullscreen = async () => {
       </div>
     </header>
 
-    <section ref="monitorRef" class="stream-grid" :style="{ gridTemplateColumns: monitorColumns }">
+    <section
+      ref="monitorRef"
+      class="stream-grid"
+      :style="{ gridTemplateColumns: monitorColumns, '--stream-pane-height': streamPaneHeight }"
+    >
       <aside v-if="showProducts" class="stream-panel ds-surface">
         <div class="panel-head">
           <div class="panel-head__left">
@@ -901,7 +911,6 @@ const toggleFullscreen = async () => {
 
 .stream-center {
   padding: 24px;
-  height: var(--stream-pane-height);
   overflow: hidden;
   display: flex;
   flex-direction: column;
