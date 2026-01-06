@@ -13,30 +13,42 @@ const maxValue = computed(() => {
   return Math.max(...props.data.map((item) => item.value))
 })
 
+const getStep = (max: number) => {
+  if (max <= 10) return 5
+  if (max <= 100) return 20
+  if (max <= 400) return 50
+  if (max <= 900) return 100
+  if (max <= 1000) return 200
+  if (max <= 4000) return 500
+  return 1000
+}
+
 const formatValue = (value: number) => {
   if (props.valueFormatter) return props.valueFormatter(value)
   return value.toLocaleString('ko-KR')
 }
 
 const toHeight = (value: number) => {
-  if (!maxValue.value) return '0%'
-  return `${Math.round((value / maxValue.value) * 100)}%`
+  if (!topTick.value) return '0%'
+  return `${Math.round((value / topTick.value) * 100)}%`
 }
 
 const yTicks = computed(() => {
   if (!maxValue.value) return [0]
-  const steps = 4
-  const rawStep = Math.ceil(maxValue.value / steps)
-  const step = Math.max(1, rawStep)
+  const step = getStep(maxValue.value)
+  const top = Math.max(step, Math.ceil(maxValue.value / step) * step)
   const ticks: number[] = []
-  for (let i = steps; i >= 0; i -= 1) {
-    ticks.push(step * i)
+  for (let value = top; value >= 0; value -= step) {
+    ticks.push(value)
   }
+  if (ticks[ticks.length - 1] !== 0) ticks.push(0)
   return ticks
 })
 
+const topTick = computed(() => (yTicks.value.length ? yTicks.value[0] : maxValue.value || 1))
+
 const barGap = computed(() => `${Math.max(8, Math.min(18, Math.round(120 / dataLength.value)))}px`)
-const minBarWidth = computed(() => Math.max(36, Math.min(90, Math.floor(500 / dataLength.value))))
+const minBarWidth = computed(() => Math.max(32, Math.min(100, Math.floor(520 / dataLength.value))))
 const barLayoutStyle = computed(() => ({
   gap: barGap.value,
   gridTemplateColumns: `repeat(${dataLength.value}, minmax(${minBarWidth.value}px, 1fr))`,
@@ -46,9 +58,6 @@ const barLayoutStyle = computed(() => ({
 <template>
   <div class="bar-chart">
     <div v-if="data.length" class="bar-chart__grid">
-      <div class="bar-chart__y-axis" aria-hidden="true">
-        <span v-for="tick in yTicks" :key="tick" class="bar-chart__y-label">{{ formatValue(tick) }}</span>
-      </div>
       <div class="bar-chart__bars" :style="barLayoutStyle">
         <div v-for="(item, index) in data" :key="`${item.label}-${index}`" class="bar-chart__item">
           <div
@@ -59,6 +68,9 @@ const barLayoutStyle = computed(() => ({
           ></div>
           <span class="bar-chart__label">{{ item.label }}</span>
         </div>
+      </div>
+      <div class="bar-chart__y-axis" aria-hidden="true">
+        <span v-for="tick in yTicks" :key="tick" class="bar-chart__y-label">{{ formatValue(tick) }}</span>
       </div>
     </div>
     <p v-else class="empty">데이터가 없습니다.</p>
@@ -74,7 +86,7 @@ const barLayoutStyle = computed(() => ({
 
 .bar-chart__grid {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: 1fr auto;
   align-items: flex-end;
   gap: 10px;
 }
@@ -85,7 +97,8 @@ const barLayoutStyle = computed(() => ({
   justify-content: space-between;
   align-self: stretch;
   min-height: 240px;
-  padding: 0 6px 0 0;
+  padding: 0 0 0 6px;
+  text-align: right;
 }
 
 .bar-chart__y-label {
