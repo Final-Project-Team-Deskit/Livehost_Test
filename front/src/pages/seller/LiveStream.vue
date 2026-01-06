@@ -48,6 +48,7 @@ const viewerCount = ref(1010)
 const likeCount = ref(1574)
 const elapsed = ref('02:01:44')
 const monitorRef = ref<HTMLElement | null>(null)
+const streamCenterRef = ref<HTMLElement | null>(null)
 const isFullscreen = ref(false)
 const micEnabled = ref(true)
 const videoEnabled = ref(true)
@@ -57,6 +58,7 @@ const selectedCamera = ref('기본 카메라')
 const micInputLevel = ref(70)
 const chatText = ref('')
 const chatListRef = ref<HTMLElement | null>(null)
+let centerObserver: ResizeObserver | null = null
 
 const showQCards = ref(false)
 const showBasicInfo = ref(false)
@@ -66,6 +68,9 @@ const qCardIndex = ref(0)
 const handleFullscreenChange = () => {
   isFullscreen.value = Boolean(document.fullscreenElement)
 }
+
+const centerWidth = ref(0)
+const centerHeight = computed(() => (centerWidth.value ? (centerWidth.value * 9) / 16 : null))
 
 const confirmState = reactive({
   open: false,
@@ -148,6 +153,11 @@ const sortedProducts = computed(() => {
 const chatItems = computed(() => chatMessages.value)
 
 const hasSidePanels = computed(() => showProducts.value || showChat.value)
+const gridStyles = computed(() => ({
+  gridTemplateColumns: monitorColumns.value,
+  '--stream-pane-height': streamPaneHeight.value,
+  '--center-height': centerHeight.value ? `${centerHeight.value}px` : undefined,
+}))
 
 const monitorColumns = computed(() => {
   if (showProducts.value && showChat.value) return '320px minmax(0, 1fr) 320px'
@@ -157,6 +167,12 @@ const monitorColumns = computed(() => {
 })
 
 const streamPaneHeight = computed(() => {
+  const dynamic = centerHeight.value
+  if (dynamic) {
+    const min = 320
+    const max = 760
+    return `${Math.min(Math.max(dynamic, min), max)}px`
+  }
   if (showProducts.value && showChat.value) return 'clamp(460px, 62vh, 680px)'
   if (showProducts.value || showChat.value) return 'clamp(520px, 68vh, 760px)'
   return 'clamp(560px, 74vh, 880px)'
@@ -224,11 +240,21 @@ const handleKeydown = (event: KeyboardEvent) => {
 onMounted(() => {
   window.addEventListener('keydown', handleKeydown)
   document.addEventListener('fullscreenchange', handleFullscreenChange)
+  if (streamCenterRef.value) {
+    centerObserver = new ResizeObserver((entries) => {
+      const entry = entries[0]
+      if (entry?.contentRect?.width) {
+        centerWidth.value = entry.contentRect.width
+      }
+    })
+    centerObserver.observe(streamCenterRef.value)
+  }
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleKeydown)
   document.removeEventListener('fullscreenchange', handleFullscreenChange)
+  centerObserver?.disconnect()
 })
 
 const openConfirm = (options: Partial<typeof confirmState>, onConfirm: () => void) => {
@@ -391,7 +417,7 @@ const toggleFullscreen = async () => {
         'stream-grid--chat': showChat,
         'stream-grid--products': showProducts,
       }"
-      :style="{ gridTemplateColumns: monitorColumns, '--stream-pane-height': streamPaneHeight }"
+      :style="gridStyles"
     >
       <aside v-if="showProducts" class="stream-panel ds-surface">
         <div class="panel-head">
@@ -438,7 +464,7 @@ const toggleFullscreen = async () => {
         </div>
       </aside>
 
-      <div class="stream-center ds-surface">
+      <div ref="streamCenterRef" class="stream-center ds-surface">
         <div class="stream-center__body">
           <div
             class="stream-player"
@@ -693,7 +719,7 @@ const toggleFullscreen = async () => {
 .stream-panel {
   padding: 16px;
   gap: 12px;
-  height: calc(100br )
+  height: var(--stream-pane-height);
   max-height: var(--stream-pane-height);
   overflow: hidden;
   display: flex;
@@ -904,12 +930,12 @@ const toggleFullscreen = async () => {
   align-items: center;
   justify-content: center;
   min-width: 0;
-  height: auto;
-  min-height: 300px;
-  max-height: 675px;
+  min-height: var(--stream-pane-height);
+  height: var(--stream-pane-height);
+  max-height: var(--stream-pane-height);
   position: relative;
   background: #1c1d21;
-  width: 100%;
+  width: min(100%, var(--media-max-width, 1200px));
   margin: 0 auto;
 }
 
