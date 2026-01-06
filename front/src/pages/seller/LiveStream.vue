@@ -1296,15 +1296,24 @@ const toggleFullscreen = async () => {
 }
 
 .stream-grid--stacked .stream-center {
-  order: 1;
+  order: 0;
 }
 
 .stream-grid--stacked .stream-panel--chat {
-  order: 2;
+  order: 1;
 }
 
 .stream-grid--stacked .stream-panel--products {
-  order: 3;
+  order: 2;
+}
+
+.stream-grid--stacked .panel-head {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.stream-grid--stacked .panel-head__left {
+  flex: 1 1 auto;
 }
 
 @media (max-width: 960px) {
