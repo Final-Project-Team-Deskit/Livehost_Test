@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import PageContainer from '../../../components/PageContainer.vue'
 import QCardModal from '../../../components/QCardModal.vue'
 import { getSellerReservationDetail, type SellerReservationDetail } from '../../../lib/mocks/sellerReservations'
+import { normalizeBroadcastStatus } from '../../../lib/broadcastStatus'
 
 const route = useRoute()
 const router = useRouter()
@@ -34,7 +35,7 @@ const handleEdit = () => {
 const handleCancel = () => {
   const ok = window.confirm('예약을 취소하시겠습니까?')
   if (!ok) return
-  detail.value.status = '취소됨'
+  detail.value.status = 'CANCELED'
   window.alert('예약이 취소되었습니다.')
 }
 
@@ -51,7 +52,7 @@ const scheduledWindow = computed(() => {
 })
 
 const cancelReason = computed(() => (detail.value as any).cancelReason ?? '사유가 등록되지 않았습니다.')
-const isCancelled = computed(() => detail.value.status === '취소됨')
+const isCancelled = computed(() => normalizeBroadcastStatus(detail.value.status) === 'CANCELED')
 const standbyImage = computed(() => (detail.value as any).standbyThumb || detail.value.thumb)
 const displayedCancelReason = computed(() =>
   isCancelled.value ? cancelReason.value : '',
