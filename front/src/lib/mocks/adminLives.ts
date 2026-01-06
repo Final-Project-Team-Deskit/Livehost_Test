@@ -1,10 +1,12 @@
+import { normalizeBroadcastStatus, type BroadcastStatus } from '../broadcastStatus'
+
 export type AdminLiveSummary = {
   id: string
   title: string
   subtitle: string
   thumb: string
   startedAt: string
-  status: '방송중' | '송출중지'
+  status: BroadcastStatus
   sellerName: string
   viewers: number
   likes: number
@@ -47,6 +49,11 @@ const formatToday = (hours: number, minutes: number) =>
     hours,
   ).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
 
+const normalizeLive = (item: AdminLiveSummary): AdminLiveSummary => ({
+  ...item,
+  status: normalizeBroadcastStatus(item.status),
+})
+
 const seedLives = (): AdminLiveSummary[] => [
   {
     id: 'live-101',
@@ -54,7 +61,7 @@ const seedLives = (): AdminLiveSummary[] => [
     subtitle: '데스크/의자 조합',
     thumb: gradientThumb('0f172a', '1f2937'),
     startedAt: '2025.12.12 14:00',
-    status: '방송중',
+    status: 'ON_AIR',
     sellerName: sellerNames[0],
     viewers: 328,
     likes: 124,
@@ -68,7 +75,7 @@ const seedLives = (): AdminLiveSummary[] => [
     subtitle: '조명 & 주변기기',
     thumb: gradientThumb('111827', '0f172a'),
     startedAt: '2025.12.12 15:30',
-    status: '방송중',
+    status: 'ON_AIR',
     sellerName: sellerNames[1],
     viewers: 512,
     likes: 210,
@@ -82,7 +89,7 @@ const seedLives = (): AdminLiveSummary[] => [
     subtitle: '수납/정리 팁',
     thumb: gradientThumb('1f2937', '111827'),
     startedAt: '2025.12.12 17:00',
-    status: '방송중',
+    status: 'ON_AIR',
     sellerName: sellerNames[2],
     viewers: 214,
     likes: 86,
@@ -96,7 +103,7 @@ const seedLives = (): AdminLiveSummary[] => [
     subtitle: '키보드/마우스 실시간 비교와 시연',
     thumb: gradientThumb('1f2937', '0f172a'),
     startedAt: formatToday(today.getHours(), Math.max(today.getMinutes() - 20, 0)),
-    status: '방송중',
+    status: 'ON_AIR',
     sellerName: sellerNames[1],
     viewers: 920,
     likes: 312,
@@ -110,7 +117,7 @@ const seedLives = (): AdminLiveSummary[] => [
     subtitle: '체형별 맞춤 스탠딩 데스크 세팅',
     thumb: gradientThumb('0b1324', '334155'),
     startedAt: formatToday(today.getHours(), Math.max(today.getMinutes() - 10, 0)),
-    status: '방송중',
+    status: 'ON_AIR',
     sellerName: sellerNames[3],
     viewers: 1312,
     likes: 508,
@@ -121,16 +128,16 @@ const seedLives = (): AdminLiveSummary[] => [
 ]
 
 const readAll = (): AdminLiveSummary[] => {
-  const parsed = safeParse<AdminLiveSummary[]>(localStorage.getItem(STORAGE_KEY), [])
-  const seeded = seedLives()
+  const parsed = safeParse<AdminLiveSummary[]>(localStorage.getItem(STORAGE_KEY), []).map(normalizeLive)
+  const seeded = seedLives().map(normalizeLive)
 
   if (parsed.length > 0) {
     const parsedMap = new Map(parsed.map((item) => [item.id, item]))
     const merged = seeded.map((seed) => {
       const stored = parsedMap.get(seed.id)
       if (!stored) return seed
-      if (stored.status !== '방송중' && seed.status === '방송중') {
-        return { ...stored, ...seed, status: '방송중' }
+      if (stored.status !== 'ON_AIR' && seed.status === 'ON_AIR') {
+        return { ...stored, ...seed, status: 'ON_AIR' }
       }
       return { ...seed, ...stored }
     })
@@ -164,10 +171,10 @@ export const stopAdminLiveBroadcast = (
   ).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
   const next = all.map((item) => {
     if (item.id !== liveId) return item
-    if (item.status === '송출중지') return item
+    if (item.status === 'STOPPED') return item
     return {
       ...item,
-      status: '송출중지',
+      status: 'STOPPED',
       stopReason: payload.reason,
       stopReasonDetail: payload.detail,
       stoppedAt,

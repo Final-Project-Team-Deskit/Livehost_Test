@@ -1,4 +1,5 @@
 import { getSellerReservationDetail, sellerReservationSummaries, type SellerReservationDetail } from './sellerReservations'
+import { normalizeBroadcastStatus } from '../broadcastStatus'
 
 export type AdminReservationSummary = {
   id: string
@@ -40,10 +41,15 @@ const seedReservations = (): AdminReservationDetail[] => {
   })
 }
 
+const normalizeDetail = (item: AdminReservationDetail): AdminReservationDetail => ({
+  ...item,
+  status: normalizeBroadcastStatus(item.status),
+})
+
 const readAll = (): AdminReservationDetail[] => {
-  const parsed = safeParse<AdminReservationDetail[]>(localStorage.getItem(STORAGE_KEY), [])
+  const parsed = safeParse<AdminReservationDetail[]>(localStorage.getItem(STORAGE_KEY), []).map(normalizeDetail)
   if (parsed.length > 0) return parsed
-  const seeded = seedReservations()
+  const seeded = seedReservations().map(normalizeDetail)
   localStorage.setItem(STORAGE_KEY, JSON.stringify(seeded))
   return seeded
 }
@@ -74,6 +80,6 @@ export const getAdminReservationDetail = (id: string): AdminReservationDetail =>
 
 export const cancelAdminReservation = (id: string): void => {
   const all = readAll()
-  const next = all.map((item) => (item.id === id ? { ...item, status: '취소됨' } : item))
+  const next = all.map((item) => (item.id === id ? { ...item, status: 'CANCELED' } : item))
   writeAll(next)
 }

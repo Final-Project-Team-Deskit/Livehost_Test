@@ -7,6 +7,7 @@ import {
   getAdminReservationDetail,
   type AdminReservationDetail,
 } from '../../../lib/mocks/adminReservations'
+import { normalizeBroadcastStatus } from '../../../lib/broadcastStatus'
 
 const route = useRoute()
 const router = useRouter()
@@ -42,7 +43,7 @@ const openCueCard = () => {
 }
 
 const openCancelModal = () => {
-  if (!detail.value || detail.value.status === '취소됨') return
+  if (!detail.value || normalizeBroadcastStatus(detail.value.status) === 'CANCELED') return
   showCancelModal.value = true
   cancelReason.value = ''
   cancelDetail.value = ''
@@ -71,13 +72,13 @@ const saveCancel = () => {
   cancelAdminReservation(detail.value.id)
   detail.value = {
     ...detail.value,
-    status: '취소됨',
+    status: 'CANCELED',
     cancelReason: cancelReason.value === '기타' ? cancelDetail.value.trim() : cancelReason.value,
   }
   closeCancelModal()
 }
 
-const isCancelled = computed(() => detail.value?.status === '취소됨')
+const isCancelled = computed(() => normalizeBroadcastStatus(detail.value?.status) === 'CANCELED')
 const standbyImage = computed(() => detail.value?.standbyThumb || detail.value?.thumb)
 const scheduledWindow = computed(() => {
   if (!detail.value) return ''
