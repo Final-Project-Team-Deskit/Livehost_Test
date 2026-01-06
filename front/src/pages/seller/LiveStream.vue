@@ -842,6 +842,20 @@ const toggleFullscreen = async () => {
   position: relative;
 }
 
+.stream-player {
+  position: relative;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  border-radius: 16px;
+  background: #0b0f1a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  min-height: 320px;
+}
+
 .stream-overlay {
   position: absolute;
   top: 16px;
