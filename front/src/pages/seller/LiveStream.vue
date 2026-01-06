@@ -914,8 +914,11 @@ const toggleFullscreen = async () => {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  align-items: center;
+  justify-content: center;
   min-width: 0;
-  min-height: 0;
+  min-height: var(--stream-pane-height);
+  max-height: calc(100vh - 120px);
   position: relative;
 }
 
@@ -926,13 +929,15 @@ const toggleFullscreen = async () => {
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 100%;
 }
 
 .stream-player {
   position: relative;
   width: 100%;
-  height: 100%;
-  max-height: calc(100vh - 180px);
+  max-width: 100%;
+  height: auto;
+  max-height: 100%;
   aspect-ratio: 16 / 9;
   border-radius: 16px;
   background: #0b0f1a;
@@ -1194,8 +1199,14 @@ const toggleFullscreen = async () => {
 
 .stream-grid:fullscreen .stream-panel,
 .stream-grid:fullscreen .stream-center {
-  height: calc(100vh - 180px);
+  height: 100vh;
+  max-height: 100vh;
   min-height: 0;
+}
+
+.stream-grid:fullscreen .stream-player {
+  max-height: 100vh;
+  width: min(100%, calc(100vh * (16 / 9)));
 }
 
 @media (max-width: 960px) {
