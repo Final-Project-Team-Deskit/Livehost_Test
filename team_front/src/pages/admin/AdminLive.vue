@@ -15,6 +15,7 @@ import {
   normalizeBroadcastStatus,
   type BroadcastStatus,
 } from '../../lib/broadcastStatus'
+import { useInfiniteScroll } from '../../composables/useInfiniteScroll'
 
 type LiveTab = 'all' | 'scheduled' | 'live' | 'vod'
 type LoopKind = 'live' | 'scheduled' | 'vod'
@@ -79,12 +80,14 @@ const statusPriority: Record<BroadcastStatus, number> = {
 
 const liveCategory = ref<string>('all')
 const liveSort = ref<'reports_desc' | 'latest' | 'viewers_desc' | 'viewers_asc'>('reports_desc')
-const liveVisibleCount = ref(8)
+const LIVE_PAGE_SIZE = 12
+const livePage = ref(1)
 
 const scheduledStatus = ref<'all' | 'reserved' | 'canceled'>('all')
 const scheduledCategory = ref<string>('all')
 const scheduledSort = ref<'nearest' | 'latest' | 'oldest'>('nearest')
-const scheduledVisibleCount = ref(8)
+const SCHEDULED_PAGE_SIZE = 12
+const scheduledPage = ref(1)
 
 const vodStartDate = ref('')
 const vodEndDate = ref('')
@@ -101,7 +104,8 @@ const vodSort = ref<
   | 'viewers_asc'
 >('latest')
 const vodCategory = ref<string>('all')
-const vodVisibleCount = ref(8)
+const VOD_PAGE_SIZE = 12
+const vodPage = ref(1)
 
 const liveItems = ref<AdminLiveSummary[]>([])
 const scheduledItems = ref<ReservationItem[]>([])
@@ -340,9 +344,33 @@ const filteredVods = computed(() => {
   return filtered
 })
 
-const visibleLiveGridItems = computed(() => filteredLive.value.slice(0, liveVisibleCount.value))
-const visibleScheduledItems = computed(() => filteredScheduled.value.slice(0, scheduledVisibleCount.value))
-const visibleVodItems = computed(() => filteredVods.value.slice(0, vodVisibleCount.value))
+const visibleLiveGridItems = computed(() => filteredLive.value.slice(0, LIVE_PAGE_SIZE * livePage.value))
+const visibleScheduledItems = computed(() => filteredScheduled.value.slice(0, SCHEDULED_PAGE_SIZE * scheduledPage.value))
+const visibleVodItems = computed(() => filteredVods.value.slice(0, VOD_PAGE_SIZE * vodPage.value))
+
+const { sentinelRef: liveSentinelRef } = useInfiniteScroll({
+  canLoadMore: () => filteredLive.value.length > visibleLiveGridItems.value.length,
+  loadMore: () => {
+    livePage.value += 1
+  },
+  enabled: () => activeTab.value === 'live',
+})
+
+const { sentinelRef: scheduledSentinelRef } = useInfiniteScroll({
+  canLoadMore: () => filteredScheduled.value.length > visibleScheduledItems.value.length,
+  loadMore: () => {
+    scheduledPage.value += 1
+  },
+  enabled: () => activeTab.value === 'scheduled',
+})
+
+const { sentinelRef: vodSentinelRef } = useInfiniteScroll({
+  canLoadMore: () => filteredVods.value.length > visibleVodItems.value.length,
+  loadMore: () => {
+    vodPage.value += 1
+  },
+  enabled: () => activeTab.value === 'vod',
+})
 
 const liveCategories = computed(() => Array.from(new Set(liveDisplayItems.value.map((item) => item.category ?? '기타'))))
 const scheduledCategories = computed(() => Array.from(new Set(scheduledItemsWithStatus.value.map((item) => item.category ?? '기타'))))
@@ -535,16 +563,16 @@ watch(
 )
 
 watch([liveCategory, liveSort], () => {
-  liveVisibleCount.value = 8
+  livePage.value = 1
   resetLoop('live')
 })
 
 watch([scheduledStatus, scheduledCategory, scheduledSort], () => {
-  scheduledVisibleCount.value = 8
+  scheduledPage.value = 1
 })
 
 watch([vodStartDate, vodEndDate, vodVisibility, vodCategory, vodSort], () => {
-  vodVisibleCount.value = 8
+  vodPage.value = 1
 })
 
 watch(
@@ -698,14 +726,12 @@ onBeforeUnmount(() => {
             </div>
           </article>
 
-          <button
+          <div
             v-if="filteredLive.length > visibleLiveGridItems.length"
-            type="button"
-            class="live-more"
-            @click="liveVisibleCount += 6"
-          >
-            더 보기
-          </button>
+            ref="liveSentinelRef"
+            class="scroll-sentinel"
+            aria-hidden="true"
+          ></div>
         </template>
 
         <p v-else class="empty-section">진행 중인 방송이 없습니다. 라이브 시작 시 목록이 표시됩니다.</p>
@@ -853,14 +879,12 @@ onBeforeUnmount(() => {
             </div>
           </article>
 
-          <button
+          <div
             v-if="filteredScheduled.length > visibleScheduledItems.length"
-            type="button"
-            class="live-more"
-            @click="scheduledVisibleCount += 6"
-          >
-            더 보기
-          </button>
+            ref="scheduledSentinelRef"
+            class="scroll-sentinel"
+            aria-hidden="true"
+          ></div>
         </template>
 
         <p v-else class="empty-section">예약된 방송이 없습니다.</p>
@@ -1022,14 +1046,12 @@ onBeforeUnmount(() => {
             </div>
           </article>
 
-          <button
+          <div
             v-if="filteredVods.length > visibleVodItems.length"
-            type="button"
-            class="live-more"
-            @click="vodVisibleCount += 6"
-          >
-            더 보기
-          </button>
+            ref="vodSentinelRef"
+            class="scroll-sentinel"
+            aria-hidden="true"
+          ></div>
         </template>
 
         <p v-else class="empty-section">등록된 VOD가 없습니다.</p>
@@ -1447,6 +1469,12 @@ onBeforeUnmount(() => {
   background: var(--surface);
   font-weight: 900;
   cursor: pointer;
+}
+
+.scroll-sentinel {
+  width: 100%;
+  height: 1px;
+  grid-column: 1 / -1;
 }
 
 @media (max-width: 1200px) {
