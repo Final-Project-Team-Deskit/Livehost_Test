@@ -920,6 +920,7 @@ const toggleFullscreen = async () => {
   min-height: var(--stream-pane-height);
   max-height: calc(100vh - 120px);
   position: relative;
+  background: #0b0f1a;
 }
 
 .stream-center__body {
@@ -934,7 +935,7 @@ const toggleFullscreen = async () => {
 
 .stream-player {
   position: relative;
-  width: 100%;
+  width: min(100%, calc((100vh - 120px) * (16 / 9)));
   max-width: 100%;
   height: auto;
   max-height: 100%;
