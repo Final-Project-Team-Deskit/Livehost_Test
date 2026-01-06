@@ -1168,8 +1168,9 @@ watch(liveId, loadDetail, { immediate: true })
     max-width: var(--stacked-max-width);
   }
 
-  .chat-panel {
+  .monitor-stage--chat .chat-panel {
     position: static;
+    inset: auto;
     width: 100%;
     max-width: var(--stacked-max-width);
     max-height: 40vh;
