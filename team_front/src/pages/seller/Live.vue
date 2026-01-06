@@ -475,45 +475,49 @@ const filteredVodItems = computed(() => {
     return true
   })
 
-  filtered = filtered.slice().sort((a, b) => {
-    if (vodSort.value === 'latest') return toDateMs(b) - toDateMs(a)
-    if (vodSort.value === 'oldest') return toDateMs(a) - toDateMs(b)
-    if (vodSort.value === 'likes_desc') return getLikes(b) - getLikes(a)
-    if (vodSort.value === 'likes_asc') return getLikes(a) - getLikes(b)
-    if (vodSort.value === 'viewers_desc') return getViewers(b) - getViewers(a)
-    if (vodSort.value === 'viewers_asc') return getViewers(a) - getViewers(b)
-    if (vodSort.value === 'revenue_desc') return (b.revenue ?? 0) - (a.revenue ?? 0)
-    if (vodSort.value === 'revenue_asc') return (a.revenue ?? 0) - (b.revenue ?? 0)
-    return 0
-  })
+  const sortVodList = (items: LiveItem[]) =>
+    items.slice().sort((a, b) => {
+      if (vodSort.value === 'latest') return toDateMs(b) - toDateMs(a)
+      if (vodSort.value === 'oldest') return toDateMs(a) - toDateMs(b)
+      if (vodSort.value === 'likes_desc') return getLikes(b) - getLikes(a)
+      if (vodSort.value === 'likes_asc') return getLikes(a) - getLikes(b)
+      if (vodSort.value === 'viewers_desc') return getViewers(b) - getViewers(a)
+      if (vodSort.value === 'viewers_asc') return getViewers(a) - getViewers(b)
+      if (vodSort.value === 'revenue_desc') return (b.revenue ?? 0) - (a.revenue ?? 0)
+      if (vodSort.value === 'revenue_asc') return (a.revenue ?? 0) - (b.revenue ?? 0)
+      return 0
+    })
 
-  return filtered
+  const vodOnly = filtered.filter((item) => getLifecycleStatus(item) === 'VOD')
+  const stoppedOnly = filtered.filter((item) => getLifecycleStatus(item) === 'STOPPED')
+
+  return [...sortVodList(vodOnly), ...sortVodList(stoppedOnly)]
 })
 
 const filteredScheduledItems = computed(() => {
-  let filtered = scheduledWithStatus.value.filter((item) =>
+  const base = scheduledWithStatus.value.filter((item) =>
     SCHEDULED_SECTION_STATUSES.includes(normalizeBroadcastStatus(item.lifecycleStatus ?? item.status)),
   )
 
-  if (scheduledStatus.value === 'reserved') {
-    filtered = filtered.filter((item) => normalizeBroadcastStatus(item.lifecycleStatus ?? item.status) === 'RESERVED')
-  } else if (scheduledStatus.value === 'canceled') {
-    filtered = filtered.filter((item) => normalizeBroadcastStatus(item.lifecycleStatus ?? item.status) === 'CANCELED')
-  }
+  const matchesCategory =
+    scheduledCategory.value === 'all' ? base : base.filter((item) => item.category === scheduledCategory.value)
 
-  if (scheduledCategory.value !== 'all') {
-    filtered = filtered.filter((item) => item.category === scheduledCategory.value)
-  }
+  const reserved = matchesCategory.filter((item) => normalizeBroadcastStatus(item.lifecycleStatus ?? item.status) === 'RESERVED')
+  const canceled = matchesCategory.filter((item) => normalizeBroadcastStatus(item.lifecycleStatus ?? item.status) === 'CANCELED')
 
-  filtered = filtered.slice().sort((a, b) => {
-    const aDate = a.startAtMs ?? toDateMs(a)
-    const bDate = b.startAtMs ?? toDateMs(b)
-    if (scheduledSort.value === 'latest') return bDate - aDate
-    if (scheduledSort.value === 'oldest') return aDate - bDate
-    return aDate - bDate
-  })
+  const sortScheduled = (items: LiveItem[]) =>
+    items.slice().sort((a, b) => {
+      const aDate = a.startAtMs ?? toDateMs(a)
+      const bDate = b.startAtMs ?? toDateMs(b)
+      if (scheduledSort.value === 'latest') return bDate - aDate
+      if (scheduledSort.value === 'oldest') return aDate - bDate
+      return aDate - bDate
+    })
 
-  return filtered
+  if (scheduledStatus.value === 'reserved') return sortScheduled(reserved)
+  if (scheduledStatus.value === 'canceled') return sortScheduled(canceled)
+
+  return [...sortScheduled(reserved), ...sortScheduled(canceled)]
 })
 
 const scheduledCategories = computed(() => Array.from(new Set(filteredScheduledItems.value.map((item) => item.category ?? '기타'))))
@@ -527,7 +531,8 @@ const scheduledSummary = computed(() =>
 )
 
 const vodSummary = computed(() =>
-  combinedVodItems.value
+  vodItemsWithStatus.value
+    .filter((item) => getLifecycleStatus(item) === 'VOD')
     .slice()
     .sort((a, b) => (b.startAtMs ?? toDateMs(b)) - (a.startAtMs ?? toDateMs(a)))
     .slice(0, 5),
@@ -839,10 +844,10 @@ onBeforeUnmount(() => {
 
       <div
         v-if="activeTab === 'live'"
-        class="live-livegrid live-livegrid--empty"
-        :class="{ 'live-livegrid--has-data': !!currentLive }"
+        class="live-livecolumn"
+        :class="{ 'live-livecolumn--empty': !currentLive }"
       >
-        <article v-if="currentLive" class="live-feature ds-surface">
+        <article v-if="currentLive" class="live-feature ds-surface live-pane">
           <div class="live-feature__layout">
             <div class="live-feature__thumb">
               <img :src="currentLive.thumb" :alt="currentLive.title" loading="lazy" />
@@ -868,12 +873,41 @@ onBeforeUnmount(() => {
             </div>
           </div>
         </article>
-        <article v-else class="live-feature ds-surface live-feature--empty">
-          <p class="live-card__title">현재 진행 중인 방송이 없습니다.</p>
-          <p class="live-card__meta">라이브를 시작하면 여기에서 실시간 상태를 볼 수 있어요.</p>
-        </article>
+        <p v-else class="section-empty live-pane">현재 진행 중인 방송이 없습니다.</p>
 
-        <article class="live-products ds-surface">
+        <section class="live-stats live-stats--stacked live-pane">
+          <div class="live-stats__head">
+            <h4>실시간 통계</h4>
+            <span class="live-stats__badge">
+              <span class="live-stats__dot"></span>
+              실시간 업데이트 중
+            </span>
+          </div>
+          <div class="live-stats-grid">
+            <article class="live-stat-card ds-surface">
+              <p class="stat-label">방송 상태</p>
+              <p class="stat-value">{{ liveStats.status }}</p>
+              <p class="stat-sub">정상 송출 중</p>
+            </article>
+            <article class="live-stat-card ds-surface">
+              <p class="stat-label">시청자 수</p>
+              <p class="stat-value">{{ liveStats.viewers }}</p>
+              <p class="stat-sub">누적 기준</p>
+            </article>
+            <article class="live-stat-card ds-surface">
+              <p class="stat-label">좋아요 수</p>
+              <p class="stat-value">{{ liveStats.likes }}</p>
+              <p class="stat-sub">최근 5분</p>
+            </article>
+            <article class="live-stat-card ds-surface">
+              <p class="stat-label">현재 매출</p>
+              <p class="stat-value">{{ liveStats.revenue }}</p>
+              <p class="stat-sub">실시간 집계</p>
+            </article>
+          </div>
+        </section>
+
+        <article class="live-products ds-surface live-pane">
           <div class="live-products__head">
             <div>
               <h4>판매 상품</h4>
@@ -933,43 +967,8 @@ onBeforeUnmount(() => {
             </div>
           </div>
         </article>
-        <article v-else class="live-feature ds-surface live-feature--empty">
-          <p class="live-card__title">등록된 방송이 없습니다.</p>
-          <p class="live-card__meta">새 방송을 등록해보세요.</p>
-        </article>
+        <p v-else class="section-empty">등록된 방송이 없습니다. 새 방송을 등록해보세요.</p>
       </div>
-
-      <section v-if="activeTab === 'live'" class="live-stats">
-        <div class="live-stats__head">
-          <h4>실시간 통계</h4>
-          <span class="live-stats__badge">
-            <span class="live-stats__dot"></span>
-            실시간 업데이트 중
-          </span>
-        </div>
-        <div class="live-stats-grid">
-          <article class="live-stat-card ds-surface">
-            <p class="stat-label">방송 상태</p>
-            <p class="stat-value">{{ liveStats.status }}</p>
-            <p class="stat-sub">정상 송출 중</p>
-          </article>
-          <article class="live-stat-card ds-surface">
-            <p class="stat-label">시청자 수</p>
-            <p class="stat-value">{{ liveStats.viewers }}</p>
-            <p class="stat-sub">누적 기준</p>
-          </article>
-          <article class="live-stat-card ds-surface">
-            <p class="stat-label">좋아요 수</p>
-            <p class="stat-value">{{ liveStats.likes }}</p>
-            <p class="stat-sub">최근 5분</p>
-          </article>
-          <article class="live-stat-card ds-surface">
-            <p class="stat-label">현재 매출</p>
-            <p class="stat-value">{{ liveStats.revenue }}</p>
-            <p class="stat-sub">실시간 집계</p>
-          </article>
-        </div>
-      </section>
     </section>
 
     <section v-if="visibleScheduled" class="live-section">
@@ -1053,10 +1052,7 @@ onBeforeUnmount(() => {
           </button>
         </template>
 
-        <article v-else class="live-card ds-surface live-card--empty">
-          <p class="live-card__title">등록된 방송이 없습니다.</p>
-          <p class="live-card__meta">예약 방송을 추가해보세요.</p>
-        </article>
+        <p v-else class="section-empty">등록된 방송이 없습니다. 예약 방송을 추가해보세요.</p>
       </div>
 
       <div v-else class="carousel-wrap">
@@ -1105,10 +1101,9 @@ onBeforeUnmount(() => {
               </article>
             </template>
 
-            <article v-else class="live-card ds-surface live-card--empty">
-              <p class="live-card__title">등록된 방송이 없습니다.</p>
-              <p class="live-card__meta">예약 방송을 추가해보세요.</p>
-            </article>
+            <p v-else class="section-empty live-carousel__empty">
+              등록된 방송이 없습니다. 예약 방송을 추가해보세요.
+            </p>
           </div>
         </div>
 
@@ -1211,10 +1206,7 @@ onBeforeUnmount(() => {
           </button>
         </template>
 
-        <article v-else class="live-card ds-surface live-card--empty">
-          <p class="live-card__title">등록된 VOD가 없습니다.</p>
-          <p class="live-card__meta">방송이 종료되면 자동 등록됩니다.</p>
-        </article>
+        <p v-else class="section-empty">등록된 VOD가 없습니다. 방송이 종료되면 자동 등록됩니다.</p>
       </div>
 
       <div v-else class="carousel-wrap">
@@ -1254,10 +1246,9 @@ onBeforeUnmount(() => {
               </article>
             </template>
 
-            <article v-else class="live-card ds-surface live-card--empty">
-              <p class="live-card__title">등록된 VOD가 없습니다.</p>
-              <p class="live-card__meta">방송이 종료되면 자동 등록됩니다.</p>
-            </article>
+            <p v-else class="section-empty live-carousel__empty">
+              등록된 VOD가 없습니다. 방송이 종료되면 자동 등록됩니다.
+            </p>
           </div>
         </div>
 
@@ -1443,6 +1434,18 @@ onBeforeUnmount(() => {
 .live-feature-wrap {
   display: block;
   width: 100%;
+}
+
+.live-livecolumn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.live-pane {
+  width: 100%;
+  max-width: 1080px;
 }
 
 .live-feature {
@@ -1688,6 +1691,11 @@ onBeforeUnmount(() => {
   margin-top: 14px;
 }
 
+.live-stats--stacked {
+  width: 100%;
+  max-width: 1080px;
+}
+
 .live-stats__head {
   display: flex;
   align-items: center;
@@ -1840,8 +1848,8 @@ onBeforeUnmount(() => {
 
 .live-badges {
   position: absolute;
-  right: 10px;
   top: 10px;
+  left: 10px;
   display: inline-flex;
   gap: 8px;
   align-items: center;
@@ -1932,6 +1940,17 @@ onBeforeUnmount(() => {
 .live-livegrid--empty:not(.live-livegrid--has-data) {
   grid-template-columns: 1fr;
   justify-items: center;
+}
+
+.section-empty {
+  text-align: center;
+  color: var(--text-muted);
+  font-weight: 800;
+  padding: 18px 12px;
+}
+
+.live-carousel__empty {
+  width: 100%;
 }
 
 .live-card--empty {
