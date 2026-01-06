@@ -687,13 +687,13 @@ const toggleFullscreen = async () => {
   grid-template-columns: 320px minmax(0, 1fr) 320px;
   gap: 18px;
   align-items: start;
-  --stream-pane-height: clamp(460px, 62vh, 680px);
+  --stream-pane-height: clamp(300px, auto, 675px);
 }
 
 .stream-panel {
   padding: 16px;
   gap: 12px;
-  height: var(--stream-pane-height);
+  max-height: var(--stream-pane-height);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -903,8 +903,8 @@ const toggleFullscreen = async () => {
   align-items: center;
   justify-content: center;
   min-width: 0;
-  min-height: var(--stream-pane-height);
-  max-height: calc(100vh - 120px);
+  min-height: 270px;
+  max-height: 700px;
   position: relative;
   background: #1c1d21;
 }
