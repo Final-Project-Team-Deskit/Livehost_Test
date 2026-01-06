@@ -831,31 +831,6 @@ const toggleFullscreen = async () => {
   color: var(--primary-color);
 }
 
-.stream-center {
-  padding: 24px;
-  height: var(--stream-pane-height);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 0;
-  position: relative;
-}
-
-.stream-player {
-  position: relative;
-  width: 100%;
-  height: auto;
-  aspect-ratio: 16 / 9;
-  border-radius: 16px;
-  background: #232c44;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: auto;
-  min-height: 320px;
-}
-
 .stream-overlay {
   position: absolute;
   top: 16px;
@@ -940,7 +915,7 @@ const toggleFullscreen = async () => {
   max-height: calc(100vh - 120px);
   aspect-ratio: 16 / 9;
   border-radius: 16px;
-  background: #202942;
+  background: #0b0f1a;
   display: flex;
   align-items: center;
   justify-content: center;
