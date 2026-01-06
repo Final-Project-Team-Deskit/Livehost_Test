@@ -6,6 +6,8 @@ const props = defineProps<{
   valueFormatter?: (value: number) => string
 }>()
 
+const dataLength = computed(() => props.data.length || 1)
+
 const maxValue = computed(() => {
   if (!props.data.length) return 0
   return Math.max(...props.data.map((item) => item.value))
@@ -20,19 +22,43 @@ const toHeight = (value: number) => {
   if (!maxValue.value) return '0%'
   return `${Math.round((value / maxValue.value) * 100)}%`
 }
+
+const yTicks = computed(() => {
+  if (!maxValue.value) return [0]
+  const steps = 4
+  const rawStep = Math.ceil(maxValue.value / steps)
+  const step = Math.max(1, rawStep)
+  const ticks: number[] = []
+  for (let i = steps; i >= 0; i -= 1) {
+    ticks.push(step * i)
+  }
+  return ticks
+})
+
+const barGap = computed(() => `${Math.max(8, Math.min(18, Math.round(120 / dataLength.value)))}px`)
+const minBarWidth = computed(() => Math.max(36, Math.min(90, Math.floor(500 / dataLength.value))))
+const barLayoutStyle = computed(() => ({
+  gap: barGap.value,
+  gridTemplateColumns: `repeat(${dataLength.value}, minmax(${minBarWidth.value}px, 1fr))`,
+}))
 </script>
 
 <template>
   <div class="bar-chart">
-    <div v-if="data.length" class="bar-chart__bars">
-      <div v-for="(item, index) in data" :key="`${item.label}-${index}`" class="bar-chart__item">
-        <div
-          class="bar-chart__bar"
-          :style="{ height: toHeight(item.value) }"
-          :data-value="formatValue(item.value)"
-          tabindex="0"
-        ></div>
-        <span class="bar-chart__label">{{ item.label }}</span>
+    <div v-if="data.length" class="bar-chart__grid">
+      <div class="bar-chart__y-axis" aria-hidden="true">
+        <span v-for="tick in yTicks" :key="tick" class="bar-chart__y-label">{{ formatValue(tick) }}</span>
+      </div>
+      <div class="bar-chart__bars" :style="barLayoutStyle">
+        <div v-for="(item, index) in data" :key="`${item.label}-${index}`" class="bar-chart__item">
+          <div
+            class="bar-chart__bar"
+            :style="{ height: toHeight(item.value) }"
+            :data-value="formatValue(item.value)"
+            tabindex="0"
+          ></div>
+          <span class="bar-chart__label">{{ item.label }}</span>
+        </div>
       </div>
     </div>
     <p v-else class="empty">데이터가 없습니다.</p>
@@ -46,17 +72,38 @@ const toHeight = (value: number) => {
   gap: 10px;
 }
 
-.bar-chart__bars {
-  display: flex;
-  gap: 14px;
+.bar-chart__grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
   align-items: flex-end;
-  min-height: 220px;
+  gap: 10px;
+}
+
+.bar-chart__y-axis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-self: stretch;
+  min-height: 240px;
+  padding: 0 6px 0 0;
+}
+
+.bar-chart__y-label {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.bar-chart__bars {
+  display: grid;
+  align-items: end;
+  min-height: 240px;
   padding: 8px 4px 0;
 }
 
 .bar-chart__item {
-  flex: 1;
-  min-width: 56px;
+  width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -66,7 +113,6 @@ const toHeight = (value: number) => {
 .bar-chart__bar {
   position: relative;
   width: 100%;
-  max-width: 68px;
   background: linear-gradient(180deg, rgba(var(--primary-rgb), 0.9), rgba(var(--primary-rgb), 0.6));
   border-radius: 14px 14px 8px 8px;
   transition: height 0.2s ease, box-shadow 0.2s ease;
