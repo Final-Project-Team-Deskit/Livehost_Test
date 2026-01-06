@@ -69,8 +69,9 @@ const handleFullscreenChange = () => {
   isFullscreen.value = Boolean(document.fullscreenElement)
 }
 
-const gridWidth = ref(0)
+const gridWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 0)
 const gridHeight = computed(() => (gridWidth.value ? (gridWidth.value * 9) / 16 : null))
+const isStackedLayout = computed(() => gridWidth.value <= 960)
 
 const confirmState = reactive({
   open: false,
@@ -164,7 +165,7 @@ const panelWidth = computed(() => {
   return clamped
 })
 const gridStyles = computed(() => ({
-  gridTemplateColumns: monitorColumns.value,
+  '--grid-template-columns': monitorColumns.value,
   '--stream-pane-height': streamPaneHeight.value,
   '--center-height': gridHeight.value ? `${gridHeight.value}px` : undefined,
 }))
@@ -194,6 +195,19 @@ const displayTitle = computed(() => broadcastInfo.value?.title ?? stream.value?.
 const displayDatetime = computed(
   () => stream.value?.datetime ?? '실시간 송출 화면과 판매 상품, 채팅을 관리합니다.',
 )
+
+const updateGridWidth = (width?: number) => {
+  if (typeof width === 'number') {
+    gridWidth.value = width
+    return
+  }
+  const rectWidth = streamGridRef.value?.clientWidth
+  if (rectWidth) {
+    gridWidth.value = rectWidth
+    return
+  }
+  gridWidth.value = typeof window !== 'undefined' ? window.innerWidth : 0
+}
 
 const scrollChatToBottom = () => {
   nextTick(() => {
@@ -242,6 +256,8 @@ watch(
   { immediate: true },
 )
 
+const handleResize = () => updateGridWidth()
+
 const handleKeydown = (event: KeyboardEvent) => {
   if (event.key === 'Escape' && showSettings.value) {
     showSettings.value = false
@@ -251,11 +267,14 @@ const handleKeydown = (event: KeyboardEvent) => {
 onMounted(() => {
   window.addEventListener('keydown', handleKeydown)
   document.addEventListener('fullscreenchange', handleFullscreenChange)
+  window.addEventListener('resize', handleResize)
+  monitorRef.value = streamGridRef.value
+  updateGridWidth()
   if (streamGridRef.value) {
     gridObserver = new ResizeObserver((entries) => {
       const entry = entries[0]
       if (entry?.contentRect?.width) {
-        gridWidth.value = entry.contentRect.width
+        updateGridWidth(entry.contentRect.width)
       }
     })
     gridObserver.observe(streamGridRef.value)
@@ -265,6 +284,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleKeydown)
   document.removeEventListener('fullscreenchange', handleFullscreenChange)
+  window.removeEventListener('resize', handleResize)
   gridObserver?.disconnect()
 })
 
@@ -422,14 +442,12 @@ const toggleFullscreen = async () => {
     </header>
 
     <section
-      :ref="(el) => {
-        monitorRef = el
-        streamGridRef = el
-      }"
+      ref="streamGridRef"
       class="stream-grid"
       :class="{
         'stream-grid--chat': showChat,
         'stream-grid--products': showProducts,
+        'stream-grid--stacked': isStackedLayout,
       }"
       :style="gridStyles"
     >
@@ -724,7 +742,7 @@ const toggleFullscreen = async () => {
 
 .stream-grid {
   display: grid;
-  grid-template-columns: 320px minmax(0, 1fr) 320px;
+  grid-template-columns: var(--grid-template-columns, 320px minmax(0, 1fr) 320px);
   gap: 18px;
   align-items: start;
   --stream-pane-height: clamp(300px, auto, 675px);
@@ -1275,19 +1293,42 @@ const toggleFullscreen = async () => {
   gap: 0;
 }
 
+.stream-grid--stacked {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.stream-grid--stacked .stream-center,
+.stream-grid--stacked .stream-panel {
+  height: auto;
+  max-height: none;
+  min-height: 0;
+}
+
+.stream-grid--stacked .stream-center {
+  order: 0;
+}
+
+.stream-grid--stacked .stream-panel--chat {
+  order: 1;
+}
+
+.stream-grid--stacked .stream-panel--products {
+  order: 2;
+}
+
+.stream-grid--stacked .panel-head {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.stream-grid--stacked .panel-head__left {
+  flex: 1 1 auto;
+}
+
 @media (max-width: 960px) {
-  .stream-grid {
-    grid-template-columns: 1fr;
-  }
-
   .stream-panel {
-    height: auto;
-    overflow: visible;
-    min-height: auto;
-  }
-
-  .stream-center {
-    height: auto;
     overflow: visible;
   }
 }
