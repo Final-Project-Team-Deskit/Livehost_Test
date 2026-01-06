@@ -476,20 +476,22 @@ const toggleFullscreen = async () => {
           </button>
         </div>
         <div class="stream-center__body">
-          <div v-if="isLoadingStream" class="stream-empty">
-            <p class="stream-title">방송 정보를 불러오는 중입니다.</p>
-            <p class="stream-sub">잠시만 기다려주세요.</p>
-          </div>
-          <div v-else-if="!stream" class="stream-empty">
-            <p class="stream-title">방송 정보를 불러올 수 없습니다.</p>
-            <p class="stream-sub">라이브 관리 페이지에서 다시 시도해주세요.</p>
-            <div class="stream-actions">
-              <button type="button" class="stream-btn" @click="handleGoToList">목록으로 이동</button>
+          <div class="stream-player">
+            <div v-if="isLoadingStream" class="stream-empty">
+              <p class="stream-title">방송 정보를 불러오는 중입니다.</p>
+              <p class="stream-sub">잠시만 기다려주세요.</p>
             </div>
-          </div>
-          <div v-else class="stream-placeholder">
-            <p class="stream-title">송출 화면 (WebRTC Stream)</p>
-            <p class="stream-sub">현재 송출 중인 화면이 표시됩니다.</p>
+            <div v-else-if="!stream" class="stream-empty">
+              <p class="stream-title">방송 정보를 불러올 수 없습니다.</p>
+              <p class="stream-sub">라이브 관리 페이지에서 다시 시도해주세요.</p>
+              <div class="stream-actions">
+                <button type="button" class="stream-btn" @click="handleGoToList">목록으로 이동</button>
+              </div>
+            </div>
+            <div v-else class="stream-placeholder">
+              <p class="stream-title">송출 화면 (WebRTC Stream)</p>
+              <p class="stream-sub">현재 송출 중인 화면이 표시됩니다.</p>
+            </div>
           </div>
         </div>
         <div v-if="showSettings" class="stream-settings ds-surface" role="dialog" aria-label="방송 설정">
@@ -828,6 +830,20 @@ const toggleFullscreen = async () => {
   min-width: 0;
   min-height: 0;
   position: relative;
+}
+
+.stream-player {
+  position: relative;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  border-radius: 16px;
+  background: #0b0f1a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  min-height: 320px;
 }
 
 .stream-overlay {
