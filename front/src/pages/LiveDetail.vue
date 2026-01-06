@@ -636,14 +636,14 @@ onBeforeUnmount(() => {
   position: relative;
   width: 100%;
   aspect-ratio: 16 / 9;
-  background: #10131b;
+  background: #272d3b;
   border-radius: 16px;
   display: grid;
   place-items: center;
   color: #fff;
   font-weight: 700;
   min-height: 360px;
-  overflow: hidden;
+  overflow: auto;
 }
 
 .player-frame__label {
