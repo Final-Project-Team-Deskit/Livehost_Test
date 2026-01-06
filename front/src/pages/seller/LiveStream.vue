@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import BasicInfoEditModal from '../../components/BasicInfoEditModal.vue'
 import ChatSanctionModal from '../../components/ChatSanctionModal.vue'
@@ -19,6 +19,7 @@ type StreamChat = {
   id: string
   name: string
   message: string
+  time?: string
 }
 
 type StreamData = {
@@ -33,7 +34,7 @@ type StreamData = {
   waitingScreen?: string
 }
 
-type BroadcastInfo = Pick<StreamData, 'title' | 'category' | 'notice' | 'thumbnail' | 'waitingScreen' | 'qCards'>
+type EditableBroadcastInfo = Pick<StreamData, 'title' | 'category' | 'notice' | 'thumbnail' | 'waitingScreen'>
 
 const defaultNotice = '판매 상품 외 다른 상품 문의는 받지 않습니다.'
 
@@ -46,7 +47,7 @@ const showSettings = ref(false)
 const viewerCount = ref(1010)
 const likeCount = ref(1574)
 const elapsed = ref('02:01:44')
-const streamStage = ref<HTMLElement | null>(null)
+const monitorRef = ref<HTMLElement | null>(null)
 const isFullscreen = ref(false)
 const micEnabled = ref(true)
 const videoEnabled = ref(true)
@@ -54,6 +55,8 @@ const volume = ref(43)
 const selectedMic = ref('기본 마이크')
 const selectedCamera = ref('기본 카메라')
 const micInputLevel = ref(70)
+const chatText = ref('')
+const chatListRef = ref<HTMLElement | null>(null)
 
 const showQCards = ref(false)
 const showBasicInfo = ref(false)
@@ -76,8 +79,11 @@ const confirmAction = ref<() => void>(() => {})
 const pinnedProductId = ref<string | null>(null)
 const sanctionTarget = ref<string | null>(null)
 const sanctionedUsers = ref<Record<string, { type: string; reason: string }>>({})
-const broadcastInfo = ref<BroadcastInfo | null>(null)
+const broadcastInfo = ref<(EditableBroadcastInfo & { qCards: string[] }) | null>(null)
 const stream = ref<StreamData | null>(null)
+const chatMessages = ref<StreamChat[]>([])
+
+const defaultChatTimes = ['오후 2:10', '오후 2:12', '오후 2:14']
 
 const streamId = computed(() => {
   const id = route.params.id
@@ -124,7 +130,6 @@ const streamMap: Record<string, StreamData> = {
 }
 
 const productItems = computed(() => stream.value?.products ?? [])
-const chatItems = computed(() => stream.value?.chat ?? [])
 const sortedProducts = computed(() => {
   const items = [...productItems.value]
   items.sort((a, b) => {
@@ -140,11 +145,34 @@ const sortedProducts = computed(() => {
   return items
 })
 
-const qCards = computed(() => broadcastInfo.value?.qCards ?? [])
+const chatItems = computed(() => chatMessages.value)
+
+const monitorColumns = computed(() => {
+  if (showProducts.value && showChat.value) return '320px minmax(0, 1fr) 320px'
+  if (showProducts.value) return '320px minmax(0, 1fr)'
+  if (showChat.value) return 'minmax(0, 1fr) 320px'
+  return 'minmax(0, 1fr)'
+})
+
+const streamPaneHeight = computed(() => {
+  if (showProducts.value && showChat.value) return 'clamp(460px, 62vh, 680px)'
+  if (showProducts.value || showChat.value) return 'clamp(520px, 68vh, 760px)'
+  return 'clamp(560px, 74vh, 880px)'
+})
+
+const qCards = computed(() => broadcastInfo.value?.qCards ?? stream.value?.qCards ?? [])
 const displayTitle = computed(() => broadcastInfo.value?.title ?? stream.value?.title ?? '방송 진행')
 const displayDatetime = computed(
   () => stream.value?.datetime ?? '실시간 송출 화면과 판매 상품, 채팅을 관리합니다.',
 )
+
+const scrollChatToBottom = () => {
+  nextTick(() => {
+    const el = chatListRef.value
+    if (!el) return
+    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+  })
+}
 
 const hydrateStream = () => {
   isLoadingStream.value = true
@@ -155,6 +183,7 @@ const hydrateStream = () => {
   if (!next) {
     pinnedProductId.value = null
     broadcastInfo.value = null
+    chatMessages.value = []
     isLoadingStream.value = false
     return
   }
@@ -164,11 +193,16 @@ const hydrateStream = () => {
     title: next.title,
     category: next.category,
     notice: next.notice ?? defaultNotice,
-    qCards: next.qCards,
     thumbnail: next.thumbnail,
     waitingScreen: next.waitingScreen,
+    qCards: next.qCards,
   }
+  chatMessages.value = (next.chat ?? []).map((item, index) => ({
+    ...item,
+    time: item.time ?? defaultChatTimes[index % defaultChatTimes.length],
+  }))
   isLoadingStream.value = false
+  scrollChatToBottom()
 }
 
 watch(
@@ -229,6 +263,7 @@ const handlePinProduct = (productId: string) => {
 }
 
 const openSanction = (username: string) => {
+  if (username === 'SYSTEM') return
   sanctionTarget.value = username
   showSanctionModal.value = true
 }
@@ -241,6 +276,18 @@ const applySanction = (payload: { type: string; reason: string }) => {
   }
   alert(`${sanctionTarget.value}님에게 제재가 적용되었습니다.`)
   sanctionTarget.value = null
+  const now = new Date()
+  const at = `${now.getHours()}시 ${String(now.getMinutes()).padStart(2, '0')}분`
+  chatMessages.value = [
+    ...chatMessages.value,
+    {
+      id: `sys-${Date.now()}`,
+      name: 'SYSTEM',
+      message: `${payload.type} 처리됨 (사유: ${payload.reason})`,
+      time: at,
+    },
+  ]
+  scrollChatToBottom()
 }
 
 watch(showSanctionModal, (open) => {
@@ -249,7 +296,36 @@ watch(showSanctionModal, (open) => {
   }
 })
 
-const handleBasicInfoSave = (payload: BroadcastInfo) => {
+const formatChatTime = () => {
+  const now = new Date()
+  const hours = now.getHours()
+  const displayHour = hours % 12 || 12
+  const minutes = String(now.getMinutes()).padStart(2, '0')
+  return `${hours >= 12 ? '오후' : '오전'} ${displayHour}:${minutes}`
+}
+
+const handleSendChat = () => {
+  if (!chatText.value.trim()) return
+  chatMessages.value = [
+    ...chatMessages.value,
+    {
+      id: `seller-${Date.now()}`,
+      name: '판매자',
+      message: chatText.value.trim(),
+      time: formatChatTime(),
+    },
+  ]
+  chatText.value = ''
+  scrollChatToBottom()
+}
+
+watch(showChat, (open) => {
+  if (open) {
+    scrollChatToBottom()
+  }
+})
+
+const handleBasicInfoSave = (payload: EditableBroadcastInfo) => {
   if (!broadcastInfo.value) return
   broadcastInfo.value = { ...broadcastInfo.value, ...payload }
 }
@@ -276,7 +352,7 @@ const requestEndBroadcast = () => {
 }
 
 const toggleFullscreen = async () => {
-  const el = streamStage.value
+  const el = monitorRef.value
   if (!el) return
   try {
     if (document.fullscreenElement) {
@@ -307,17 +383,9 @@ const toggleFullscreen = async () => {
     </header>
 
     <section
+      ref="monitorRef"
       class="stream-grid"
-      :style="{
-        gridTemplateColumns:
-          showProducts && showChat
-            ? '280px minmax(0, 1fr) 280px'
-            : showProducts
-              ? '280px minmax(0, 1fr)'
-              : showChat
-                ? 'minmax(0, 1fr) 280px'
-                : 'minmax(0, 1fr)',
-      }"
+      :style="{ gridTemplateColumns: monitorColumns, '--stream-pane-height': streamPaneHeight }"
     >
       <aside v-if="showProducts" class="stream-panel ds-surface">
         <div class="panel-head">
@@ -364,74 +432,76 @@ const toggleFullscreen = async () => {
         </div>
       </aside>
 
-      <div ref="streamStage" class="stream-center ds-surface">
-        <div class="stream-overlay stream-overlay--stack">
-          <div class="stream-overlay__row">⏱ 경과 {{ elapsed }}</div>
-          <div class="stream-overlay__row">👥 {{ viewerCount.toLocaleString('ko-KR') }}명 시청 중</div>
-          <div class="stream-overlay__row">❤ {{ likeCount.toLocaleString('ko-KR') }}</div>
-        </div>
-        <div class="stream-fab">
-          <button
-            type="button"
-            class="fab-btn"
-            :class="{ 'is-off': !showProducts }"
-            :aria-label="showProducts ? '상품 패널 닫기' : '상품 패널 열기'"
-            @click="showProducts = !showProducts"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M3 7h18l-2 12H5L3 7z" stroke="currentColor" stroke-width="1.7" />
-              <path d="M10 11v4M14 11v4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
-              <circle cx="9" cy="19" r="1" fill="currentColor" />
-              <circle cx="15" cy="19" r="1" fill="currentColor" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            class="fab-btn"
-            :class="{ 'is-off': !showChat }"
-            :aria-label="showChat ? '채팅 패널 닫기' : '채팅 패널 열기'"
-            @click="showChat = !showChat"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M3 20l1.62-3.24A2 2 0 0 1 6.42 16H20a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v15z" stroke="currentColor" stroke-width="1.7" />
-              <path d="M7 9h10M7 12h6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            class="fab-btn"
-            :class="{ 'is-off': !showSettings }"
-            aria-label="방송 설정 토글"
-            @click="showSettings = !showSettings"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
-              <circle cx="9" cy="6" r="2" stroke="currentColor" stroke-width="1.7" />
-              <circle cx="14" cy="12" r="2" stroke="currentColor" stroke-width="1.7" />
-              <circle cx="7" cy="18" r="2" stroke="currentColor" stroke-width="1.7" />
-            </svg>
-          </button>
-          <button type="button" class="fab-btn" aria-label="전체 화면" @click="toggleFullscreen">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
-          </button>
-        </div>
+      <div class="stream-center ds-surface">
         <div class="stream-center__body">
-          <div v-if="isLoadingStream" class="stream-empty">
-            <p class="stream-title">방송 정보를 불러오는 중입니다.</p>
-            <p class="stream-sub">잠시만 기다려주세요.</p>
-          </div>
-          <div v-else-if="!stream" class="stream-empty">
-            <p class="stream-title">방송 정보를 불러올 수 없습니다.</p>
-            <p class="stream-sub">라이브 관리 페이지에서 다시 시도해주세요.</p>
-            <div class="stream-actions">
-              <button type="button" class="stream-btn" @click="handleGoToList">목록으로 이동</button>
+          <div class="stream-player">
+            <div class="stream-overlay stream-overlay--stack">
+              <div class="stream-overlay__row">⏱ 경과 {{ elapsed }}</div>
+              <div class="stream-overlay__row">👥 {{ viewerCount.toLocaleString('ko-KR') }}명</div>
+              <div class="stream-overlay__row">❤ {{ likeCount.toLocaleString('ko-KR') }}</div>
             </div>
-          </div>
-          <div v-else class="stream-placeholder">
-            <p class="stream-title">송출 화면 (WebRTC Stream)</p>
-            <p class="stream-sub">현재 송출 중인 화면이 표시됩니다.</p>
+            <div class="stream-fab">
+              <button
+                type="button"
+                class="fab-btn"
+                :class="{ 'is-off': !showProducts }"
+                :aria-label="showProducts ? '상품 패널 닫기' : '상품 패널 열기'"
+                @click="showProducts = !showProducts"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M3 7h18l-2 12H5L3 7z" stroke="currentColor" stroke-width="1.7" />
+                  <path d="M10 11v4M14 11v4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+                  <circle cx="9" cy="19" r="1" fill="currentColor" />
+                  <circle cx="15" cy="19" r="1" fill="currentColor" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="fab-btn"
+                :class="{ 'is-off': !showChat }"
+                :aria-label="showChat ? '채팅 패널 닫기' : '채팅 패널 열기'"
+                @click="showChat = !showChat"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M3 20l1.62-3.24A2 2 0 0 1 6.42 16H20a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v15z" stroke="currentColor" stroke-width="1.7" />
+                  <path d="M7 9h10M7 12h6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="fab-btn"
+                :class="{ 'is-off': !showSettings }"
+                aria-label="방송 설정 토글"
+                @click="showSettings = !showSettings"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+                  <circle cx="9" cy="6" r="2" stroke="currentColor" stroke-width="1.7" />
+                  <circle cx="14" cy="12" r="2" stroke="currentColor" stroke-width="1.7" />
+                  <circle cx="7" cy="18" r="2" stroke="currentColor" stroke-width="1.7" />
+                </svg>
+              </button>
+              <button type="button" class="fab-btn" aria-label="전체 화면" @click="toggleFullscreen">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </button>
+            </div>
+            <div v-if="isLoadingStream" class="stream-empty">
+              <p class="stream-title">방송 정보를 불러오는 중입니다.</p>
+              <p class="stream-sub">잠시만 기다려주세요.</p>
+            </div>
+            <div v-else-if="!stream" class="stream-empty">
+              <p class="stream-title">방송 정보를 불러올 수 없습니다.</p>
+              <p class="stream-sub">라이브 관리 페이지에서 다시 시도해주세요.</p>
+              <div class="stream-actions">
+                <button type="button" class="stream-btn" @click="handleGoToList">목록으로 이동</button>
+              </div>
+            </div>
+            <div v-else class="stream-placeholder">
+              <p class="stream-title">송출 화면 (WebRTC Stream)</p>
+              <p class="stream-sub">현재 송출 중인 화면이 표시됩니다.</p>
+            </div>
           </div>
         </div>
         <div v-if="showSettings" class="stream-settings ds-surface" role="dialog" aria-label="방송 설정">
@@ -529,20 +599,25 @@ const toggleFullscreen = async () => {
           </div>
           <button type="button" class="panel-close" aria-label="채팅 패널 닫기" @click="showChat = false">×</button>
         </div>
-        <div class="panel-chat">
+        <div ref="chatListRef" class="panel-chat chat-messages">
           <div
             v-for="item in chatItems"
             :key="item.id"
-            class="chat-item"
-            :class="{ 'chat-item--muted': sanctionedUsers[item.name] }"
+            class="chat-message"
+            :class="{ 'chat-message--muted': sanctionedUsers[item.name], 'chat-message--system': item.name === 'SYSTEM' }"
             @contextmenu.prevent="openSanction(item.name)"
           >
-            <div class="chat-item__header">
-              <span class="chat-name">{{ item.name }}</span>
+            <div class="chat-meta">
+              <span class="chat-user">{{ item.name }}</span>
+              <span class="chat-time">{{ item.time }}</span>
               <span v-if="sanctionedUsers[item.name]" class="chat-badge">{{ sanctionedUsers[item.name].type }}</span>
             </div>
-            <span class="chat-message">{{ item.message }}</span>
+            <p class="chat-text">{{ item.message }}</p>
           </div>
+        </div>
+        <div class="chat-input">
+          <input v-model="chatText" type="text" placeholder="메시지를 입력하세요" @keyup.enter="handleSendChat" />
+          <button type="button" class="stream-btn primary" @click="handleSendChat">전송</button>
         </div>
       </aside>
     </section>
@@ -597,10 +672,10 @@ const toggleFullscreen = async () => {
 
 .stream-grid {
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr) 280px;
+  grid-template-columns: 320px minmax(0, 1fr) 320px;
   gap: 18px;
   align-items: start;
-  --stream-pane-height: clamp(420px, 60vh, 620px);
+  --stream-pane-height: clamp(460px, 62vh, 680px);
 }
 
 .stream-panel {
@@ -769,20 +844,18 @@ const toggleFullscreen = async () => {
 
 .stream-overlay {
   position: absolute;
-  top: 14px;
+  top: 16px;
+  right: 16px;
   background: rgba(0, 0, 0, 0.55);
   color: #fff;
   border-radius: 12px;
   padding: 10px 12px;
-  display: grid;
+  display: inline-flex;
+  flex-direction: column;
   gap: 6px;
-}
-
-.stream-overlay--stack {
-  left: 14px;
-  top: 14px;
-  display: grid;
-  gap: 6px;
+  z-index: 2;
+  width: fit-content;
+  min-width: 0;
 }
 
 .stream-overlay__row {
@@ -822,12 +895,43 @@ const toggleFullscreen = async () => {
   opacity: 0.6;
 }
 
+.stream-center {
+  padding: 24px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: var(--stream-pane-height);
+  max-height: calc(100vh - 120px);
+  position: relative;
+}
+
 .stream-center__body {
   flex: 1 1 auto;
   min-height: 0;
-  overflow: auto;
-  display: block;
-  padding-bottom: 140px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.stream-player {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  max-height: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 16px;
+  background: #0b0f1a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  min-height: 320px;
 }
 
 .stream-placeholder {
@@ -861,56 +965,92 @@ const toggleFullscreen = async () => {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  overflow-y: auto;
-  padding-right: 4px;
   flex: 1 1 auto;
   min-height: 0;
   align-items: stretch;
   justify-content: flex-start;
 }
 
-.chat-item {
-  display: grid;
-  gap: 4px;
-  padding: 8px 10px;
-  border-radius: 12px;
-  background: var(--surface-weak);
-  flex: 0 0 auto;
-  align-self: stretch;
-}
-
-.chat-item--muted {
-  opacity: 0.85;
-  border: 1px dashed var(--border-color);
-}
-
-.chat-item__header {
+.chat-messages {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.chat-name {
-  font-weight: 800;
-  color: var(--text-strong);
-  font-size: 0.85rem;
+  flex-direction: column;
+  gap: 10px;
+  padding-right: 4px;
 }
 
 .chat-message {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.chat-message--system .chat-user {
+  color: #ef4444;
+}
+
+.chat-message--muted .chat-text {
+  color: var(--text-muted);
+}
+
+.chat-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
   color: var(--text-muted);
   font-weight: 700;
-  font-size: 0.85rem;
-  line-height: 1.35;
+}
+
+.chat-user {
+  color: var(--text-strong);
+  font-weight: 800;
+}
+
+.chat-time {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.chat-text {
+  margin: 0;
+  color: var(--text-strong);
+  font-weight: 700;
+  font-size: 0.9rem;
+  line-height: 1.45;
 }
 
 .chat-badge {
   padding: 2px 6px;
   border-radius: 999px;
-  background: rgba(239, 68, 68, 0.12);
-  color: #b91c1c;
+  background: var(--surface-weak);
+  color: var(--text-muted);
   font-weight: 800;
   font-size: 0.75rem;
+}
+
+.chat-input {
+  display: flex;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.chat-input input {
+  flex: 1;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-weight: 700;
+  color: var(--text-strong);
+  background: var(--surface);
+}
+
+.stream-btn.primary {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
 }
 
 
@@ -1037,6 +1177,22 @@ const toggleFullscreen = async () => {
   padding: 8px 10px;
   font-weight: 800;
   cursor: pointer;
+}
+
+.stream-grid:fullscreen {
+  gap: 14px;
+}
+
+.stream-grid:fullscreen .stream-panel,
+.stream-grid:fullscreen .stream-center {
+  height: 100vh;
+  max-height: 100vh;
+  min-height: 0;
+}
+
+.stream-grid:fullscreen .stream-player {
+  max-height: 100vh;
+  width: min(100%, calc(100vh * (16 / 9)));
 }
 
 @media (max-width: 960px) {
