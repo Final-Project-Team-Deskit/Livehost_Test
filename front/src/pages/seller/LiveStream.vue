@@ -159,6 +159,9 @@ const gridStyles = computed(() => ({
   '--stream-pane-height': streamPaneHeight.value,
   '--center-height': gridHeight.value ? `${gridHeight.value}px` : undefined,
 }))
+const stackedOrders = computed(() =>
+  isStackedLayout.value ? { stream: 0, chat: 1, products: 2 } : null,
+)
 
 const monitorColumns = computed(() => {
   if (showProducts.value && showChat.value) return '320px minmax(0, 1fr) 320px'
@@ -440,7 +443,11 @@ const toggleFullscreen = async () => {
       }"
       :style="gridStyles"
     >
-      <aside v-if="showProducts" class="stream-panel ds-surface">
+      <aside
+        v-if="showProducts"
+        class="stream-panel stream-panel--products ds-surface"
+        :style="stackedOrders ? { order: stackedOrders.products } : undefined"
+      >
         <div class="panel-head">
           <div class="panel-head__left">
             <h3>상품 관리</h3>
@@ -485,7 +492,11 @@ const toggleFullscreen = async () => {
         </div>
       </aside>
 
-      <div ref="streamCenterRef" class="stream-center ds-surface">
+      <div
+        ref="streamCenterRef"
+        class="stream-center ds-surface"
+        :style="stackedOrders ? { order: stackedOrders.stream } : undefined"
+      >
         <div class="stream-center__body">
           <div
             class="stream-player"
@@ -651,7 +662,11 @@ const toggleFullscreen = async () => {
         </div>
       </div>
 
-      <aside v-if="showChat" class="stream-panel stream-chat ds-surface">
+      <aside
+        v-if="showChat"
+        class="stream-panel stream-chat stream-panel--chat ds-surface"
+        :style="stackedOrders ? { order: stackedOrders.chat } : undefined"
+      >
         <div class="panel-head">
           <div class="panel-head__left">
             <h3>실시간 채팅</h3>
