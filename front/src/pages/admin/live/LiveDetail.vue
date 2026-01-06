@@ -601,7 +601,7 @@ watch(liveId, loadDetail, { immediate: true })
   aspect-ratio: 16 / 9;
   background: #0b0f1a;
   border-radius: 18px;
-  overflow: hidden;
+  overflow: auto;
   display: flex;
   align-items: center;
   justify-content: center;
