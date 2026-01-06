@@ -48,7 +48,7 @@ const viewerCount = ref(1010)
 const likeCount = ref(1574)
 const elapsed = ref('02:01:44')
 const monitorRef = ref<HTMLElement | null>(null)
-const streamCenterRef = ref<HTMLElement | null>(null)
+const streamGridRef = ref<HTMLElement | null>(null)
 const isFullscreen = ref(false)
 const micEnabled = ref(true)
 const videoEnabled = ref(true)
@@ -58,7 +58,7 @@ const selectedCamera = ref('기본 카메라')
 const micInputLevel = ref(70)
 const chatText = ref('')
 const chatListRef = ref<HTMLElement | null>(null)
-let centerObserver: ResizeObserver | null = null
+let gridObserver: ResizeObserver | null = null
 
 const showQCards = ref(false)
 const showBasicInfo = ref(false)
@@ -69,8 +69,8 @@ const handleFullscreenChange = () => {
   isFullscreen.value = Boolean(document.fullscreenElement)
 }
 
-const centerWidth = ref(0)
-const centerHeight = computed(() => (centerWidth.value ? (centerWidth.value * 9) / 16 : null))
+const gridWidth = ref(0)
+const gridHeight = computed(() => (gridWidth.value ? (gridWidth.value * 9) / 16 : null))
 
 const confirmState = reactive({
   open: false,
@@ -156,7 +156,7 @@ const hasSidePanels = computed(() => showProducts.value || showChat.value)
 const gridStyles = computed(() => ({
   gridTemplateColumns: monitorColumns.value,
   '--stream-pane-height': streamPaneHeight.value,
-  '--center-height': centerHeight.value ? `${centerHeight.value}px` : undefined,
+  '--center-height': gridHeight.value ? `${gridHeight.value}px` : undefined,
 }))
 
 const monitorColumns = computed(() => {
@@ -167,7 +167,7 @@ const monitorColumns = computed(() => {
 })
 
 const streamPaneHeight = computed(() => {
-  const dynamic = centerHeight.value
+  const dynamic = gridHeight.value
   if (dynamic) {
     const min = 320
     const max = 760
@@ -240,21 +240,21 @@ const handleKeydown = (event: KeyboardEvent) => {
 onMounted(() => {
   window.addEventListener('keydown', handleKeydown)
   document.addEventListener('fullscreenchange', handleFullscreenChange)
-  if (streamCenterRef.value) {
-    centerObserver = new ResizeObserver((entries) => {
+  if (streamGridRef.value) {
+    gridObserver = new ResizeObserver((entries) => {
       const entry = entries[0]
       if (entry?.contentRect?.width) {
-        centerWidth.value = entry.contentRect.width
+        gridWidth.value = entry.contentRect.width
       }
     })
-    centerObserver.observe(streamCenterRef.value)
+    gridObserver.observe(streamGridRef.value)
   }
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleKeydown)
   document.removeEventListener('fullscreenchange', handleFullscreenChange)
-  centerObserver?.disconnect()
+  gridObserver?.disconnect()
 })
 
 const openConfirm = (options: Partial<typeof confirmState>, onConfirm: () => void) => {
@@ -411,7 +411,10 @@ const toggleFullscreen = async () => {
     </header>
 
     <section
-      ref="monitorRef"
+      :ref="(el) => {
+        monitorRef = el
+        streamGridRef = el
+      }"
       class="stream-grid"
       :class="{
         'stream-grid--chat': showChat,
