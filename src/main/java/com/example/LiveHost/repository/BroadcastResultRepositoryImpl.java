@@ -128,7 +128,7 @@ public class BroadcastResultRepositoryImpl implements BroadcastResultRepositoryC
             // 연도별 차트: 최근 10년
             startDate = now.minusYears(4).withDayOfYear(1).with(LocalTime.MIN);
         }
-        return path.goe(startDate);
+        return path.ge(startDate);
     }
 
     // [New Helper 2] 랭킹용 기간 (Snapshot): 오늘, 이번 달, 올해
@@ -146,7 +146,7 @@ public class BroadcastResultRepositoryImpl implements BroadcastResultRepositoryC
             // 연도별 랭킹: 올해 1월 1일 00:00:00 ~ 현재
             startDate = now.with(TemporalAdjusters.firstDayOfYear()).with(LocalTime.MIN);
         }
-        return path.goe(startDate);
+        return path.ge(startDate);
     }
 
     private StatisticsResponse.BroadcastRank mapRank(Record record) {

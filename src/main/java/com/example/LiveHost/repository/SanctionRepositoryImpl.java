@@ -160,7 +160,7 @@ public class SanctionRepositoryImpl implements SanctionRepositoryCustom {
             // 연도별 차트: 최근 10년
             startDate = now.minusYears(4).withDayOfYear(1).with(LocalTime.MIN);
         }
-        return path.goe(startDate);
+        return path.ge(startDate);
     }
 
     // [Helper 3] 랭킹용 기간 (Snapshot): 오늘 하루, 이번 달, 올해
@@ -178,7 +178,7 @@ public class SanctionRepositoryImpl implements SanctionRepositoryCustom {
             // 연도별 랭킹: 올해 1월 1일 00:00:00 ~ 현재
             startDate = now.with(TemporalAdjusters.firstDayOfYear()).with(LocalTime.MIN);
         }
-        return path.goe(startDate);
+        return path.ge(startDate);
     }
 
     private SanctionStatisticsResponse.SellerRank mapSellerRank(Record record) {
