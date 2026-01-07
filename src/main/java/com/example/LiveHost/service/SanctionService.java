@@ -3,7 +3,6 @@ package com.example.LiveHost.service;
 import com.example.LiveHost.common.enums.SanctionType;
 import com.example.LiveHost.common.exception.BusinessException;
 import com.example.LiveHost.common.exception.ErrorCode;
-import com.example.LiveHost.dto.SanctionResponse;
 import com.example.LiveHost.dto.request.SanctionRequest;
 import com.example.LiveHost.entity.Broadcast;
 import com.example.LiveHost.entity.Sanction;
@@ -15,9 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -85,19 +82,5 @@ public class SanctionService {
                 "SANCTION_UPDATED",
                 Map.of("targetMemberId", request.getMemberId())
         );
-    }
-
-    @Transactional(readOnly = true)
-    public List<SanctionResponse> getSanctions(Long sellerId, Long broadcastId) {
-        Broadcast broadcast = broadcastRepository.findById(broadcastId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.BROADCAST_NOT_FOUND));
-
-        if (!broadcast.getSeller().getSellerId().equals(sellerId)) {
-            throw new BusinessException(ErrorCode.FORBIDDEN_ACCESS);
-        }
-
-        return sanctionRepository.findByBroadcastOrderByCreatedAtDesc(broadcast).stream()
-                .map(sanction -> SanctionResponse.fromEntity(sanction, sanction.getMember().getName()))
-                .collect(Collectors.toList());
     }
 }

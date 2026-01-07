@@ -47,9 +47,6 @@ public class RedisService {
     public String getMaxViewersKey(Long bId) { return "broadcast:" + bId + ":max_viewers"; }
     public String getMaxViewersTimeKey(Long bId) { return "broadcast:" + bId + ":max_viewers_time"; }
 
-    // 9. 라이브 장비 설정
-    public String getDeviceSettingKey(Long sellerId) { return "seller:" + sellerId + ":device_settings"; }
-
     // =====================================================================
     // 1. [동시성 제어] 분산 락 (Distributed Lock)
     // =====================================================================
@@ -241,37 +238,6 @@ public class RedisService {
         redisTemplate.delete(getReportCountKey(broadcastId));
         redisTemplate.delete(getMaxViewersKey(broadcastId));
         redisTemplate.delete(getMaxViewersTimeKey(broadcastId));
-    }
-
-    public void saveDeviceSettings(Long sellerId, com.example.LiveHost.dto.request.LiveDeviceSettingRequest request) {
-        String key = getDeviceSettingKey(sellerId);
-        java.util.Map<String, Object> values = new java.util.HashMap<>();
-        if (request.getCameraId() != null) {
-            values.put("cameraId", request.getCameraId());
-        }
-        if (request.getMicrophoneId() != null) {
-            values.put("microphoneId", request.getMicrophoneId());
-        }
-        if (request.getSpeakerId() != null) {
-            values.put("speakerId", request.getSpeakerId());
-        }
-        if (!values.isEmpty()) {
-            redisTemplate.opsForHash().putAll(key, values);
-            redisTemplate.expire(key, Duration.ofDays(7));
-        }
-    }
-
-    public com.example.LiveHost.dto.response.LiveDeviceSettingResponse getDeviceSettings(Long sellerId) {
-        String key = getDeviceSettingKey(sellerId);
-        java.util.Map<Object, Object> values = redisTemplate.opsForHash().entries(key);
-        if (values == null || values.isEmpty()) {
-            return null;
-        }
-        return com.example.LiveHost.dto.response.LiveDeviceSettingResponse.builder()
-                .cameraId((String) values.get("cameraId"))
-                .microphoneId((String) values.get("microphoneId"))
-                .speakerId((String) values.get("speakerId"))
-                .build();
     }
 
     private void expireKey(String key) {

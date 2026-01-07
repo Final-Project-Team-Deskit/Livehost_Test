@@ -1,20 +1,15 @@
 package com.example.LiveHost.controller.seller;
 
 import com.example.LiveHost.common.exception.ApiResult;
-import com.example.LiveHost.dto.SanctionResponse;
 import com.example.LiveHost.dto.request.BroadcastCreateRequest;
 import com.example.LiveHost.dto.request.BroadcastSearch;
 import com.example.LiveHost.dto.request.BroadcastUpdateRequest;
-import com.example.LiveHost.dto.request.LiveDeviceSettingRequest;
 import com.example.LiveHost.dto.request.SanctionRequest;
-import com.example.LiveHost.dto.response.AvailableSlotResponse;
 import com.example.LiveHost.dto.response.BroadcastResponse;
 import com.example.LiveHost.dto.response.BroadcastResultResponse;
-import com.example.LiveHost.dto.response.LiveDeviceSettingResponse;
 import com.example.LiveHost.dto.response.ProductSelectResponse;
 import com.example.LiveHost.dto.response.StatisticsResponse;
 import com.example.LiveHost.service.BroadcastService;
-import com.example.LiveHost.service.LiveDeviceService;
 import com.example.LiveHost.service.SanctionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -22,9 +17,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.format.annotation.DateTimeFormat;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
@@ -34,7 +27,6 @@ public class BroadcastSellerController {
 
     private final BroadcastService broadcastService;
     private final SanctionService sanctionService;
-    private final LiveDeviceService liveDeviceService;
 
     // 1. 방송 예약 (생성)
     @PostMapping
@@ -132,7 +124,7 @@ public class BroadcastSellerController {
     public ResponseEntity<ApiResult<Void>> pinProduct(
             @RequestHeader("X-Seller-Id") Long sellerId,
             @PathVariable Long broadcastId,
-            @PathVariable("productId") Long bpId
+            @PathVariable Long bpId
     ) {
         broadcastService.pinProduct(sellerId, broadcastId, bpId);
         return ResponseEntity.ok(ApiResult.success(null));
@@ -146,48 +138,6 @@ public class BroadcastSellerController {
             @RequestBody SanctionRequest request) {
         sanctionService.sanctionUser(sellerId, broadcastId, request);
         return ResponseEntity.ok(ApiResult.success(null));
-    }
-
-    // [Day 6] 시청자 제재 목록 조회
-    @GetMapping("/{broadcastId}/sanctions")
-    public ResponseEntity<ApiResult<List<SanctionResponse>>> getSanctions(
-            @RequestHeader("X-Seller-Id") Long sellerId,
-            @PathVariable Long broadcastId
-    ) {
-        return ResponseEntity.ok(ApiResult.success(
-                sanctionService.getSanctions(sellerId, broadcastId)
-        ));
-    }
-
-    // 라이브 장비 설정 저장
-    @PutMapping("/device-settings")
-    public ResponseEntity<ApiResult<Void>> saveDeviceSettings(
-            @RequestHeader("X-Seller-Id") Long sellerId,
-            @RequestBody LiveDeviceSettingRequest request
-    ) {
-        liveDeviceService.saveDeviceSettings(sellerId, request);
-        return ResponseEntity.ok(ApiResult.success(null));
-    }
-
-    // 라이브 장비 설정 조회
-    @GetMapping("/device-settings")
-    public ResponseEntity<ApiResult<LiveDeviceSettingResponse>> getDeviceSettings(
-            @RequestHeader("X-Seller-Id") Long sellerId
-    ) {
-        return ResponseEntity.ok(ApiResult.success(
-                liveDeviceService.getDeviceSettings(sellerId)
-        ));
-    }
-
-    // 예약 가능 시간대 조회
-    @GetMapping("/available-slots")
-    public ResponseEntity<ApiResult<List<AvailableSlotResponse>>> getAvailableSlots(
-            @RequestParam("startAt") @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime startAt,
-            @RequestParam("endAt") @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime endAt
-    ) {
-        return ResponseEntity.ok(ApiResult.success(
-                broadcastService.getAvailableSlots(startAt, endAt)
-        ));
     }
 
     // =====================================================================

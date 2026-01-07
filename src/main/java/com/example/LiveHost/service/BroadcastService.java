@@ -15,6 +15,8 @@ import com.example.LiveHost.others.repository.ProductRepository;
 import com.example.LiveHost.others.repository.SellerRepository;
 import com.example.LiveHost.others.repository.TagCategoryRepository;
 import com.example.LiveHost.repository.*;
+import com.querydsl.core.types.Order;
+import com.querydsl.core.types.OrderSpecifier;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -35,12 +37,12 @@ import java.net.URL;
 import java.security.cert.X509Certificate;
 import java.time.LocalDateTime;
 import java.util.Base64;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import static com.example.LiveHost.entity.QBroadcast.broadcast;
 
 @Slf4j
 @Service
@@ -398,48 +400,53 @@ public class BroadcastService {
         String recordingId = payload.getId();
         String s3Key = "seller_" + broadcast.getSeller().getSellerId() + "/vods/" + recordingId + ".mp4";
         String s3Url = "";
-        int maxAttempts = 3;
 
         // 2. OpenVidu 서버에서 영상 다운로드 -> S3 업로드 (스트리밍)
-        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
-            try {
-                s3Url = uploadVodRecording(recordingId, s3Key);
-                if (s3Url != null && !s3Url.isBlank()) {
-                    break;
-                }
-            } catch (Exception e) {
-                log.warn("VOD upload attempt {}/{} failed", attempt, maxAttempts, e);
-            }
-        }
+        try {
+            disableSslVerification(); // SSL 인증서 무시 (개발용)
 
-        if ((s3Url == null || s3Url.isBlank()) && payload.getUrl() != null && !payload.getUrl().isBlank()) {
-            s3Url = payload.getUrl();
+            // URL 생성 (LiveHostController 로직 참조)
+            String videoUrl = OPENVIDU_URL.replaceAll("/$", "") +
+                    "/openvidu/recordings/" + recordingId + "/" + recordingId + ".mp4";
+
+            URL url = new URL(videoUrl);
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+
+            // Basic Auth 헤더 설정
+            String auth = "OPENVIDUAPP:" + OPENVIDU_SECRET;
+            String encodedAuth = Base64.getEncoder().encodeToString(auth.getBytes());
+            conn.setRequestProperty("Authorization", "Basic " + encodedAuth);
+
+            int responseCode = conn.getResponseCode();
+            if (responseCode == HttpURLConnection.HTTP_OK) {
+                try (InputStream inputStream = conn.getInputStream()) {
+                    // [핵심] S3Service의 스트리밍 업로드 호출
+                    long contentLength = conn.getContentLengthLong();
+                    s3Url = s3Service.uploadVodStream(inputStream, s3Key, contentLength);
+                    log.info("VOD Upload Success: {}", s3Url);
+                }
+            } else {
+                log.error("Failed to fetch recording from OpenVidu: {}", responseCode);
+            }
+        } catch (Exception e) {
+            log.error("VOD Processing Error", e);
+            // 업로드 실패해도 통계 저장을 위해 로직 계속 진행 (URL은 빈 값 or 에러처리)
         }
 
         // 3. VOD 정보 DB 저장
         boolean isStopped = broadcast.getStatus() == BroadcastStatus.STOPPED;
         VodStatus status = isStopped ? VodStatus.PRIVATE : VodStatus.PUBLIC;
 
-        long vodSize = payload.getSize() != null ? payload.getSize() : 0L;
-        if (vodSize <= 0 && s3Url != null && !s3Url.isBlank()) {
-            vodSize = s3Service.getObjectSize(s3Url);
-        }
-        int vodDuration = payload.getDuration() != null ? payload.getDuration().intValue() : 0;
-
-        Vod vod = vodRepository.findByBroadcast(broadcast).orElse(null);
-        if (vod == null) {
-            vod = Vod.builder()
-                    .broadcast(broadcast)
-                    .vodUrl(s3Url) // S3 URL 저장
-                    .vodSize(vodSize)
-                    .vodDuration(vodDuration)
-                    .status(status)
-                    .vodReportCount(0)
-                    .vodAdminLock(isStopped)
-                    .build();
-        } else {
-            vod.updateVodInfo(s3Url, vodSize, vodDuration, status, isStopped);
-        }
+        Vod vod = Vod.builder()
+                .broadcast(broadcast)
+                .vodUrl(s3Url) // S3 URL 저장
+                .vodSize(payload.getSize())
+                .vodDuration(payload.getDuration().intValue())
+                .status(status)
+                .vodReportCount(0)
+                .vodAdminLock(isStopped)
+                .build();
         vodRepository.save(vod);
 
         // 4. 통계 확정 (Redis -> DB)
@@ -553,18 +560,9 @@ public class BroadcastService {
         sanctions = sanctionRepository.countByBroadcast(broadcast);
 
         // 상품 성과 리스트
-        Map<Long, Product> productMap = new HashMap<>();
-        if (!broadcast.getProducts().isEmpty()) {
-            List<Long> productIds = broadcast.getProducts().stream()
-                    .map(bp -> bp.getProduct().getProductId())
-                    .distinct()
-                    .toList();
-            productMap = productRepository.findAllById(productIds).stream()
-                    .collect(Collectors.toMap(Product::getProductId, p -> p));
-        }
         List<BroadcastResultResponse.ProductSalesStat> productStats = broadcast.getProducts().stream()
                 .map(bp -> {
-                    Product p = productMap.get(bp.getProduct().getProductId());
+                    Product p = productRepository.findById(bp.getProduct().getProductId()).orElse(null);
                     return BroadcastResultResponse.ProductSalesStat.builder()
                             .productId(bp.getProduct().getProductId())
                             .productName(p != null ? p.getProductName() : "")
@@ -591,36 +589,11 @@ public class BroadcastService {
                 .totalViews(views).totalLikes(likes).totalSales(sales)
                 .totalChats(chats).maxViewers(maxV).maxViewerTime(maxTime).avgWatchTime(avgTime)
                 .reportCount(reports).sanctionCount(sanctions)
-                .vodUrl((vod != null && vod.getStatus() != VodStatus.DELETED && vod.getVodUrl() != null && !vod.getVodUrl().isBlank())
-                        ? buildVodStreamUrl(broadcast.getBroadcastId())
-                        : null)
+                .vodUrl((vod != null && vod.getStatus() != VodStatus.DELETED) ? vod.getVodUrl() : null)
                 .vodStatus(vod != null ? vod.getStatus() : null)
-                .isEncoding(vod == null || vod.getVodUrl() == null || vod.getVodUrl().isBlank())
+                .isEncoding(vod == null)
                 .productStats(productStats)
                 .build();
-    }
-
-    @Transactional(readOnly = true)
-    public List<AvailableSlotResponse> getAvailableSlots(LocalDateTime startAt, LocalDateTime endAt) {
-        if (startAt == null || endAt == null || endAt.isBefore(startAt)) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
-        }
-
-        Map<LocalDateTime, Long> reservedCounts = broadcastRepository.countReservedByScheduledAtBetween(startAt, endAt);
-        List<AvailableSlotResponse> availableSlots = new java.util.ArrayList<>();
-        LocalDateTime cursor = startAt;
-        while (!cursor.isAfter(endAt)) {
-            long reserved = reservedCounts.getOrDefault(cursor, 0L);
-            int remaining = (int) Math.max(0, 3 - reserved);
-            if (remaining > 0) {
-                availableSlots.add(AvailableSlotResponse.builder()
-                        .startAt(cursor)
-                        .remainingSlots(remaining)
-                        .build());
-            }
-            cursor = cursor.plusHours(1);
-        }
-        return availableSlots;
     }
 
     @Transactional(readOnly = true)
@@ -753,8 +726,8 @@ public class BroadcastService {
         // [3] VOD URL 조회 (상태가 VOD이고 공개 상태일 때만)
         if (broadcast.getStatus() == BroadcastStatus.VOD) {
             Vod vod = vodRepository.findByBroadcast(broadcast).orElse(null);
-            if (vod != null && vod.getStatus() == VodStatus.PUBLIC && vod.getVodUrl() != null && !vod.getVodUrl().isBlank()) {
-                vodUrl = buildVodStreamUrl(broadcast.getBroadcastId()); // Range 지원 스트리밍 URL
+            if (vod != null && vod.getStatus() == VodStatus.PUBLIC) {
+                vodUrl = vod.getVodUrl(); // S3 URL 가져오기
             }
         }
 
@@ -772,27 +745,9 @@ public class BroadcastService {
     }
 
     private BroadcastAllResponse getOverview(Long sellerId, boolean isAdmin) {
-        List<BroadcastListResponse> onAir = broadcastRepository.findTop5ByStatus(
-                sellerId,
-                List.of(BroadcastStatus.ON_AIR, BroadcastStatus.READY),
-                BroadcastOrderField.STARTED_AT,
-                false,
-                isAdmin
-        );
-        List<BroadcastListResponse> reserved = broadcastRepository.findTop5ByStatus(
-                sellerId,
-                List.of(BroadcastStatus.RESERVED),
-                BroadcastOrderField.SCHEDULED_AT,
-                true,
-                isAdmin
-        );
-        List<BroadcastListResponse> vod = broadcastRepository.findTop5ByStatus(
-                sellerId,
-                List.of(BroadcastStatus.VOD, BroadcastStatus.ENDED, BroadcastStatus.STOPPED),
-                BroadcastOrderField.ENDED_AT,
-                false,
-                isAdmin
-        );
+        List<BroadcastListResponse> onAir = broadcastRepository.findTop5ByStatus(sellerId, List.of(BroadcastStatus.ON_AIR, BroadcastStatus.READY), new OrderSpecifier<>(Order.DESC, broadcast.startedAt), isAdmin);
+        List<BroadcastListResponse> reserved = broadcastRepository.findTop5ByStatus(sellerId, List.of(BroadcastStatus.RESERVED), new OrderSpecifier<>(Order.ASC, broadcast.scheduledAt), isAdmin);
+        List<BroadcastListResponse> vod = broadcastRepository.findTop5ByStatus(sellerId, List.of(BroadcastStatus.VOD, BroadcastStatus.ENDED, BroadcastStatus.STOPPED), new OrderSpecifier<>(Order.DESC, broadcast.endedAt), isAdmin);
         injectLiveDetails(onAir);
         return BroadcastAllResponse.builder().onAir(onAir).reserved(reserved).vod(vod).build();
     }
@@ -828,37 +783,6 @@ public class BroadcastService {
                 }).collect(Collectors.toList()));
             }
         });
-    }
-
-    private String buildVodStreamUrl(Long broadcastId) {
-        return "/api/broadcasts/" + broadcastId + "/vod/stream";
-    }
-
-    private String uploadVodRecording(String recordingId, String s3Key) throws Exception {
-        disableSslVerification(); // SSL 인증서 무시 (개발용)
-
-        String videoUrl = OPENVIDU_URL.replaceAll("/$", "") +
-                "/openvidu/recordings/" + recordingId + "/" + recordingId + ".mp4";
-
-        URL url = new URL(videoUrl);
-        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-        conn.setRequestMethod("GET");
-
-        String auth = "OPENVIDUAPP:" + OPENVIDU_SECRET;
-        String encodedAuth = Base64.getEncoder().encodeToString(auth.getBytes());
-        conn.setRequestProperty("Authorization", "Basic " + encodedAuth);
-
-        int responseCode = conn.getResponseCode();
-        if (responseCode == HttpURLConnection.HTTP_OK) {
-            try (InputStream inputStream = conn.getInputStream()) {
-                long contentLength = conn.getContentLengthLong();
-                String uploadedUrl = s3Service.uploadVodStream(inputStream, s3Key, contentLength);
-                log.info("VOD Upload Success: {}", uploadedUrl);
-                return uploadedUrl;
-            }
-        }
-        log.error("Failed to fetch recording from OpenVidu: {}", responseCode);
-        return "";
     }
 
     // SSL 무시 (LiveHostController 로직 복사)

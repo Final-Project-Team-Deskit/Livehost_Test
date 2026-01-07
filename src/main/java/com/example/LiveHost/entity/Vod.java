@@ -64,12 +64,4 @@ public class Vod {
     public void setAdminLock(boolean lock) {
         this.vodAdminLock = lock;
     }
-
-    public void updateVodInfo(String vodUrl, long vodSize, int vodDuration, VodStatus status, boolean adminLock) {
-        this.vodUrl = vodUrl;
-        this.vodSize = vodSize;
-        this.vodDuration = vodDuration;
-        this.status = status;
-        this.vodAdminLock = adminLock;
-    }
 }
