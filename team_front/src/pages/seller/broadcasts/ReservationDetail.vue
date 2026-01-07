@@ -1,17 +1,71 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PageContainer from '../../../components/PageContainer.vue'
 import QCardModal from '../../../components/QCardModal.vue'
-import { getSellerReservationDetail, type SellerReservationDetail } from '../../../lib/mocks/sellerReservations'
+import { cancelSellerBroadcast, getSellerBroadcastDetail } from '../../../api/live'
+import { resolveSellerId } from '../../../lib/live/ids'
+import { formatDateTime } from '../../../lib/live/format'
 import { normalizeBroadcastStatus } from '../../../lib/broadcastStatus'
 
 const route = useRoute()
 const router = useRouter()
 
 const reservationId = computed(() => (typeof route.params.reservationId === 'string' ? route.params.reservationId : ''))
-const detail = ref<SellerReservationDetail>(getSellerReservationDetail(reservationId.value))
+const detail = ref<{
+  id: string
+  title: string
+  status: string
+  category: string
+  notice: string
+  thumb: string
+  standbyThumb?: string
+  datetime: string
+  cueQuestions?: string[]
+  products: Array<{ id: string; name: string; price: string; salePrice: string; qty: number; stock: number }>
+}>({
+  id: '',
+  title: '',
+  status: '',
+  category: '',
+  notice: '',
+  thumb: '',
+  datetime: '',
+  products: [],
+})
 const qCardIndex = ref(0)
+
+const loadDetail = async () => {
+  const sellerId = resolveSellerId()
+  const id = Number.parseInt(reservationId.value, 10)
+  if (!sellerId || Number.isNaN(id)) {
+    return
+  }
+  try {
+    const response = await getSellerBroadcastDetail(sellerId, id)
+    detail.value = {
+      id: String(response.broadcastId),
+      title: response.title ?? '',
+      status: response.status ?? '',
+      category: response.categoryName ?? '기타',
+      notice: response.notice ?? '',
+      thumb: response.thumbnailUrl ?? '',
+      standbyThumb: response.waitScreenUrl ?? undefined,
+      datetime: response.scheduledAt ? formatDateTime(response.scheduledAt) : '',
+      cueQuestions: (response.qcards ?? []).map((card) => card.question ?? '').filter((q) => q),
+      products: (response.products ?? []).map((item) => ({
+        id: String(item.bpId ?? item.productId),
+        name: item.name ?? '',
+        price: `₩${(item.originalPrice ?? 0).toLocaleString('ko-KR')}` ,
+        salePrice: `₩${(item.bpPrice ?? item.originalPrice ?? 0).toLocaleString('ko-KR')}` ,
+        qty: item.bpQuantity ?? 0,
+        stock: item.bpQuantity ?? 0,
+      })),
+    }
+  } catch (error) {
+    console.error('Failed to load reservation detail', error)
+  }
+}
 
 const goBack = () => {
   router.back()
@@ -35,12 +89,23 @@ const handleEdit = () => {
 const handleCancel = () => {
   const ok = window.confirm('예약을 취소하시겠습니까?')
   if (!ok) return
+  const sellerId = resolveSellerId()
+  const id = Number.parseInt(reservationId.value, 10)
+  if (sellerId && !Number.isNaN(id)) {
+    cancelSellerBroadcast(sellerId, id).catch((error) => {
+      console.error('Failed to cancel reservation', error)
+    })
+  }
   detail.value.status = 'CANCELED'
   window.alert('예약이 취소되었습니다.')
 }
 
 onBeforeUnmount(() => {
 })
+
+watch(reservationId, () => {
+  loadDetail()
+}, { immediate: true })
 
 const scheduledWindow = computed(() => {
   const raw = detail.value.datetime

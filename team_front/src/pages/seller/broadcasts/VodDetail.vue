@@ -3,18 +3,74 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PageContainer from '../../../components/PageContainer.vue'
 import ConfirmModal from '../../../components/ConfirmModal.vue'
-import { getSellerVodDetail } from '../../../lib/mocks/sellerVods'
+import { getSellerBroadcastDetail, getSellerBroadcastReport } from '../../../api/live'
+import { resolveSellerId } from '../../../lib/live/ids'
+import { formatDateTime } from '../../../lib/live/format'
 
 const route = useRoute()
 const router = useRouter()
 
 const vodId = typeof route.params.vodId === 'string' ? route.params.vodId : ''
-const detail = ref(getSellerVodDetail(vodId))
+const detail = ref<{
+  thumb: string
+  title: string
+  startedAt: string
+  endedAt: string
+  statusLabel: string
+  metrics: { maxViewers: number; reports: number; sanctions: number; likes: number; totalRevenue: number }
+  vod: { url: string; visibility: string }
+  productResults: Array<{ id: string; name: string; price: number; soldQty: number; revenue: number }>
+  stopReason?: string
+} | null>(null)
 const isVodPlayable = computed(() => !!detail.value?.vod?.url)
-const isVodPublic = computed(() => detail.value.vod.visibility === '공개')
+const isVodPublic = computed(() => detail.value?.vod?.visibility === '공개')
 const isPlaying = ref(false)
 const isFullscreen = ref(false)
 const showDeleteConfirm = ref(false)
+
+const loadDetail = async () => {
+  const sellerId = resolveSellerId()
+  const id = Number.parseInt(vodId, 10)
+  if (!sellerId || Number.isNaN(id)) {
+    detail.value = null
+    return
+  }
+  try {
+    const [report, info] = await Promise.all([
+      getSellerBroadcastReport(sellerId, id),
+      getSellerBroadcastDetail(sellerId, id),
+    ])
+    detail.value = {
+      thumb: info.thumbnailUrl ?? '',
+      title: report.title ?? info.title ?? '',
+      startedAt: report.startAt ? formatDateTime(report.startAt) : '',
+      endedAt: report.endAt ? formatDateTime(report.endAt) : '',
+      statusLabel: report.vodStatus ?? report.status ?? '',
+      metrics: {
+        maxViewers: report.maxViewers ?? 0,
+        reports: report.reportCount ?? 0,
+        sanctions: report.sanctionCount ?? 0,
+        likes: report.totalLikes ?? 0,
+        totalRevenue: Number(report.totalSales ?? 0),
+      },
+      vod: {
+        url: report.vodUrl ?? '',
+        visibility: report.vodStatus === 'PUBLIC' ? '공개' : '비공개',
+      },
+      productResults: (report.productStats ?? []).map((item) => ({
+        id: String(item.productId),
+        name: item.productName ?? '',
+        price: item.price ?? 0,
+        soldQty: item.salesQuantity ?? 0,
+        revenue: Number(item.salesAmount ?? 0),
+      })),
+      stopReason: report.stoppedReason ?? undefined,
+    }
+  } catch (error) {
+    console.error('Failed to load seller vod detail', error)
+    detail.value = null
+  }
+}
 
 const goBack = () => {
   router.back()
@@ -25,6 +81,7 @@ const goToList = () => {
 }
 
 const toggleVisibility = () => {
+  if (!detail.value) return
   const next = detail.value.vod.visibility === '공개' ? '비공개' : '공개'
   detail.value = { ...detail.value, vod: { ...detail.value.vod, visibility: next } }
 }
@@ -43,10 +100,7 @@ const confirmDelete = () => {
 
 const showChat = ref(false)
 const chatText = ref('')
-const chatMessages = ref([
-  { id: 'c1', user: '시청자A', text: '잘 봤어요!', time: '오후 2:10' },
-  { id: 'c2', user: '관리자', text: '채팅은 보관용입니다.', time: '오후 2:12' },
-])
+const chatMessages = ref<{ id: string; user: string; text: string; time: string }[]>([])
 
 const sendChat = () => {
   if (!chatText.value.trim()) return
@@ -81,6 +135,7 @@ const handleFullscreenChange = () => {
 
 onMounted(() => {
   document.addEventListener('fullscreenchange', handleFullscreenChange)
+  loadDetail()
 })
 
 onUnmounted(() => {
@@ -93,10 +148,14 @@ watch(isVodPlayable, (playable) => {
     isPlaying.value = false
   }
 })
+
+watch(() => vodId, () => {
+  loadDetail()
+})
 </script>
 
 <template>
-  <PageContainer>
+  <PageContainer v-if="detail">
     <header class="detail-header">
       <button type="button" class="back-link" @click="goBack">← 뒤로 가기</button>
       <button type="button" class="btn ghost" @click="goToList">목록으로</button>

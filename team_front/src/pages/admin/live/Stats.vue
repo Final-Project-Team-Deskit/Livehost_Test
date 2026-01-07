@@ -1,18 +1,15 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import PageHeader from '../../../components/PageHeader.vue'
 import StatsBarChart from '../../../components/stats/StatsBarChart.vue'
 import StatsRankList from '../../../components/stats/StatsRankList.vue'
-import {
-  getAdminProductRevenueRankings,
-  getAdminRevenueRankings,
-  revenueData,
-  revenuePerViewerData,
-  type RankGroup,
-  type StatsRange,
-} from '../../../lib/mocks/liveStats'
+import { getAdminBroadcastReport, getAdminStatistics, type StatisticsResponse } from '../../../api/live'
 
 type RankView = 'best' | 'worst'
+type StatsRange = 'daily' | 'monthly' | 'yearly'
+type ChartDatum = { label: string; value: number }
+type RankItem = { rank: number; title: string; value: number }
+type RankGroup = { best: RankItem[]; worst: RankItem[] }
 
 const revenueRange = ref<StatsRange>('monthly')
 const perViewerRange = ref<StatsRange>('monthly')
@@ -22,14 +19,88 @@ const productRankView = ref<RankView>('best')
 const broadcastRanks = ref<RankGroup>({ best: [], worst: [] })
 const productRanks = ref<RankGroup>({ best: [], worst: [] })
 
-const revenueChart = computed(() => revenueData[revenueRange.value])
-const perViewerChart = computed(() => revenuePerViewerData[perViewerRange.value])
+const statsCache = ref<Record<StatsRange, StatisticsResponse | null>>({
+  daily: null,
+  monthly: null,
+  yearly: null,
+})
+
+const revenueChart = computed<ChartDatum[]>(() => {
+  const data = statsCache.value[revenueRange.value]
+  return (data?.salesChart ?? []).map((item) => ({ label: item.label, value: Number(item.value) }))
+})
+const perViewerChart = computed<ChartDatum[]>(() => {
+  const data = statsCache.value[perViewerRange.value]
+  return (data?.arpuChart ?? []).map((item) => ({ label: item.label, value: Number(item.value) }))
+})
+
+const buildRankGroup = (items: Array<{ title: string; value: number }>): RankGroup => {
+  const sortedDesc = [...items].sort((a, b) => b.value - a.value)
+  const sortedAsc = [...items].sort((a, b) => a.value - b.value)
+  return {
+    best: sortedDesc.slice(0, 5).map((item, index) => ({ ...item, rank: index + 1 })),
+    worst: sortedAsc.slice(0, 5).map((item, index) => ({ ...item, rank: index + 1 })),
+  }
+}
+
+const loadStats = async (range: StatsRange) => {
+  if (statsCache.value[range]) return
+  try {
+    const period = range.toUpperCase()
+    const data = await getAdminStatistics(period)
+    statsCache.value = { ...statsCache.value, [range]: data }
+  } catch (error) {
+    console.error('Failed to load admin stats', error)
+  }
+}
+
+const loadRanks = async (range: StatsRange) => {
+  await loadStats(range)
+  const data = statsCache.value[range]
+  if (!data) return
+  const broadcastItems = (data.bestBroadcasts ?? []).map((item) => ({
+    title: item.title,
+    value: Number(item.totalSales ?? 0),
+    id: item.broadcastId,
+  }))
+  const worstItems = (data.worstBroadcasts ?? []).map((item) => ({
+    title: item.title,
+    value: Number(item.totalSales ?? 0),
+    id: item.broadcastId,
+  }))
+  broadcastRanks.value = {
+    best: broadcastItems.slice(0, 5).map((item, index) => ({ rank: index + 1, title: item.title, value: item.value })),
+    worst: worstItems.slice(0, 5).map((item, index) => ({ rank: index + 1, title: item.title, value: item.value })),
+  }
+
+  const reportIds = Array.from(new Set([...broadcastItems, ...worstItems].map((item) => item.id))).filter(Boolean)
+  if (!reportIds.length) {
+    productRanks.value = { best: [], worst: [] }
+    return
+  }
+  const reports = await Promise.all(reportIds.map((id) => getAdminBroadcastReport(id).catch(() => null)))
+  const productItems = reports
+    .filter(Boolean)
+    .flatMap((report) => report?.productStats ?? [])
+    .map((item) => ({ title: item.productName ?? '', value: Number(item.salesAmount ?? 0) }))
+  productRanks.value = buildRankGroup(productItems)
+}
 
 const formatCurrency = (value: number) => `₩${value.toLocaleString('ko-KR')}`
 
 onMounted(() => {
-  broadcastRanks.value = getAdminRevenueRankings()
-  productRanks.value = getAdminProductRevenueRankings()
+  loadStats(revenueRange.value)
+  loadStats(perViewerRange.value)
+  loadRanks(revenueRange.value)
+})
+
+watch(revenueRange, (range) => {
+  loadStats(range)
+  loadRanks(range)
+})
+
+watch(perViewerRange, (range) => {
+  loadStats(range)
 })
 </script>
 

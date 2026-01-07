@@ -116,14 +116,14 @@ const syncDraft = () => {
   })
 }
 
-const restoreDraft = () => {
+const restoreDraft = async () => {
   const savedDraft = loadDraft()
   const baseDraft = savedDraft && (!isEditMode.value || savedDraft.reservationId === reservationId.value)
     ? { ...createEmptyDraft(), ...savedDraft }
     : createEmptyDraft()
 
   const reservationDraft = isEditMode.value
-    ? { ...baseDraft, ...buildDraftFromReservation(reservationId.value), reservationId: reservationId.value }
+    ? { ...baseDraft, ...(await buildDraftFromReservation(reservationId.value)), reservationId: reservationId.value }
     : baseDraft
 
   draft.value = reservationDraft

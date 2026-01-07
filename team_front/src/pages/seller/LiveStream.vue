@@ -6,6 +6,9 @@ import ChatSanctionModal from '../../components/ChatSanctionModal.vue'
 import ConfirmModal from '../../components/ConfirmModal.vue'
 import PageContainer from '../../components/PageContainer.vue'
 import QCardModal from '../../components/QCardModal.vue'
+import { endSellerBroadcast, getPublicBroadcastStats, getSellerBroadcastDetail, pinSellerProduct } from '../../api/live'
+import { resolveSellerId } from '../../lib/live/ids'
+import { formatDateTime } from '../../lib/live/format'
 
 type StreamProduct = {
   id: string
@@ -90,53 +93,101 @@ const broadcastInfo = ref<(EditableBroadcastInfo & { qCards: string[] }) | null>
 const stream = ref<StreamData | null>(null)
 const chatMessages = ref<StreamChat[]>([])
 
-const defaultChatTimes = ['오후 2:10', '오후 2:12', '오후 2:14']
-
-const streamId = computed(() => {
-  const id = route.params.id
-  return typeof id === 'string' && id.trim() ? id : null
-})
-
-const streamMap: Record<string, StreamData> = {
-  'live-1': {
-    title: '홈오피스 라이브 스냅',
-    datetime: '오늘 14:00 - 15:00',
-    category: '홈오피스',
-    notice: defaultNotice,
-    qCards: ['오늘의 대표 상품은 무엇인가요?', '배송 스케줄과 사은품 안내 부탁드립니다.'],
-    products: [
-      { id: 'lp-1', title: '모던 스탠딩 데스크', option: '1200mm · 오프화이트', status: '판매중', pinned: true },
-      { id: 'lp-2', title: '로우 프로파일 키보드', option: '무선 · 베이지', status: '판매중' },
-      { id: 'lp-3', title: '미니멀 데스크 매트', option: '900mm · 샌드', status: '품절' },
-      { id: 'lp-4', title: '알루미늄 모니터암', option: '싱글 · 블랙', status: '판매중' },
-    ],
-    chat: [
-      { id: 'c-1', name: '연두', message: '라이브 시작했나요?' },
-      { id: 'c-2', name: '민지', message: '가격 할인 언제까지인가요?' },
-      { id: 'c-3', name: '도현', message: '블랙 색상 재입고 예정 있나요?' },
-      { id: 'c-4', name: '지수', message: '오늘 배송 가능할까요?' },
-    ],
-  },
-  'live-2': {
-    title: '게이밍 데스크 셋업',
-    datetime: '오늘 16:30 - 17:10',
-    category: '주변기기',
-    notice: defaultNotice,
-    qCards: ['방송 순서와 할인 적용 시점을 안내해주세요.', '특정 색상 재입고 일정이 궁금합니다.'],
-    products: [
-      { id: 'lp-5', title: '게이밍 데스크 패드', option: 'XL · 블랙', status: '판매중', pinned: true },
-      { id: 'lp-6', title: 'RGB 데스크 램프', option: 'USB · 네온', status: '판매중' },
-      { id: 'lp-7', title: '헤드셋 스탠드', option: '알루미늄', status: '품절' },
-    ],
-    chat: [
-      { id: 'c-5', name: '지훈', message: 'LED 밝기 조절도 되나요?' },
-      { id: 'c-6', name: '소연', message: '블랙 데스크 매트 재입고 계획 있나요?' },
-      { id: 'c-7', name: '준호', message: '다음 방송 일정 알려주세요.' },
-    ],
-  },
+const loadStream = async () => {
+  isLoadingStream.value = true
+  const id = streamId.value
+  if (!id) {
+    stream.value = null
+    broadcastInfo.value = null
+    pinnedProductId.value = null
+    chatMessages.value = []
+    isLoadingStream.value = false
+    return
+  }
+  const broadcastId = Number.parseInt(id, 10)
+  if (Number.isNaN(broadcastId)) {
+    stream.value = null
+    broadcastInfo.value = null
+    pinnedProductId.value = null
+    chatMessages.value = []
+    isLoadingStream.value = false
+    return
+  }
+  const sellerId = resolveSellerId()
+  if (!sellerId) {
+    stream.value = null
+    broadcastInfo.value = null
+    pinnedProductId.value = null
+    chatMessages.value = []
+    isLoadingStream.value = false
+    return
+  }
+  try {
+    const [detail, stats] = await Promise.all([
+      getSellerBroadcastDetail(sellerId, broadcastId),
+      getPublicBroadcastStats(broadcastId).catch(() => null),
+    ])
+    const products = (detail.products ?? []).map((item) => {
+      const isSoldOut =
+        ['SOLDOUT', 'SOLD_OUT', 'SOLDOUT', 'SOLD_OUT'].includes((item.status ?? '').toUpperCase()) ||
+        item.bpQuantity === 0
+      return {
+        id: String(item.bpId ?? item.productId),
+        title: item.name ?? '',
+        option: item.name ?? '',
+        status: isSoldOut ? '품절' : '판매중',
+        pinned: item.isPinned ?? false,
+      }
+    })
+    const qCards = (detail.qcards ?? []).map((card) => card.question ?? '').filter((value) => value)
+    const startAt = detail.startedAt ?? detail.scheduledAt ?? ''
+    const datetime = startAt ? formatDateTime(startAt) : ''
+    stream.value = {
+      title: detail.title ?? '',
+      datetime,
+      category: detail.categoryName ?? '',
+      notice: detail.notice ?? defaultNotice,
+      qCards,
+      products,
+      chat: [],
+      thumbnail: detail.thumbnailUrl ?? undefined,
+      waitingScreen: detail.waitScreenUrl ?? undefined,
+    }
+    pinnedProductId.value = products.find((item) => item.pinned)?.id ?? null
+    broadcastInfo.value = {
+      title: detail.title ?? '',
+      category: detail.categoryName ?? '',
+      notice: detail.notice ?? defaultNotice,
+      thumbnail: detail.thumbnailUrl ?? undefined,
+      waitingScreen: detail.waitScreenUrl ?? undefined,
+      qCards,
+    }
+    chatMessages.value = []
+    viewerCount.value = stats?.viewerCount ?? 0
+    likeCount.value = stats?.likeCount ?? 0
+    if (startAt) {
+      const startMs = Date.parse(startAt.replace(' ', 'T'))
+      if (!Number.isNaN(startMs)) {
+        const diff = Math.max(Date.now() - startMs, 0)
+        const hours = String(Math.floor(diff / 3600000)).padStart(2, '0')
+        const minutes = String(Math.floor((diff % 3600000) / 60000)).padStart(2, '0')
+        const seconds = String(Math.floor((diff % 60000) / 1000)).padStart(2, '0')
+        elapsed.value = `${hours}:${minutes}:${seconds}`
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load broadcast stream', error)
+    stream.value = null
+    broadcastInfo.value = null
+    pinnedProductId.value = null
+    chatMessages.value = []
+  } finally {
+    isLoadingStream.value = false
+  }
 }
 
 const productItems = computed(() => stream.value?.products ?? [])
+
 const sortedProducts = computed(() => {
   const items = [...productItems.value]
   items.sort((a, b) => {
@@ -210,41 +261,10 @@ const scrollChatToBottom = () => {
   })
 }
 
-const hydrateStream = () => {
-  isLoadingStream.value = true
-  const id = streamId.value
-  const next = id ? streamMap[id] ?? null : null
-  stream.value = next
-
-  if (!next) {
-    pinnedProductId.value = null
-    broadcastInfo.value = null
-    chatMessages.value = []
-    isLoadingStream.value = false
-    return
-  }
-
-  pinnedProductId.value = next.products.find((item) => item.pinned)?.id ?? null
-  broadcastInfo.value = {
-    title: next.title,
-    category: next.category,
-    notice: next.notice ?? defaultNotice,
-    thumbnail: next.thumbnail,
-    waitingScreen: next.waitingScreen,
-    qCards: next.qCards,
-  }
-  chatMessages.value = (next.chat ?? []).map((item, index) => ({
-    ...item,
-    time: item.time ?? defaultChatTimes[index % defaultChatTimes.length],
-  }))
-  isLoadingStream.value = false
-  scrollChatToBottom()
-}
-
 watch(
   () => route.params.id,
   () => {
-    hydrateStream()
+    loadStream()
   },
   { immediate: true },
 )
@@ -299,7 +319,7 @@ const setPinnedProduct = (productId: string | null) => {
   pinnedProductId.value = productId
 }
 
-const handlePinProduct = (productId: string) => {
+const handlePinProduct = async (productId: string) => {
   if (pinnedProductId.value && pinnedProductId.value !== productId) {
     openConfirm(
       {
@@ -307,12 +327,33 @@ const handlePinProduct = (productId: string) => {
         description: 'PIN 상품을 변경하시겠습니까?',
         confirmText: '변경',
       },
-      () => setPinnedProduct(productId),
+      async () => {
+        const sellerId = resolveSellerId()
+        const broadcastId = streamId.value ? Number.parseInt(streamId.value, 10) : null
+        if (sellerId && broadcastId && !Number.isNaN(broadcastId)) {
+          await pinSellerProduct(sellerId, broadcastId, Number.parseInt(productId, 10)).catch((error) => {
+            console.error('Failed to pin product', error)
+          })
+        }
+        setPinnedProduct(productId)
+      },
     )
     return
   }
-  setPinnedProduct(pinnedProductId.value === productId ? null : productId)
+  if (pinnedProductId.value === productId) {
+    setPinnedProduct(null)
+    return
+  }
+  const sellerId = resolveSellerId()
+  const broadcastId = streamId.value ? Number.parseInt(streamId.value, 10) : null
+  if (sellerId && broadcastId && !Number.isNaN(broadcastId)) {
+    await pinSellerProduct(sellerId, broadcastId, Number.parseInt(productId, 10)).catch((error) => {
+      console.error('Failed to pin product', error)
+    })
+  }
+  setPinnedProduct(productId)
 }
+
 
 const openSanction = (username: string) => {
   if (username === 'SYSTEM') return
@@ -386,7 +427,14 @@ const handleGoToList = () => {
   router.push({ name: 'seller-live' }).catch(() => {})
 }
 
-const handleEndBroadcast = () => {
+const handleEndBroadcast = async () => {
+  const sellerId = resolveSellerId()
+  const broadcastId = streamId.value ? Number.parseInt(streamId.value, 10) : null
+  if (sellerId && broadcastId && !Number.isNaN(broadcastId)) {
+    await endSellerBroadcast(sellerId, broadcastId).catch((error) => {
+      console.error('Failed to end broadcast', error)
+    })
+  }
   alert('방송이 종료되었습니다.')
   router.push({ name: 'seller-live' })
 }
