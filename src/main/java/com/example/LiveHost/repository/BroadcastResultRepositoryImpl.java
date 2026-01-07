@@ -59,7 +59,8 @@ public class BroadcastResultRepositoryImpl implements BroadcastResultRepositoryC
     public List<StatisticsResponse.ChartData> getArpuChart(Long sellerId, String periodType) {
         Field<String> dateExpr = getDateExpression(periodType);
 
-        Field<BigDecimal> arpu = sum(totalSales).div(nullif(sum(totalViews), 0));
+        Field<BigDecimal> viewSum = sum(totalViews).cast(BigDecimal.class);
+        Field<BigDecimal> arpu = sum(totalSales).div(nullif(viewSum, BigDecimal.ZERO));
 
         return dsl.select(dateExpr, arpu)
                 .from(resultTable)
