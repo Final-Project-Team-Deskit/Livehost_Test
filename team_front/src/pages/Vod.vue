@@ -3,10 +3,10 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PageContainer from '../components/PageContainer.vue'
 import PageHeader from '../components/PageHeader.vue'
-import { liveItems } from '../lib/live/data'
 import { getLiveStatus, parseLiveDate } from '../lib/live/utils'
 import { useNow } from '../lib/live/useNow'
-import { getProductsForLive, type LiveProductItem } from '../lib/live/detail'
+import type { LiveItem, LiveProductItem } from '../lib/live/types'
+import { getPublicBroadcastDetail, listPublicBroadcastProducts } from '../api/live'
 
 const route = useRoute()
 const router = useRouter()
@@ -17,18 +17,66 @@ const vodId = computed(() => {
   return Array.isArray(value) ? value[0] : value
 })
 
-const vodItem = computed(() => {
+const liveItem = ref<LiveItem | null>(null)
+const products = ref<LiveProductItem[]>([])
+
+const loadVodDetail = async () => {
   if (!vodId.value) {
-    return undefined
+    liveItem.value = null
+    products.value = []
+    return
   }
-  return liveItems.find((entry) => entry.id === vodId.value)
-})
+  const id = Number.parseInt(vodId.value, 10)
+  if (Number.isNaN(id)) {
+    liveItem.value = null
+    products.value = []
+    return
+  }
+  try {
+    const [detail, productList] = await Promise.all([
+      getPublicBroadcastDetail(id),
+      listPublicBroadcastProducts(id).catch(() => []),
+    ])
+    const status = (detail.status ?? '').toUpperCase()
+    const startAt = detail.startedAt ?? detail.scheduledAt ?? ''
+    const endAt = ['ENDED', 'VOD', 'STOPPED'].includes(status) ? (detail.startedAt ?? detail.scheduledAt ?? '') : ''
+    liveItem.value = {
+      id: String(detail.broadcastId),
+      title: detail.title ?? '',
+      description: detail.notice ?? '',
+      thumbnailUrl: detail.thumbnailUrl ?? detail.waitScreenUrl ?? '',
+      startAt,
+      endAt,
+      sellerName: detail.sellerName ?? undefined,
+      vodUrl: detail.vodUrl ?? undefined,
+    }
+    products.value = (productList ?? []).map((item) => ({
+      id: String(item.productId ?? item.bpId),
+      name: item.name ?? '',
+      imageUrl: item.imageUrl ?? '/placeholder-product.jpg',
+      price: item.bpPrice ?? item.originalPrice ?? 0,
+      status: item.status ?? 'SELLING',
+      isSoldOut:
+        ['SOLDOUT', 'SOLD_OUT', 'SOLDOUT', 'SOLD_OUT'].includes((item.status ?? '').toUpperCase()) ||
+        item.bpQuantity === 0,
+      isPinned: item.isPinned ?? false,
+    }))
+  } catch (error) {
+    console.error('Failed to load vod detail', error)
+    liveItem.value = null
+    products.value = []
+  }
+}
+
+watch(vodId, () => {
+  loadVodDetail()
+}, { immediate: true })
 
 const status = computed(() => {
-  if (!vodItem.value) {
+  if (!liveItem.value) {
     return undefined
   }
-  return getLiveStatus(vodItem.value, now.value)
+  return getLiveStatus(liveItem.value, now.value)
 })
 
 const statusLabel = computed(() => {
@@ -99,38 +147,8 @@ const syncChatHeight = () => {
   playerHeight.value = playerPanelRef.value.getBoundingClientRect().height
 }
 
-const products = computed<LiveProductItem[]>(() => {
-  if (!vodItem.value) {
-    return []
-  }
-  return getProductsForLive(vodItem.value.id)
-})
 
-const messages = ref(
-  [
-    {
-      id: 'sys-1',
-      user: 'system',
-      text: 'VOD 채팅 기록을 보고 계십니다.',
-      at: new Date(Date.now() - 1000 * 60 * 6),
-      kind: 'system',
-    },
-    {
-      id: 'msg-1',
-      user: 'desklover',
-      text: '이 라이브 제품 너무 좋았어요!',
-      at: new Date(Date.now() - 1000 * 60 * 4),
-      kind: 'user',
-    },
-    {
-      id: 'msg-2',
-      user: 'setup_master',
-      text: '배송도 빨랐습니다 👍',
-      at: new Date(Date.now() - 1000 * 60 * 2),
-      kind: 'user',
-    },
-  ] as Array<{ id: string; user: string; text: string; at: Date; kind?: 'system' | 'user' }>,
-)
+const messages = ref<Array<{ id: string; user: string; text: string; at: Date; kind?: 'system' | 'user' }>>([])
 
 const chatListRef = ref<HTMLDivElement | null>(null)
 const chatInput = ref('')
@@ -138,10 +156,10 @@ const chatInput = ref('')
 const formatPrice = (price: number) => `${price.toLocaleString('ko-KR')}원`
 
 const scheduledLabel = computed(() => {
-  if (!vodItem.value) {
+  if (!liveItem.value) {
     return ''
   }
-  const start = parseLiveDate(vodItem.value.startAt)
+  const start = parseLiveDate(liveItem.value.startAt)
   const dayNames = ['일', '월', '화', '수', '목', '금', '토']
   const month = String(start.getMonth() + 1).padStart(2, '0')
   const date = String(start.getDate()).padStart(2, '0')
@@ -173,7 +191,7 @@ const handleProductClick = (productId: string) => {
 }
 
 watch(
-  [status, vodItem],
+  [status, liveItem],
   ([nextStatus, nextItem]) => {
     if (nextStatus === 'LIVE' && nextItem) {
       router.replace({ name: 'live-detail', params: { id: nextItem.id } })
@@ -266,7 +284,7 @@ watch(showChat, (visible) => {
   <PageContainer>
     <PageHeader title="VOD 다시보기" eyebrow="DESKIT VOD" />
 
-    <div v-if="!vodItem" class="empty-state">
+    <div v-if="!liveItem" class="empty-state">
       <p>VOD를 찾을 수 없습니다.</p>
       <RouterLink to="/live" class="link-back">라이브 일정으로 돌아가기</RouterLink>
     </div>
@@ -282,33 +300,33 @@ watch(showChat, (visible) => {
           <div class="player-meta">
             <div class="status-row">
               <span class="status-badge" :class="statusBadgeClass">{{ statusLabel }}</span>
-              <span v-if="status === 'LIVE' && vodItem.viewerCount" class="status-viewers">
-                {{ vodItem.viewerCount.toLocaleString() }}명 시청 중
+              <span v-if="status === 'LIVE' && liveItem.viewerCount" class="status-viewers">
+                {{ liveItem.viewerCount.toLocaleString() }}명 시청 중
               </span>
               <span v-else-if="status === 'UPCOMING'" class="status-schedule">
                 {{ scheduledLabel }}
               </span>
               <span v-else-if="status === 'ENDED'" class="status-ended">방송 종료</span>
             </div>
-            <h3 class="player-title">{{ vodItem.title }}</h3>
-            <span> {{ formatSchedule(vodItem.startAt, vodItem.endAt)}}</span>
-            <p v-if="vodItem.description" class="player-desc">{{ vodItem.description }}</p>
-            <p v-if="vodItem.sellerName" class="player-seller">{{ vodItem.sellerName }}</p>
+            <h3 class="player-title">{{ liveItem.title }}</h3>
+            <span> {{ formatSchedule(liveItem.startAt, liveItem.endAt)}}</span>
+            <p v-if="liveItem.description" class="player-desc">{{ liveItem.description }}</p>
+            <p v-if="liveItem.sellerName" class="player-seller">{{ liveItem.sellerName }}</p>
           </div>
 
           <div class="player-frame" ref="stageRef" :class="{ 'player-frame--fullscreen': isFullscreen }">
             <span v-if="status === 'UPCOMING'" class="player-frame__label">아직 시작 전입니다</span>
-            <span v-else-if="!vodItem.vodUrl" class="player-frame__label">VOD 준비 중</span>
+            <span v-else-if="!liveItem.vodUrl" class="player-frame__label">VOD 준비 중</span>
             <iframe
-              v-else-if="vodItem.vodUrl && isEmbedUrl(vodItem.vodUrl)"
+              v-else-if="liveItem.vodUrl && isEmbedUrl(liveItem.vodUrl)"
               class="player-embed"
-              :src="vodItem.vodUrl"
+              :src="liveItem.vodUrl"
               title="VOD 플레이어"
               frameborder="0"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowfullscreen
             />
-            <video v-else class="player-video" :src="vodItem.vodUrl" controls />
+            <video v-else class="player-video" :src="liveItem.vodUrl" controls />
 
             <div class="player-actions">
               <button

@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 import ConfirmModal from '../components/ConfirmModal.vue'
 import PageContainer from '../components/PageContainer.vue'
 import PageHeader from '../components/PageHeader.vue'
-import { liveItems } from '../lib/live/data'
+import { listPublicBroadcasts, type BroadcastAllResponse, type BroadcastListResponse } from '../api/live'
 import {
   filterLivesByDay,
   getDayWindow,
@@ -18,6 +18,8 @@ import { useNow } from '../lib/live/useNow'
 const router = useRouter()
 const today = new Date()
 const { now } = useNow(1000)
+
+const liveItems = ref<LiveItem[]>([])
 
 const NOTIFY_KEY = 'deskit_live_notifications'
 const WATCH_HISTORY_CONSENT_KEY = 'deskit_live_watch_history_consent_v1'
@@ -59,6 +61,39 @@ const handleConfirmWatchHistory = () => {
 const handleCancelWatchHistory = () => {
   showWatchHistoryConsent.value = false
   pendingLiveId.value = null
+}
+
+const mapBroadcasts = (items: BroadcastListResponse[]): LiveItem[] =>
+  items.map((item) => {
+    const status = (item.status ?? '').toUpperCase()
+    const endAt = item.endAt ?? (['ENDED', 'VOD', 'STOPPED'].includes(status) ? item.startAt ?? '' : '')
+    return {
+      id: String(item.broadcastId),
+      title: item.title,
+      description: item.notice ?? '',
+      thumbnailUrl: item.thumbnailUrl ?? '/placeholder-live.jpg',
+      startAt: item.startAt ?? '',
+      endAt: endAt ?? '',
+      viewerCount: status === 'ON_AIR' ? item.liveViewerCount ?? 0 : item.viewerCount ?? 0,
+      sellerName: item.sellerName ?? undefined,
+    }
+  })
+
+const loadLiveItems = async () => {
+  try {
+    const data = await listPublicBroadcasts({ tab: 'ALL' })
+    const collection: BroadcastListResponse[] = Array.isArray((data as BroadcastAllResponse).onAir)
+      ? [
+          ...((data as BroadcastAllResponse).onAir ?? []),
+          ...((data as BroadcastAllResponse).reserved ?? []),
+          ...((data as BroadcastAllResponse).vod ?? []),
+        ]
+      : (data as { content: BroadcastListResponse[] }).content ?? []
+    liveItems.value = mapBroadcasts(collection)
+  } catch (error) {
+    console.error('Failed to load live list', error)
+    liveItems.value = []
+  }
 }
 
 const dayWindow = computed(() => getDayWindow(today))
@@ -108,7 +143,7 @@ const getCountdownLabel = (item: LiveItem) => {
 }
 
 const itemsForDay = computed(() => {
-  return sortLivesByStartAt(filterLivesByDay(liveItems, selectedDay.value))
+  return sortLivesByStartAt(filterLivesByDay(liveItems.value, selectedDay.value))
 })
 
 const liveItemsForDay = computed(() => itemsForDay.value.filter((item) => getStatus(item) === 'LIVE'))
@@ -175,7 +210,7 @@ const formatDayLabel = (day: Date) => {
   return { label, date }
 }
 
-const getDayCount = (day: Date) => filterLivesByDay(liveItems, day).length
+const getDayCount = (day: Date) => filterLivesByDay(liveItems.value, day).length
 
 const selectDay = (day: Date) => {
   selectedDay.value = normalizeDay(day)
@@ -236,6 +271,7 @@ const toggleNotify = (id: string) => {
 }
 
 onMounted(() => {
+  loadLiveItems()
   try {
     const raw = localStorage.getItem(NOTIFY_KEY)
     if (!raw) {

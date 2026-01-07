@@ -1,14 +1,25 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ADMIN_LIVES_EVENT, getAdminLiveSummaries, stopAdminLiveBroadcast } from '../../../lib/mocks/adminLives'
+import { getPublicBroadcastDetail, getPublicBroadcastStats, listPublicBroadcastProducts, stopAdminBroadcast } from '../../../api/live'
+import { formatDateTime } from '../../../lib/live/format'
 
 const route = useRoute()
 const router = useRouter()
 
 const liveId = computed(() => (typeof route.params.liveId === 'string' ? route.params.liveId : ''))
 
-const detail = ref<ReturnType<typeof getAdminLiveSummaries>[number] | null>(null)
+const detail = ref<{
+  id: string
+  title: string
+  sellerName: string
+  startedAt: string
+  viewers: number
+  likes: number
+  reports: number
+  status: string
+  elapsed: string
+} | null>(null)
 
 const stageRef = ref<HTMLDivElement | null>(null)
 const isFullscreen = ref(false)
@@ -19,99 +30,18 @@ const error = ref('')
 const showChat = ref(true)
 const chatText = ref('')
 const chatMessages = ref<{ id: string; user: string; text: string; time: string }[]>([])
+const liveProducts = ref([] as Array<{
+  id: string
+  name: string
+  option: string
+  price: string
+  sale: string
+  status: string
+  thumb: string
+  sold: number
+  stock: number
+}>)
 const chatListRef = ref<HTMLDivElement | null>(null)
-const seededLiveId = ref('')
-const showModerationModal = ref(false)
-const moderationTarget = ref<{ user: string } | null>(null)
-const moderationType = ref('')
-const moderationReason = ref('')
-const moderatedUsers = ref<Record<string, { type: string; reason: string; at: string }>>({})
-const activePane = ref<'monitor' | 'products'>('monitor')
-const liveProducts = ref(
-    [
-      {
-        id: 'p-1',
-        name: '모던 스탠딩 데스크',
-        option: '1200mm · 오프화이트',
-        price: '₩229,000',
-        sale: '₩189,000',
-        status: '판매중',
-        thumb: '',
-        sold: 128,
-        stock: 42,
-      },
-      {
-        id: 'p-2',
-        name: '무선 기계식 키보드',
-        option: '갈축 · 무선',
-        price: '₩139,000',
-        sale: '₩109,000',
-        status: '판매중',
-        thumb: '',
-        sold: 93,
-        stock: 65,
-      },
-      {
-        id: 'p-3',
-        name: '프리미엄 데스크 매트',
-        option: '900mm · 샌드',
-        price: '₩59,000',
-        sale: '₩45,000',
-        status: '품절',
-        thumb: '',
-        sold: 210,
-        stock: 0,
-      },
-      {
-        id: 'p-4',
-        name: '알루미늄 모니터암',
-        option: '싱글 · 블랙',
-        price: '₩169,000',
-        sale: '₩129,000',
-        status: '판매중',
-        thumb: '',
-        sold: 77,
-        stock: 18,
-      },
-    ],
-)
-const gradientPalette = ['111827', '0f172a', '1f2937', '334155'] as const
-
-const gradientThumb = (from: string, to: string) =>
-    `data:image/svg+xml;utf8,` +
-    `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 200'>` +
-    `<defs><linearGradient id='g' x1='0' x2='1' y1='0' y2='1'>` +
-    `<stop offset='0' stop-color='%23${from}'/>` +
-    `<stop offset='1' stop-color='%23${to}'/>` +
-    `</linearGradient></defs>` +
-    `<rect width='320' height='200' fill='url(%23g)'/>` +
-    `</svg>`
-const seedProductThumbs = () => {
-  liveProducts.value = liveProducts.value.map((item, index) => ({
-    ...item,
-    thumb: gradientThumb(gradientPalette[index % gradientPalette.length], '0f172a'),
-  }))
-}
-
-const reasonOptions = [
-  '음란물',
-  '폭력',
-  '국가기밀 누설',
-  '불쾌감/공포심/불안감 조성',
-  '비방',
-  '취급 불가 상품 판매',
-  '사이트 운영정책에 맞지 않는 상품',
-  '기타',
-]
-
-const seedChat = (id: string) => {
-  chatMessages.value = [
-    { id: `${id}-c1`, user: '관리자', text: '상태 모니터링 중입니다.', time: '오후 2:10' },
-    { id: `${id}-c2`, user: '시청자A', text: '화질 좋네요.', time: '오후 2:11' },
-    { id: `${id}-c3`, user: '시청자B', text: '상품 정보 공유 부탁해요.', time: '오후 2:12' },
-  ]
-}
-
 const goBack = () => {
   router.back()
 }
@@ -120,14 +50,60 @@ const goToList = () => {
   router.push('/admin/live?tab=live').catch(() => {})
 }
 
-const loadDetail = () => {
-  const items = getAdminLiveSummaries()
-  detail.value = items.find((item) => item.id === liveId.value) ?? items[0] ?? null
-  const seedId = liveId.value || items[0]?.id || 'live'
-  if (seededLiveId.value !== seedId) {
-    chatMessages.value = []
-    seedChat(seedId)
-    seededLiveId.value = seedId
+const loadDetail = async () => {
+  if (!liveId.value) {
+    detail.value = null
+    liveProducts.value = []
+    return
+  }
+  const id = Number.parseInt(liveId.value, 10)
+  if (Number.isNaN(id)) {
+    detail.value = null
+    liveProducts.value = []
+    return
+  }
+  try {
+    const [detailResponse, stats, products] = await Promise.all([
+      getPublicBroadcastDetail(id),
+      getPublicBroadcastStats(id).catch(() => null),
+      listPublicBroadcastProducts(id).catch(() => []),
+    ])
+    const startedAt = detailResponse.startedAt ?? detailResponse.scheduledAt ?? ''
+    const startMs = startedAt ? Date.parse(startedAt.replace(' ', 'T')) : 0
+    const diff = startMs ? Math.max(Date.now() - startMs, 0) : 0
+    const hours = String(Math.floor(diff / 3600000)).padStart(2, '0')
+    const minutes = String(Math.floor((diff % 3600000) / 60000)).padStart(2, '0')
+    const seconds = String(Math.floor((diff % 60000) / 1000)).padStart(2, '0')
+    detail.value = {
+      id: String(detailResponse.broadcastId),
+      title: detailResponse.title ?? '',
+      sellerName: detailResponse.sellerName ?? '',
+      startedAt: startedAt ? formatDateTime(startedAt) : '',
+      viewers: stats?.viewerCount ?? 0,
+      likes: stats?.likeCount ?? 0,
+      reports: stats?.reportCount ?? 0,
+      status: detailResponse.status ?? '',
+      elapsed: `${hours}:${minutes}:${seconds}`,
+    }
+    liveProducts.value = (products ?? []).map((item) => ({
+      id: String(item.bpId ?? item.productId),
+      name: item.name ?? '',
+      option: item.name ?? '',
+      price: `₩${(item.originalPrice ?? 0).toLocaleString('ko-KR')}`,
+      sale: `₩${(item.bpPrice ?? item.originalPrice ?? 0).toLocaleString('ko-KR')}`,
+      status:
+        ['SOLDOUT', 'SOLD_OUT', 'SOLDOUT', 'SOLD_OUT'].includes((item.status ?? '').toUpperCase()) ||
+        item.bpQuantity === 0
+          ? '품절'
+          : '판매중',
+      thumb: item.imageUrl ?? '/placeholder-product.jpg',
+      sold: 0,
+      stock: item.bpQuantity ?? 0,
+    }))
+  } catch (error) {
+    console.error('Failed to load admin live detail', error)
+    detail.value = null
+    liveProducts.value = []
   }
 }
 
@@ -156,9 +132,8 @@ const handleStopSave = () => {
   }
   const ok = window.confirm('방송 송출을 중지하시겠습니까?')
   if (!ok) return
-  stopAdminLiveBroadcast(detail.value.id, {
-    reason: stopReason.value,
-    detail: stopReason.value === '기타' ? stopDetail.value.trim() : undefined,
+  stopAdminBroadcast(Number.parseInt(detail.value.id, 10), stopReason.value).catch((error) => {
+    console.error('Failed to stop broadcast', error)
   })
   showStopModal.value = false
 }
@@ -263,14 +238,11 @@ const saveModeration = () => {
 
 onMounted(() => {
   loadDetail()
-  seedProductThumbs()
   document.addEventListener('fullscreenchange', syncFullscreen)
-  window.addEventListener(ADMIN_LIVES_EVENT, loadDetail)
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('fullscreenchange', syncFullscreen)
-  window.removeEventListener(ADMIN_LIVES_EVENT, loadDetail)
 })
 
 watch(liveId, loadDetail, { immediate: true })

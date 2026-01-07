@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PageContainer from '../components/PageContainer.vue'
 import PageHeader from '../components/PageHeader.vue'
 import ConfirmModal from '../components/ConfirmModal.vue'
-import { allLiveItems } from '../lib/home-data'
 import { getLiveStatus, parseLiveDate } from '../lib/live/utils'
 import { useNow } from '../lib/live/useNow'
-import { getProductsForLive, type LiveProductItem } from '../lib/live/detail'
+import type { LiveItem, LiveProductItem } from '../lib/live/types'
+import { getPublicBroadcastDetail, getPublicBroadcastStats, listPublicBroadcastProducts } from '../api/live'
 
 const route = useRoute()
 const router = useRouter()
@@ -18,12 +18,59 @@ const liveId = computed(() => {
   return Array.isArray(value) ? value[0] : value
 })
 
-const liveItem = computed(() => {
+const liveItem = ref<LiveItem | null>(null)
+const products = ref<LiveProductItem[]>([])
+
+const loadLiveDetail = async () => {
   if (!liveId.value) {
-    return undefined
+    liveItem.value = null
+    products.value = []
+    return
   }
-  return allLiveItems.find((item) => item.id === liveId.value)
-})
+  const id = Number.parseInt(liveId.value, 10)
+  if (Number.isNaN(id)) {
+    liveItem.value = null
+    products.value = []
+    return
+  }
+  try {
+    const [detail, stats, productList] = await Promise.all([
+      getPublicBroadcastDetail(id),
+      getPublicBroadcastStats(id).catch(() => null),
+      listPublicBroadcastProducts(id).catch(() => []),
+    ])
+    const status = (detail.status ?? '').toUpperCase()
+    const startAt = detail.startedAt ?? detail.scheduledAt ?? ''
+    const endAt = ['ENDED', 'VOD', 'STOPPED'].includes(status) ? (detail.startedAt ?? detail.scheduledAt ?? '') : ''
+    liveItem.value = {
+      id: String(detail.broadcastId),
+      title: detail.title ?? '',
+      description: detail.notice ?? '',
+      thumbnailUrl: detail.thumbnailUrl ?? detail.waitScreenUrl ?? '',
+      startAt,
+      endAt,
+      viewerCount: stats?.viewerCount ?? detail.totalViews ?? undefined,
+      sellerName: detail.sellerName ?? undefined,
+      vodUrl: detail.vodUrl ?? undefined,
+      streamUrl: detail.streamKey ?? undefined,
+    }
+    products.value = (productList ?? []).map((item) => ({
+      id: String(item.productId ?? item.bpId),
+      name: item.name ?? '',
+      imageUrl: item.imageUrl ?? '/placeholder-product.jpg',
+      price: item.bpPrice ?? item.originalPrice ?? 0,
+      status: item.status ?? 'SELLING',
+      isSoldOut:
+        ['SOLDOUT', 'SOLD_OUT', 'SOLDOUT', 'SOLD_OUT'].includes((item.status ?? '').toUpperCase()) ||
+        item.bpQuantity === 0,
+      isPinned: item.isPinned ?? false,
+    }))
+  } catch (error) {
+    console.error('Failed to load live detail', error)
+    liveItem.value = null
+    products.value = []
+  }
+}
 
 const status = computed(() => {
   if (!liveItem.value) {
@@ -56,19 +103,9 @@ const scheduledLabel = computed(() => {
   return `${month}.${date} (${day}) ${hours}:${minutes} 예정`
 })
 
-const products = computed<LiveProductItem[]>(() => {
-  if (!liveId.value) {
-    return []
-  }
-  return getProductsForLive(liveId.value)
-})
 const sortedProducts = computed(() => {
   const list = products.value.slice()
-  const withPinned = list.map((item, index) => ({
-    ...item,
-    isPinned: index === 0,
-  }))
-  return withPinned.sort((a, b) => {
+  return list.sort((a, b) => {
     if (a.isPinned && !b.isPinned) return -1
     if (!a.isPinned && b.isPinned) return 1
     if (a.isSoldOut && !b.isSoldOut) return 1
@@ -139,29 +176,7 @@ type ChatMessage = {
   kind?: 'system' | 'user'
 }
 
-const messages = ref<ChatMessage[]>([
-  {
-    id: 'sys-1',
-    user: 'system',
-    text: '라이브에 오신 것을 환영합니다.',
-    at: new Date(Date.now() - 1000 * 60 * 6),
-    kind: 'system',
-  },
-  {
-    id: 'msg-1',
-    user: 'desklover',
-    text: '오늘 소개하는 제품이 기대돼요!',
-    at: new Date(Date.now() - 1000 * 60 * 4),
-    kind: 'user',
-  },
-  {
-    id: 'msg-2',
-    user: 'setup_master',
-    text: '채팅 참여하실 분 손들기 🙌',
-    at: new Date(Date.now() - 1000 * 60 * 2),
-    kind: 'user',
-  },
-])
+const messages = ref<ChatMessage[]>([])
 
 const input = ref('')
 const isLoggedIn = ref(true)
@@ -204,6 +219,10 @@ const sendMessage = () => {
 onMounted(() => {
   scrollToBottom()
 })
+
+watch(liveId, () => {
+  loadLiveDetail()
+}, { immediate: true })
 
 const WATCH_HISTORY_CONSENT_KEY = 'deskit_live_watch_history_consent_v1'
 const hasWatchHistoryConsent = ref(false)

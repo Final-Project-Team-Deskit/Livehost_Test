@@ -34,14 +34,14 @@ const syncDraft = () => {
   })
 }
 
-const restoreDraft = () => {
+const restoreDraft = async () => {
   const saved = loadDraft()
   if (saved && (!isEditMode.value || saved.reservationId === reservationId.value)) {
     draft.value = { ...draft.value, ...saved }
   }
 
   if (isEditMode.value) {
-    draft.value = { ...draft.value, ...buildDraftFromReservation(reservationId.value) }
+    draft.value = { ...draft.value, ...(await buildDraftFromReservation(reservationId.value)) }
   }
 
   if (!draft.value.questions.length) {
