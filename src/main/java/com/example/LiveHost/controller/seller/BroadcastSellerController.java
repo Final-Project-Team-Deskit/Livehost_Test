@@ -4,10 +4,13 @@ import com.example.LiveHost.common.exception.ApiResult;
 import com.example.LiveHost.dto.request.BroadcastCreateRequest;
 import com.example.LiveHost.dto.request.BroadcastSearch;
 import com.example.LiveHost.dto.request.BroadcastUpdateRequest;
+import com.example.LiveHost.dto.request.MediaConfigRequest;
 import com.example.LiveHost.dto.request.SanctionRequest;
 import com.example.LiveHost.dto.response.BroadcastResponse;
 import com.example.LiveHost.dto.response.BroadcastResultResponse;
+import com.example.LiveHost.dto.response.MediaConfigResponse;
 import com.example.LiveHost.dto.response.ProductSelectResponse;
+import com.example.LiveHost.dto.response.ReservationSlotResponse;
 import com.example.LiveHost.dto.response.StatisticsResponse;
 import com.example.LiveHost.service.BroadcastService;
 import com.example.LiveHost.service.SanctionService;
@@ -19,6 +22,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.time.LocalDate;
 
 @RestController
 @RequestMapping("seller/api/broadcasts")
@@ -69,6 +73,40 @@ public class BroadcastSellerController {
     ) {
         return ResponseEntity.ok(ApiResult.success(
                 broadcastService.getSellerProducts(sellerId, keyword)
+        ));
+    }
+
+    // 예약 가능한 시간 슬롯 조회
+    @GetMapping("/reservation-slots")
+    public ResponseEntity<ApiResult<List<ReservationSlotResponse>>> getReservationSlots(
+            @RequestHeader("X-Seller-Id") Long sellerId,
+            @RequestParam("date") String date
+    ) {
+        LocalDate targetDate = LocalDate.parse(date);
+        return ResponseEntity.ok(ApiResult.success(
+                broadcastService.getReservableSlots(targetDate)
+        ));
+    }
+
+    // 카메라/마이크 설정 저장
+    @PutMapping("/{broadcastId}/media-config")
+    public ResponseEntity<ApiResult<Void>> saveMediaConfig(
+            @RequestHeader("X-Seller-Id") Long sellerId,
+            @PathVariable Long broadcastId,
+            @RequestBody @Valid MediaConfigRequest request
+    ) {
+        broadcastService.saveMediaConfig(sellerId, broadcastId, request);
+        return ResponseEntity.ok(ApiResult.success(null));
+    }
+
+    // 카메라/마이크 설정 조회
+    @GetMapping("/{broadcastId}/media-config")
+    public ResponseEntity<ApiResult<MediaConfigResponse>> getMediaConfig(
+            @RequestHeader("X-Seller-Id") Long sellerId,
+            @PathVariable Long broadcastId
+    ) {
+        return ResponseEntity.ok(ApiResult.success(
+                broadcastService.getMediaConfig(sellerId, broadcastId)
         ));
     }
 
@@ -124,7 +162,7 @@ public class BroadcastSellerController {
     public ResponseEntity<ApiResult<Void>> pinProduct(
             @RequestHeader("X-Seller-Id") Long sellerId,
             @PathVariable Long broadcastId,
-            @PathVariable Long bpId
+            @PathVariable("productId") Long bpId
     ) {
         broadcastService.pinProduct(sellerId, broadcastId, bpId);
         return ResponseEntity.ok(ApiResult.success(null));

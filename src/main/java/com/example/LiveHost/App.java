@@ -3,8 +3,10 @@ package com.example.LiveHost;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cache.annotation.EnableCaching;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 @EnableCaching // 캐싱 활성화
+@EnableScheduling
 @SpringBootApplication
 public class App {
 

@@ -128,6 +128,57 @@ public class AwsS3Service {
         }
     }
 
+    public long getObjectSize(String fileUrl) {
+        String key = extractKeyFromUrl(fileUrl);
+        if (key == null) {
+            return 0L;
+        }
+        try {
+            ObjectMetadata metadata = amazonS3.getObjectMetadata(bucket, key);
+            return metadata.getContentLength();
+        } catch (Exception e) {
+            log.warn("Failed to read object metadata for {}", fileUrl, e);
+            return 0L;
+        }
+    }
+
+    public java.io.InputStream getObjectStream(String fileUrl, Long start, Long end) {
+        String key = extractKeyFromUrl(fileUrl);
+        if (key == null) {
+            throw new BusinessException(ErrorCode.FILE_UPLOAD_FAILED);
+        }
+        try {
+            com.amazonaws.services.s3.model.GetObjectRequest request = new com.amazonaws.services.s3.model.GetObjectRequest(bucket, key);
+            if (start != null && end != null) {
+                request.setRange(start, end);
+            }
+            return amazonS3.getObject(request).getObjectContent();
+        } catch (Exception e) {
+            log.error("Failed to stream S3 object: {}", fileUrl, e);
+            throw new BusinessException(ErrorCode.FILE_UPLOAD_FAILED);
+        }
+    }
+
+    private String extractKeyFromUrl(String fileUrl) {
+        if (fileUrl == null || fileUrl.isBlank()) {
+            return null;
+        }
+        try {
+            java.net.URI uri = new java.net.URI(fileUrl);
+            String path = uri.getPath();
+            if (path == null) {
+                return null;
+            }
+            String trimmed = path.startsWith("/") ? path.substring(1) : path;
+            if (trimmed.startsWith(bucket + "/")) {
+                return trimmed.substring(bucket.length() + 1);
+            }
+            return trimmed;
+        } catch (Exception e) {
+            log.warn("Failed to parse S3 key from URL: {}", fileUrl, e);
+            return null;
+        }
+    }
 
     // [비율 검증 로직] - ImageIO로 이미지를 읽어 가로/세로 비율을 계산 (오차범위 0.05 허용)
     private void validateImageRatio(MultipartFile file, UploadType type) {

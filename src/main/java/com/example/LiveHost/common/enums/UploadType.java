@@ -7,8 +7,8 @@ import lombok.Getter;
 @AllArgsConstructor
 public enum UploadType {
 
-    // 썸네일: 9:16 비율, 최대 5MB
-    THUMBNAIL(5 * 1024 * 1024L, 9.0, 16.0, "방송 썸네일"),
+    // 썸네일: 16:9 비율, 최대 5MB
+    THUMBNAIL(5 * 1024 * 1024L, 16.0, 9.0, "방송 썸네일"),
 
     // 대기화면: 16:9 비율, 최대 7MB
     WAIT_SCREEN(7 * 1024 * 1024L, 16.0, 9.0, "방송 대기화면");
