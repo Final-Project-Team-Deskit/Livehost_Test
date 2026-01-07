@@ -47,6 +47,12 @@ public class RedisService {
     public String getMaxViewersKey(Long bId) { return "broadcast:" + bId + ":max_viewers"; }
     public String getMaxViewersTimeKey(Long bId) { return "broadcast:" + bId + ":max_viewers_time"; }
 
+    // 9. 미디어 설정 키
+    public String getMediaConfigKey(Long broadcastId, Long sellerId) { return "broadcast:" + broadcastId + ":media:" + sellerId; }
+
+    // 10. 일정 알림 키
+    public String getScheduleNoticeKey(Long broadcastId, String type) { return "broadcast:" + broadcastId + ":notice:" + type; }
+
     // =====================================================================
     // 1. [동시성 제어] 분산 락 (Distributed Lock)
     // =====================================================================
@@ -57,6 +63,11 @@ public class RedisService {
 
     public void releaseLock(String key) {
         redisTemplate.delete(key);
+    }
+
+    public boolean setIfAbsent(String key, String value, Duration ttl) {
+        Boolean result = redisTemplate.opsForValue().setIfAbsent(key, value, ttl);
+        return Boolean.TRUE.equals(result);
     }
 
 
@@ -191,6 +202,24 @@ public class RedisService {
 
     public int getReportCount(Long broadcastId) {
         return getInt(getReportCountKey(broadcastId));
+    }
+
+    // =====================================================================
+    // 7. [미디어 설정] 판매자 장치 설정 저장
+    // =====================================================================
+    public void saveMediaConfig(Long broadcastId, Long sellerId, String cameraId, String microphoneId, boolean cameraOn, boolean microphoneOn, int volume) {
+        String key = getMediaConfigKey(broadcastId, sellerId);
+        redisTemplate.opsForHash().put(key, "cameraId", cameraId);
+        redisTemplate.opsForHash().put(key, "microphoneId", microphoneId);
+        redisTemplate.opsForHash().put(key, "cameraOn", String.valueOf(cameraOn));
+        redisTemplate.opsForHash().put(key, "microphoneOn", String.valueOf(microphoneOn));
+        redisTemplate.opsForHash().put(key, "volume", String.valueOf(volume));
+        redisTemplate.expire(key, Duration.ofDays(1));
+    }
+
+    public List<Object> getMediaConfig(Long broadcastId, Long sellerId) {
+        String key = getMediaConfigKey(broadcastId, sellerId);
+        return redisTemplate.opsForHash().multiGet(key, List.of("cameraId", "microphoneId", "cameraOn", "microphoneOn", "volume"));
     }
 
     // =====================================================================

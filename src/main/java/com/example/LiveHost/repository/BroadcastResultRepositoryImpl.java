@@ -1,14 +1,11 @@
 package com.example.LiveHost.repository;
 
 import com.example.LiveHost.dto.response.StatisticsResponse;
-import com.querydsl.core.types.OrderSpecifier;
-import com.querydsl.core.types.Projections;
-import com.querydsl.core.types.dsl.BooleanExpression;
-import com.querydsl.core.types.dsl.Expressions;
-import com.querydsl.core.types.dsl.NumberExpression;
-import com.querydsl.core.types.dsl.StringTemplate;
-import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
+import org.jooq.Condition;
+import org.jooq.DSLContext;
+import org.jooq.Field;
+import org.jooq.Record;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -16,105 +13,108 @@ import java.time.LocalTime;
 import java.time.temporal.TemporalAdjusters;
 import java.util.List;
 
-import static com.example.LiveHost.entity.QBroadcast.broadcast;
-import static com.example.LiveHost.entity.QBroadcastResult.broadcastResult;
+import static org.jooq.impl.DSL.*;
 
 @RequiredArgsConstructor
 public class BroadcastResultRepositoryImpl implements BroadcastResultRepositoryCustom {
 
-    private final JPAQueryFactory queryFactory;
+    private final DSLContext dsl;
+
+    private final org.jooq.Table<Record> broadcastTable = table(name("broadcast")).as("b");
+    private final org.jooq.Table<Record> resultTable = table(name("broadcast_result")).as("br");
+
+    private final Field<Long> broadcastId = field(name("b", "broadcast_id"), Long.class);
+    private final Field<Long> sellerId = field(name("b", "seller_id"), Long.class);
+    private final Field<String> broadcastTitle = field(name("b", "broadcast_title"), String.class);
+    private final Field<LocalDateTime> startedAt = field(name("b", "started_at"), LocalDateTime.class);
+    private final Field<LocalDateTime> endedAt = field(name("b", "ended_at"), LocalDateTime.class);
+
+    private final Field<BigDecimal> totalSales = field(name("br", "total_sales"), BigDecimal.class);
+    private final Field<Integer> totalViews = field(name("br", "total_views"), Integer.class);
 
     // 1. 기간별 매출 차트 조회
     @Override
     public List<StatisticsResponse.ChartData> getSalesChart(Long sellerId, String periodType) {
-        StringTemplate dateExpr = getDateExpression(periodType);
+        Field<String> dateExpr = getDateExpression(periodType);
+        Field<BigDecimal> totalSalesSum = sum(totalSales);
 
-        return queryFactory
-                .select(Projections.constructor(StatisticsResponse.ChartData.class,
-                        dateExpr,                       // X축
-                        broadcastResult.totalSales.sum() // Y축
-                ))
-                .from(broadcastResult)
-                .join(broadcastResult.broadcast, broadcast)
+        return dsl.select(dateExpr, totalSalesSum)
+                .from(resultTable)
+                .join(broadcastTable).on(field(name("br", "broadcast_id"), Long.class).eq(broadcastId))
                 .where(
                         sellerIdEq(sellerId),
-                        broadcast.endedAt.isNotNull(),
-                        getChartPeriodCondition(periodType, broadcast.startedAt)
+                        endedAt.isNotNull(),
+                        getChartPeriodCondition(periodType, startedAt)
                 )
                 .groupBy(dateExpr)
                 .orderBy(dateExpr.asc())
-                .fetch();
+                .fetch(record -> new StatisticsResponse.ChartData(
+                        record.get(dateExpr),
+                        record.get(totalSalesSum) != null ? record.get(totalSalesSum) : BigDecimal.ZERO
+                ));
     }
 
     // 2. 기간별 ARPU(객단가) 차트 조회
     @Override
     public List<StatisticsResponse.ChartData> getArpuChart(Long sellerId, String periodType) {
-        StringTemplate dateExpr = getDateExpression(periodType);
+        Field<String> dateExpr = getDateExpression(periodType);
 
-        // ARPU = SUM(Sales) / SUM(Views)
-        NumberExpression<BigDecimal> arpu = broadcastResult.totalSales.sum()
-                .divide(broadcastResult.totalViews.sum().nullif(0));
+        Field<BigDecimal> viewSum = sum(totalViews).cast(BigDecimal.class);
+        Field<BigDecimal> arpu = sum(totalSales).div(nullif(viewSum, BigDecimal.ZERO));
 
-        return queryFactory
-                .select(Projections.constructor(StatisticsResponse.ChartData.class,
-                        dateExpr,
-                        arpu
-                ))
-                .from(broadcastResult)
-                .join(broadcastResult.broadcast, broadcast)
+        return dsl.select(dateExpr, arpu)
+                .from(resultTable)
+                .join(broadcastTable).on(field(name("br", "broadcast_id"), Long.class).eq(broadcastId))
                 .where(
                         sellerIdEq(sellerId),
-                        broadcast.endedAt.isNotNull(),
-                        getChartPeriodCondition(periodType, broadcast.startedAt)
+                        endedAt.isNotNull(),
+                        getChartPeriodCondition(periodType, startedAt)
                 )
                 .groupBy(dateExpr)
                 .orderBy(dateExpr.asc())
-                .fetch();
+                .fetch(record -> new StatisticsResponse.ChartData(
+                        record.get(dateExpr),
+                        record.get(arpu) != null ? record.get(arpu) : BigDecimal.ZERO
+                ));
     }
 
     // 3. 방송 랭킹 조회 (메서드명 getRanking으로 통일)
     @Override
     public List<StatisticsResponse.BroadcastRank> getRanking(Long sellerId, String periodType, String sortField, boolean isDesc, int limit) {
-        return queryFactory
-                .select(Projections.constructor(StatisticsResponse.BroadcastRank.class,
-                        broadcast.broadcastId,
-                        broadcast.broadcastTitle,
-                        broadcastResult.totalSales,
-                        broadcastResult.totalViews
-                ))
-                .from(broadcastResult)
-                .join(broadcastResult.broadcast, broadcast)
+        return dsl.select(broadcastId, broadcastTitle, totalSales, totalViews)
+                .from(resultTable)
+                .join(broadcastTable).on(field(name("br", "broadcast_id"), Long.class).eq(broadcastId))
                 .where(
                         sellerIdEq(sellerId),
-                        broadcast.endedAt.isNotNull(),
-                        getRankingPeriodCondition(periodType, broadcast.startedAt) // [핵심] "이번 달 랭킹", "올해 랭킹" 등을 위해 필요
+                        endedAt.isNotNull(),
+                        getRankingPeriodCondition(periodType, startedAt)
                 )
                 .orderBy(getOrderSpecifier(sortField, isDesc))
                 .limit(limit)
-                .fetch();
+                .fetch(this::mapRank);
     }
 
     // --- Helper Methods ---
-    private BooleanExpression sellerIdEq(Long sellerId) {
-        return sellerId != null ? broadcast.seller.sellerId.eq(sellerId) : null;
+    private Condition sellerIdEq(Long sellerIdValue) {
+        return sellerIdValue != null ? sellerId.eq(sellerIdValue) : trueCondition();
     }
 
-    private StringTemplate getDateExpression(String periodType) {
+    private Field<String> getDateExpression(String periodType) {
         String format = "DAILY".equalsIgnoreCase(periodType) ? "%Y-%m-%d" :
                 "MONTHLY".equalsIgnoreCase(periodType) ? "%Y-%m" : "%Y";
-        return Expressions.stringTemplate("DATE_FORMAT({0}, {1})", broadcast.startedAt, format);
+        return field("DATE_FORMAT({0}, {1})", String.class, startedAt, inline(format));
     }
 
-    private OrderSpecifier<?> getOrderSpecifier(String sortField, boolean isDesc) {
+    private org.jooq.SortField<?> getOrderSpecifier(String sortField, boolean isDesc) {
         if ("SALES".equalsIgnoreCase(sortField)) {
-            return isDesc ? broadcastResult.totalSales.desc() : broadcastResult.totalSales.asc();
+            return isDesc ? totalSales.desc() : totalSales.asc();
         } else {
-            return isDesc ? broadcastResult.totalViews.desc() : broadcastResult.totalViews.asc();
+            return isDesc ? totalViews.desc() : totalViews.asc();
         }
     }
 
     // [New Helper 1] 차트용 기간 (Trend): 최근 13일, 최근 1년, 최근 10년
-    private BooleanExpression getChartPeriodCondition(String type, com.querydsl.core.types.dsl.DateTimePath<LocalDateTime> path) {
+    private Condition getChartPeriodCondition(String type, Field<LocalDateTime> path) {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime startDate;
 
@@ -128,11 +128,11 @@ public class BroadcastResultRepositoryImpl implements BroadcastResultRepositoryC
             // 연도별 차트: 최근 10년
             startDate = now.minusYears(4).withDayOfYear(1).with(LocalTime.MIN);
         }
-        return path.goe(startDate);
+        return path.ge(startDate);
     }
 
     // [New Helper 2] 랭킹용 기간 (Snapshot): 오늘, 이번 달, 올해
-    private BooleanExpression getRankingPeriodCondition(String type, com.querydsl.core.types.dsl.DateTimePath<LocalDateTime> path) {
+    private Condition getRankingPeriodCondition(String type, Field<LocalDateTime> path) {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime startDate;
 
@@ -146,6 +146,15 @@ public class BroadcastResultRepositoryImpl implements BroadcastResultRepositoryC
             // 연도별 랭킹: 올해 1월 1일 00:00:00 ~ 현재
             startDate = now.with(TemporalAdjusters.firstDayOfYear()).with(LocalTime.MIN);
         }
-        return path.goe(startDate);
+        return path.ge(startDate);
+    }
+
+    private StatisticsResponse.BroadcastRank mapRank(Record record) {
+        return StatisticsResponse.BroadcastRank.builder()
+                .broadcastId(record.get(broadcastId))
+                .title(record.get(broadcastTitle))
+                .totalSales(record.get(totalSales))
+                .totalViews(record.get(totalViews, Integer.class) != null ? record.get(totalViews) : 0)
+                .build();
     }
 }

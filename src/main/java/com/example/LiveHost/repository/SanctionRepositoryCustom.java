@@ -16,4 +16,8 @@ public interface SanctionRepositoryCustom {
 
     // 4. 시청자 제재 랭킹 (Sanction 테이블 기준)
     List<SanctionStatisticsResponse.ViewerRank> getViewerSanctionRanking(String periodType, int limit);
+
+    SanctionTypeResult findLatestSanction(Long broadcastId, Long memberId);
+
+    record SanctionTypeResult(Long sanctionId, String status) {}
 }
