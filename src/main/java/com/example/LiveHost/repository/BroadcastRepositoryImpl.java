@@ -56,7 +56,7 @@ public class BroadcastRepositoryImpl implements BroadcastRepositoryCustom {
 
     @Override
     public Slice<BroadcastListResponse> searchBroadcasts(Long sellerId, BroadcastSearch condition, Pageable pageable, boolean isAdmin) {
-        Field<Long> reportCount = countDistinct(sanctionId).as("report_count");
+        Field<Long> reportCount = countDistinct(sanctionId).cast(Long.class).as("report_count");
 
         List<BroadcastListResponse> content = dsl.select(
                         broadcastId, broadcastTitle, broadcastNotice,
