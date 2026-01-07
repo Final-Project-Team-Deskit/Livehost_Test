@@ -3,6 +3,7 @@ package com.example.LiveHost.service;
 import com.example.LiveHost.common.enums.BroadcastProductStatus;
 import com.example.LiveHost.common.enums.BroadcastStatus;
 import com.example.LiveHost.common.enums.VodStatus;
+import com.example.LiveHost.common.enums.SanctionType;
 import com.example.LiveHost.common.exception.BusinessException;
 import com.example.LiveHost.common.exception.ErrorCode;
 import com.example.LiveHost.dto.request.*;
@@ -15,10 +16,9 @@ import com.example.LiveHost.others.repository.ProductRepository;
 import com.example.LiveHost.others.repository.SellerRepository;
 import com.example.LiveHost.others.repository.TagCategoryRepository;
 import com.example.LiveHost.repository.*;
-import com.querydsl.core.types.Order;
-import com.querydsl.core.types.OrderSpecifier;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.jooq.DSLContext;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.event.EventListener;
 import org.springframework.data.domain.Pageable;
@@ -28,6 +28,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.socket.messaging.SessionConnectEvent;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
+import org.springframework.scheduling.annotation.Scheduled;
 
 import javax.net.ssl.*;
 import java.io.InputStream;
@@ -36,13 +37,12 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.security.cert.X509Certificate;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
-
-import static com.example.LiveHost.entity.QBroadcast.broadcast;
 
 @Slf4j
 @Service
@@ -65,6 +65,7 @@ public class BroadcastService {
     private final SseService sseService;
     private final OpenViduService openViduService;
     private final AwsS3Service s3Service;
+    private final DSLContext dsl;
 
     @Value("${openvidu.url}")
     private String OPENVIDU_URL;
@@ -86,7 +87,7 @@ public class BroadcastService {
             long reservedCount = broadcastRepository.countBySellerIdAndStatus(sellerId, BroadcastStatus.RESERVED);
             if (reservedCount >= 7) throw new BusinessException(ErrorCode.RESERVATION_LIMIT_EXCEEDED);
 
-            long slotCount = broadcastRepository.countByTimeSlot(request.getScheduledAt(), request.getScheduledAt().plusHours(1));
+            long slotCount = broadcastRepository.countByTimeSlot(request.getScheduledAt(), request.getScheduledAt().plusMinutes(30));
             if (slotCount >= 3) throw new BusinessException(ErrorCode.BROADCAST_SLOT_FULL);
 
             Seller seller = sellerRepository.findById(sellerId).orElseThrow(() -> new BusinessException(ErrorCode.SELLER_NOT_FOUND));
@@ -168,14 +169,14 @@ public class BroadcastService {
             throw new BusinessException(ErrorCode.FORBIDDEN_ACCESS);
         }
 
-        // 상태 체크 (예약 상태일 때만 삭제 가능)
-        if (broadcast.getStatus() != BroadcastStatus.RESERVED && broadcast.getStatus() != BroadcastStatus.CANCELED) {
+        // 상태 체크 (예약/대기 상태일 때만 취소 가능)
+        if (broadcast.getStatus() != BroadcastStatus.RESERVED && broadcast.getStatus() != BroadcastStatus.READY) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
         }
 
-        // 상태를 DELETED로 변경
-        broadcast.deleteBroadcast();
-        log.info("방송 삭제(취소) 처리 완료: id={}, status={}", broadcastId, broadcast.getStatus());
+        // 상태를 CANCELED로 변경
+        broadcast.cancelBroadcast("판매자 예약 취소");
+        log.info("방송 취소 처리 완료: id={}, status={}", broadcastId, broadcast.getStatus());
         // 트랜잭션이 닫힐 때, JPA가 값이 달라진 것을 감지하고, 자동으로 UPDATE 쿼리를 생성해서 DB에 날림
     }
 
@@ -197,6 +198,96 @@ public class BroadcastService {
                         .imageUrl(p.getProductThumbUrl())
                         .build())
                 .collect(Collectors.toList());
+    }
+
+    // =====================================================================
+    // 4-2. [판매자] 예약 가능한 슬롯 조회
+    // =====================================================================
+    @Transactional(readOnly = true)
+    public List<ReservationSlotResponse> getReservableSlots(LocalDate date) {
+        LocalDateTime start = date.atTime(10, 0);
+        LocalDateTime end = date.atTime(23, 0);
+
+        var broadcastTable = org.jooq.impl.DSL.table(org.jooq.impl.DSL.name("broadcast")).as("b");
+        var scheduledField = org.jooq.impl.DSL.field(org.jooq.impl.DSL.name("b", "scheduled_at"), LocalDateTime.class);
+        var statusField = org.jooq.impl.DSL.field(org.jooq.impl.DSL.name("b", "status"), String.class);
+
+        Map<LocalDateTime, Long> counts = dsl.select(scheduledField, org.jooq.impl.DSL.count())
+                .from(broadcastTable)
+                .where(
+                        scheduledField.between(start, end),
+                        statusField.in(BroadcastStatus.RESERVED.name(), BroadcastStatus.READY.name())
+                )
+                .groupBy(scheduledField)
+                .fetchMap(scheduledField, record -> record.get(org.jooq.impl.DSL.count(), Long.class));
+
+        List<ReservationSlotResponse> slots = new java.util.ArrayList<>();
+        LocalDateTime cursor = start;
+        while (cursor.isBefore(end)) {
+            int used = counts.getOrDefault(cursor, 0L).intValue();
+            int remaining = Math.max(0, 3 - used);
+            if (remaining > 0) {
+                slots.add(ReservationSlotResponse.builder()
+                        .slotDateTime(cursor)
+                        .remainingCapacity(remaining)
+                        .selectable(true)
+                        .build());
+            }
+            cursor = cursor.plusMinutes(30);
+        }
+        return slots;
+    }
+
+    // =====================================================================
+    // 4-3. [판매자] 카메라/마이크 설정 저장
+    // =====================================================================
+    @Transactional
+    public void saveMediaConfig(Long sellerId, Long broadcastId, MediaConfigRequest request) {
+        Broadcast broadcast = broadcastRepository.findById(broadcastId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.BROADCAST_NOT_FOUND));
+
+        if (!broadcast.getSeller().getSellerId().equals(sellerId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN_ACCESS);
+        }
+
+        redisService.saveMediaConfig(
+                broadcastId,
+                sellerId,
+                request.getCameraId(),
+                request.getMicrophoneId(),
+                request.getCameraOn(),
+                request.getMicrophoneOn(),
+                request.getVolume()
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public MediaConfigResponse getMediaConfig(Long sellerId, Long broadcastId) {
+        Broadcast broadcast = broadcastRepository.findById(broadcastId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.BROADCAST_NOT_FOUND));
+
+        if (!broadcast.getSeller().getSellerId().equals(sellerId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN_ACCESS);
+        }
+
+        List<Object> values = redisService.getMediaConfig(broadcastId, sellerId);
+        if (values == null || values.stream().allMatch(java.util.Objects::isNull)) {
+            return MediaConfigResponse.builder()
+                    .cameraId("")
+                    .microphoneId("")
+                    .cameraOn(true)
+                    .microphoneOn(true)
+                    .volume(50)
+                    .build();
+        }
+
+        return MediaConfigResponse.builder()
+                .cameraId(values.get(0) != null ? values.get(0).toString() : "")
+                .microphoneId(values.get(1) != null ? values.get(1).toString() : "")
+                .cameraOn(values.get(2) == null || Boolean.parseBoolean(values.get(2).toString()))
+                .microphoneOn(values.get(3) == null || Boolean.parseBoolean(values.get(3).toString()))
+                .volume(values.get(4) != null ? Integer.parseInt(values.get(4).toString()) : 50)
+                .build();
     }
 
     // =====================================================================
@@ -279,6 +370,10 @@ public class BroadcastService {
 
         if (!broadcast.getSeller().getSellerId().equals(sellerId)) throw new BusinessException(ErrorCode.FORBIDDEN_ACCESS);
 
+        if (broadcast.getScheduledAt() != null && LocalDateTime.now().isBefore(broadcast.getScheduledAt())) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+
         // 상태 변경 (RESERVED/READY -> ON_AIR)
         broadcast.startBroadcast("session-" + broadcastId);
 
@@ -302,6 +397,11 @@ public class BroadcastService {
         }
         if (!isLiveGroup(broadcast.getStatus())) {
             throw new BusinessException(ErrorCode.BROADCAST_NOT_ON_AIR);
+        }
+
+        Long memberId = parseMemberId(viewerId);
+        if (memberId != null && isViewerSanctioned(broadcastId, memberId)) {
+            throw new BusinessException(ErrorCode.BROADCAST_ALREADY_SANCTIONED);
         }
 
         // UV 집계 (Redis) - 실제 입장은 WebSocket Connect에서 처리되지만 토큰 발급 시에도 기록 가능
@@ -399,50 +499,25 @@ public class BroadcastService {
 
         String recordingId = payload.getId();
         String s3Key = "seller_" + broadcast.getSeller().getSellerId() + "/vods/" + recordingId + ".mp4";
-        String s3Url = "";
+        String s3Url = payload.getUrl() != null ? payload.getUrl() : "";
 
         // 2. OpenVidu 서버에서 영상 다운로드 -> S3 업로드 (스트리밍)
-        try {
-            disableSslVerification(); // SSL 인증서 무시 (개발용)
-
-            // URL 생성 (LiveHostController 로직 참조)
-            String videoUrl = OPENVIDU_URL.replaceAll("/$", "") +
-                    "/openvidu/recordings/" + recordingId + "/" + recordingId + ".mp4";
-
-            URL url = new URL(videoUrl);
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("GET");
-
-            // Basic Auth 헤더 설정
-            String auth = "OPENVIDUAPP:" + OPENVIDU_SECRET;
-            String encodedAuth = Base64.getEncoder().encodeToString(auth.getBytes());
-            conn.setRequestProperty("Authorization", "Basic " + encodedAuth);
-
-            int responseCode = conn.getResponseCode();
-            if (responseCode == HttpURLConnection.HTTP_OK) {
-                try (InputStream inputStream = conn.getInputStream()) {
-                    // [핵심] S3Service의 스트리밍 업로드 호출
-                    long contentLength = conn.getContentLengthLong();
-                    s3Url = s3Service.uploadVodStream(inputStream, s3Key, contentLength);
-                    log.info("VOD Upload Success: {}", s3Url);
-                }
-            } else {
-                log.error("Failed to fetch recording from OpenVidu: {}", responseCode);
-            }
-        } catch (Exception e) {
-            log.error("VOD Processing Error", e);
-            // 업로드 실패해도 통계 저장을 위해 로직 계속 진행 (URL은 빈 값 or 에러처리)
-        }
+        s3Url = uploadVodWithRetry(recordingId, s3Key, s3Url);
 
         // 3. VOD 정보 DB 저장
         boolean isStopped = broadcast.getStatus() == BroadcastStatus.STOPPED;
         VodStatus status = isStopped ? VodStatus.PRIVATE : VodStatus.PUBLIC;
 
+        long vodSize = payload.getSize() != null ? payload.getSize() : 0L;
+        if (vodSize == 0L && s3Url != null && !s3Url.isBlank()) {
+            vodSize = s3Service.getObjectSize(s3Url);
+        }
+
         Vod vod = Vod.builder()
                 .broadcast(broadcast)
                 .vodUrl(s3Url) // S3 URL 저장
-                .vodSize(payload.getSize())
-                .vodDuration(payload.getDuration().intValue())
+                .vodSize(vodSize)
+                .vodDuration(payload.getDuration() != null ? payload.getDuration().intValue() : 0)
                 .status(status)
                 .vodReportCount(0)
                 .vodAdminLock(isStopped)
@@ -476,6 +551,49 @@ public class BroadcastService {
         if (isStopped || broadcast.getStatus() == BroadcastStatus.ENDED) {
             broadcast.changeStatus(BroadcastStatus.VOD);
         }
+    }
+
+    private String uploadVodWithRetry(String recordingId, String s3Key, String fallbackUrl) {
+        int attempts = 0;
+        while (attempts < 3) {
+            attempts++;
+            try {
+                disableSslVerification();
+
+                String videoUrl = OPENVIDU_URL.replaceAll("/$", "") +
+                        "/openvidu/recordings/" + recordingId + "/" + recordingId + ".mp4";
+
+                URL url = new URL(videoUrl);
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("GET");
+
+                String auth = "OPENVIDUAPP:" + OPENVIDU_SECRET;
+                String encodedAuth = Base64.getEncoder().encodeToString(auth.getBytes());
+                conn.setRequestProperty("Authorization", "Basic " + encodedAuth);
+
+                int responseCode = conn.getResponseCode();
+                if (responseCode == HttpURLConnection.HTTP_OK) {
+                    try (InputStream inputStream = conn.getInputStream()) {
+                        long contentLength = conn.getContentLengthLong();
+                        String s3Url = s3Service.uploadVodStream(inputStream, s3Key, contentLength);
+                        log.info("VOD Upload Success: {}", s3Url);
+                        return s3Url;
+                    }
+                } else {
+                    log.error("Failed to fetch recording from OpenVidu: {}", responseCode);
+                }
+            } catch (Exception e) {
+                log.error("VOD Processing Error (attempt {}): {}", attempts, e.getMessage());
+            }
+
+            try {
+                Thread.sleep(1000L * attempts);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+        return fallbackUrl;
     }
 
 
@@ -527,6 +645,22 @@ public class BroadcastService {
                 .map(BroadcastProductResponse::fromEntity).collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
+    public boolean canChat(Long broadcastId, Long memberId) {
+        Broadcast broadcast = broadcastRepository.findById(broadcastId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.BROADCAST_NOT_FOUND));
+
+        if (broadcast.getStatus() == BroadcastStatus.STOPPED) {
+            return false;
+        }
+
+        if (memberId == null) {
+            return true;
+        }
+
+        return !isViewerSanctioned(broadcastId, memberId, SanctionType.MUTE, SanctionType.OUT);
+    }
+
     //  신고 (1인 1회)
     public void reportBroadcast(Long broadcastId, Long memberId) {
         if (!broadcastRepository.existsById(broadcastId)) throw new BusinessException(ErrorCode.BROADCAST_NOT_FOUND);
@@ -560,17 +694,17 @@ public class BroadcastService {
         sanctions = sanctionRepository.countByBroadcast(broadcast);
 
         // 상품 성과 리스트
-        List<BroadcastResultResponse.ProductSalesStat> productStats = broadcast.getProducts().stream()
-                .map(bp -> {
-                    Product p = productRepository.findById(bp.getProduct().getProductId()).orElse(null);
-                    return BroadcastResultResponse.ProductSalesStat.builder()
-                            .productId(bp.getProduct().getProductId())
-                            .productName(p != null ? p.getProductName() : "")
-                            .imageUrl(p != null ? p.getProductThumbUrl() : "")
-                            .salesAmount(BigDecimal.ZERO) // TODO: OrderService 연동
-                            .price(bp.getBpPrice())
-                            .build();
-                }).collect(Collectors.toList());
+        List<BroadcastResultResponse.ProductSalesStat> productStats = broadcastProductRepository
+                .findAllWithProductByBroadcastId(broadcastId)
+                .stream()
+                .map(bp -> BroadcastResultResponse.ProductSalesStat.builder()
+                        .productId(bp.getProduct().getProductId())
+                        .productName(bp.getProduct().getProductName())
+                        .imageUrl(bp.getProduct().getProductThumbUrl())
+                        .salesAmount(BigDecimal.ZERO) // TODO: OrderService 연동
+                        .price(bp.getBpPrice())
+                        .build())
+                .collect(Collectors.toList());
 
         // 방송 시간 계산
         long duration = 0;
@@ -618,7 +752,68 @@ public class BroadcastService {
                 .build();
     }
 
+    // =====================================================================
+    // 10. 방송 상태 자동 전환/알림 (스케줄러)
+    // =====================================================================
+    @Scheduled(fixedDelay = 60000)
+    @Transactional
+    public void syncBroadcastSchedules() {
+        LocalDateTime now = LocalDateTime.now();
 
+        // 1. 예약 -> READY (10분 전)
+        List<Long> readyTargets = broadcastRepository.findBroadcastIdsForReadyTransition(now);
+        for (Long broadcastId : readyTargets) {
+            Broadcast broadcast = broadcastRepository.findById(broadcastId).orElse(null);
+            if (broadcast != null && broadcast.getStatus() == BroadcastStatus.RESERVED) {
+                broadcast.readyBroadcast();
+                sseService.notifyBroadcastUpdate(broadcastId, "BROADCAST_READY", "ready");
+            }
+        }
+
+        // 2. 노쇼 처리 (예약 시간 + 10분)
+        List<Long> noShowTargets = broadcastRepository.findBroadcastIdsForNoShow(now);
+        for (Long broadcastId : noShowTargets) {
+            Broadcast broadcast = broadcastRepository.findById(broadcastId).orElse(null);
+            if (broadcast != null && (broadcast.getStatus() == BroadcastStatus.RESERVED || broadcast.getStatus() == BroadcastStatus.READY)) {
+                broadcast.markNoShow("방송 시작 시간 초과");
+                sseService.notifyBroadcastUpdate(broadcastId, "BROADCAST_CANCELED", "no_show");
+            }
+        }
+
+        // 3. 종료 예정/종료 알림
+        List<BroadcastRepositoryCustom.BroadcastScheduleInfo> schedules = broadcastRepository.findBroadcastSchedules(
+                now.minusHours(2),
+                now.plusHours(2),
+                List.of(BroadcastStatus.ON_AIR, BroadcastStatus.READY, BroadcastStatus.ENDED)
+        );
+
+        for (BroadcastRepositoryCustom.BroadcastScheduleInfo schedule : schedules) {
+            if (schedule.scheduledAt() == null) {
+                continue;
+            }
+            LocalDateTime scheduledEnd = schedule.scheduledAt().plusMinutes(60);
+            if (!scheduledEnd.isAfter(now)) {
+                String noticeKey = redisService.getScheduleNoticeKey(schedule.broadcastId(), "ended");
+                if (redisService.setIfAbsent(noticeKey, "sent", java.time.Duration.ofHours(2))) {
+                    Broadcast broadcast = broadcastRepository.findById(schedule.broadcastId()).orElse(null);
+                    if (broadcast != null && broadcast.getStatus() == BroadcastStatus.ON_AIR) {
+                        broadcast.endBroadcast();
+                        openViduService.closeSession(schedule.broadcastId());
+                    }
+                    sseService.notifyBroadcastUpdate(schedule.broadcastId(), "BROADCAST_SCHEDULED_END", "ended");
+                }
+                continue;
+            }
+
+            LocalDateTime noticeAt = scheduledEnd.minusMinutes(1);
+            if (!noticeAt.isAfter(now)) {
+                String noticeKey = redisService.getScheduleNoticeKey(schedule.broadcastId(), "ending_soon");
+                if (redisService.setIfAbsent(noticeKey, "sent", java.time.Duration.ofHours(2))) {
+                    sseService.notifyBroadcastUpdate(schedule.broadcastId(), "BROADCAST_ENDING_SOON", "1m");
+                }
+            }
+        }
+    }
 
 
     // --- Private Helper Methods (코드 가독성을 위해 분리) ---
@@ -700,6 +895,34 @@ public class BroadcastService {
         return status == BroadcastStatus.ON_AIR || status == BroadcastStatus.READY || status == BroadcastStatus.ENDED;
     }
 
+    private Long parseMemberId(String viewerId) {
+        if (viewerId == null || viewerId.isBlank()) {
+            return null;
+        }
+        try {
+            return Long.parseLong(viewerId);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private boolean isViewerSanctioned(Long broadcastId, Long memberId, SanctionType... types) {
+        SanctionRepositoryCustom.SanctionTypeResult result = sanctionRepository.findLatestSanction(broadcastId, memberId);
+        if (result == null || result.status() == null) {
+            return false;
+        }
+        for (SanctionType type : types) {
+            if (type.name().equalsIgnoreCase(result.status())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isViewerSanctioned(Long broadcastId, Long memberId) {
+        return isViewerSanctioned(broadcastId, memberId, SanctionType.OUT);
+    }
+
     private BroadcastResponse createBroadcastResponse(Broadcast broadcast) {
         Integer views = 0;
         Integer likes = 0;
@@ -745,9 +968,24 @@ public class BroadcastService {
     }
 
     private BroadcastAllResponse getOverview(Long sellerId, boolean isAdmin) {
-        List<BroadcastListResponse> onAir = broadcastRepository.findTop5ByStatus(sellerId, List.of(BroadcastStatus.ON_AIR, BroadcastStatus.READY), new OrderSpecifier<>(Order.DESC, broadcast.startedAt), isAdmin);
-        List<BroadcastListResponse> reserved = broadcastRepository.findTop5ByStatus(sellerId, List.of(BroadcastStatus.RESERVED), new OrderSpecifier<>(Order.ASC, broadcast.scheduledAt), isAdmin);
-        List<BroadcastListResponse> vod = broadcastRepository.findTop5ByStatus(sellerId, List.of(BroadcastStatus.VOD, BroadcastStatus.ENDED, BroadcastStatus.STOPPED), new OrderSpecifier<>(Order.DESC, broadcast.endedAt), isAdmin);
+        List<BroadcastListResponse> onAir = broadcastRepository.findTop5ByStatus(
+                sellerId,
+                List.of(BroadcastStatus.ON_AIR, BroadcastStatus.READY),
+                BroadcastRepositoryCustom.BroadcastSortOrder.STARTED_AT_DESC,
+                isAdmin
+        );
+        List<BroadcastListResponse> reserved = broadcastRepository.findTop5ByStatus(
+                sellerId,
+                List.of(BroadcastStatus.RESERVED),
+                BroadcastRepositoryCustom.BroadcastSortOrder.SCHEDULED_AT_ASC,
+                isAdmin
+        );
+        List<BroadcastListResponse> vod = broadcastRepository.findTop5ByStatus(
+                sellerId,
+                List.of(BroadcastStatus.VOD, BroadcastStatus.ENDED, BroadcastStatus.STOPPED),
+                BroadcastRepositoryCustom.BroadcastSortOrder.ENDED_AT_DESC,
+                isAdmin
+        );
         injectLiveDetails(onAir);
         return BroadcastAllResponse.builder().onAir(onAir).reserved(reserved).vod(vod).build();
     }

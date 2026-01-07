@@ -36,6 +36,10 @@ public class SanctionService {
             throw new BusinessException(ErrorCode.FORBIDDEN_ACCESS);
         }
 
+        if (request.getActorType() != com.example.LiveHost.common.enums.ActorType.SELLER) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+
         Member member = memberRepository.findById(request.getMemberId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.MEMBER_NOT_FOUND));
 
@@ -77,6 +81,52 @@ public class SanctionService {
 
         // 2. (선택) 전체 시청자에게 알림 ("OOO님이 제재되었습니다" -> 채팅 가리기용)
         // 채팅창 관리를 위해 필요하다면 유지, 아니면 제거 가능
+        sseService.notifyBroadcastUpdate(
+                broadcastId,
+                "SANCTION_UPDATED",
+                Map.of("targetMemberId", request.getMemberId())
+        );
+    }
+
+    @Transactional
+    public void sanctionUserByAdmin(Long adminId, Long broadcastId, SanctionRequest request) {
+        Broadcast broadcast = broadcastRepository.findById(broadcastId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.BROADCAST_NOT_FOUND));
+
+        if (request.getActorType() != com.example.LiveHost.common.enums.ActorType.ADMIN) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+
+        Member member = memberRepository.findById(request.getMemberId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.MEMBER_NOT_FOUND));
+
+        Sanction sanction = Sanction.builder()
+                .broadcast(broadcast)
+                .member(member)
+                .actorType(request.getActorType())
+                .adminId(adminId)
+                .status(request.getStatus())
+                .sanctionReason(request.getReason())
+                .build();
+
+        sanctionRepository.save(sanction);
+
+        redisService.increment(redisService.getSanctionKey(broadcastId));
+
+        if (request.getStatus() == SanctionType.OUT && request.getConnectionId() != null) {
+            openViduService.forceDisconnect(broadcastId, request.getConnectionId());
+        }
+
+        sseService.notifyTargetUser(
+                broadcastId,
+                request.getMemberId(),
+                "SANCTION_ALERT",
+                Map.of(
+                        "type", request.getStatus(),
+                        "reason", request.getReason()
+                )
+        );
+
         sseService.notifyBroadcastUpdate(
                 broadcastId,
                 "SANCTION_UPDATED",
