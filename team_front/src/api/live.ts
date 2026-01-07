@@ -55,6 +55,7 @@ export type BroadcastResponse = {
   status?: string | null
   layout?: string | null
   categoryName?: string | null
+  categoryId?: number | null
   scheduledAt?: string | null
   startedAt?: string | null
   thumbnailUrl?: string | null
@@ -112,6 +113,51 @@ export type BroadcastResultResponse = {
   }>
 }
 
+export type CategoryResponse = {
+  categoryId: number
+  categoryName: string
+}
+
+export type ReservationSlotResponse = {
+  slotDateTime: string
+  remainingCapacity: number
+  selectable: boolean
+}
+
+export type ProductSelectResponse = {
+  productId: number
+  productName: string
+  price: number
+  stockQty: number
+  imageUrl?: string | null
+}
+
+export type ImageUploadResponse = {
+  originalFileName: string
+  storedFileName: string
+  fileUrl: string
+  fileSize: number
+}
+
+export type BroadcastCreateRequest = {
+  title: string
+  notice?: string | null
+  categoryId: number
+  scheduledAt: string
+  thumbnailUrl: string
+  waitScreenUrl?: string | null
+  broadcastLayout: 'FULL' | 'LAYOUT_4' | 'LAYOUT_3' | 'LAYOUT_2'
+  products: Array<{ productId: number; bpPrice: number; bpQuantity: number }>
+  qcards?: Array<{ question: string }>
+}
+
+export type SanctionStatisticsResponse = {
+  forceStopChart: Array<{ label: string; count: number }>
+  viewerBanChart: Array<{ label: string; count: number }>
+  worstSellers: Array<{ sellerId: number; sellerName: string; phone: string; sanctionCount: number }>
+  worstViewers: Array<{ viewerId: string; name: string; sanctionCount: number }>
+}
+
 const unwrap = <T>(payload: ApiResult<T>): T => payload.data
 
 export const listPublicBroadcasts = async (params?: Record<string, unknown>) => {
@@ -147,8 +193,38 @@ export const listSellerBroadcasts = async (sellerId: number, params?: Record<str
   return unwrap(response.data)
 }
 
+export const createSellerBroadcast = async (sellerId: number, payload: BroadcastCreateRequest) => {
+  const response = await http.post<ApiResult<number>>('/seller/api/broadcasts', payload, {
+    headers: { 'X-Seller-Id': String(sellerId) },
+  })
+  return unwrap(response.data)
+}
+
+export const updateSellerBroadcast = async (sellerId: number, broadcastId: number, payload: BroadcastCreateRequest) => {
+  const response = await http.put<ApiResult<number>>(`/seller/api/broadcasts/${broadcastId}`, payload, {
+    headers: { 'X-Seller-Id': String(sellerId) },
+  })
+  return unwrap(response.data)
+}
+
 export const getSellerBroadcastDetail = async (sellerId: number, broadcastId: number) => {
   const response = await http.get<ApiResult<BroadcastResponse>>(`/seller/api/broadcasts/${broadcastId}`, {
+    headers: { 'X-Seller-Id': String(sellerId) },
+  })
+  return unwrap(response.data)
+}
+
+export const listSellerProducts = async (sellerId: number, keyword?: string) => {
+  const response = await http.get<ApiResult<ProductSelectResponse[]>>('/seller/api/broadcasts/products', {
+    params: keyword ? { keyword } : undefined,
+    headers: { 'X-Seller-Id': String(sellerId) },
+  })
+  return unwrap(response.data)
+}
+
+export const listReservationSlots = async (sellerId: number, date: string) => {
+  const response = await http.get<ApiResult<ReservationSlotResponse[]>>('/seller/api/broadcasts/reservation-slots', {
+    params: { date },
     headers: { 'X-Seller-Id': String(sellerId) },
   })
   return unwrap(response.data)
@@ -207,6 +283,13 @@ export const getAdminStatistics = async (period: string) => {
   return unwrap(response.data)
 }
 
+export const getAdminSanctionStatistics = async (period: string) => {
+  const response = await http.get<ApiResult<SanctionStatisticsResponse>>('/admin/api/sanctions/statistics', {
+    params: { period },
+  })
+  return unwrap(response.data)
+}
+
 export const getAdminBroadcastReport = async (broadcastId: number) => {
   const response = await http.get<ApiResult<BroadcastResultResponse>>(`/admin/api/${broadcastId}/report`)
   return unwrap(response.data)
@@ -214,6 +297,20 @@ export const getAdminBroadcastReport = async (broadcastId: number) => {
 
 export const getSellerBroadcastReport = async (sellerId: number, broadcastId: number) => {
   const response = await http.get<ApiResult<BroadcastResultResponse>>(`/seller/api/broadcasts/${broadcastId}/report`, {
+    headers: { 'X-Seller-Id': String(sellerId) },
+  })
+  return unwrap(response.data)
+}
+
+export const listCategories = async () => {
+  const response = await http.get<ApiResult<CategoryResponse[]>>('/api/categories')
+  return unwrap(response.data)
+}
+
+export const uploadSellerImage = async (sellerId: number, type: 'THUMBNAIL' | 'WAIT_SCREEN', file: File) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  const response = await http.post<ApiResult<ImageUploadResponse>>(`/seller/api/uploads/${type}`, formData, {
     headers: { 'X-Seller-Id': String(sellerId) },
   })
   return unwrap(response.data)

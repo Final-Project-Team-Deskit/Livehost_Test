@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '../../components/PageHeader.vue'
 import { listAdminBroadcasts, type BroadcastListResponse } from '../../api/live'
 import { formatDateTime, parseDateTimeMs } from '../../lib/live/format'
+import { applyImageFallback } from '../../lib/live/image'
 import {
   computeLifecycleStatus,
   getScheduledEndMs,
@@ -717,7 +718,13 @@ onBeforeUnmount(() => {
             @click="openLiveDetail(item.id)"
           >
             <div class="live-thumb">
-              <img class="live-thumb__img" :src="item.thumb" :alt="item.title" loading="lazy" />
+              <img
+                class="live-thumb__img"
+                :src="item.thumb"
+                :alt="item.title"
+                loading="lazy"
+                @error="(event) => applyImageFallback(event, '/placeholder-live.jpg')"
+              />
               <div class="live-badges">
                 <span class="badge badge--live">{{ getLifecycleStatus(item) }}</span>
                 <span class="badge badge--viewer">시청자 {{ item.viewers }}명</span>
@@ -771,7 +778,13 @@ onBeforeUnmount(() => {
                 @click="openLiveDetail(item.id)"
               >
                 <div class="live-thumb">
-                  <img class="live-thumb__img" :src="item.thumb" :alt="item.title" loading="lazy" />
+                  <img
+                    class="live-thumb__img"
+                    :src="item.thumb"
+                    :alt="item.title"
+                    loading="lazy"
+                    @error="(event) => applyImageFallback(event, '/placeholder-live.jpg')"
+                  />
                   <div class="live-badges">
                     <span class="badge badge--live">{{ getLifecycleStatus(item) }}</span>
                     <span class="badge badge--viewer">시청자 {{ item.viewers }}명</span>
@@ -865,7 +878,13 @@ onBeforeUnmount(() => {
             @click="openReservationDetail(item.id)"
           >
               <div class="live-thumb">
-                <img class="live-thumb__img" :src="item.thumb" :alt="item.title" loading="lazy" />
+                <img
+                  class="live-thumb__img"
+                  :src="item.thumb"
+                  :alt="item.title"
+                  loading="lazy"
+                  @error="(event) => applyImageFallback(event, '/placeholder-live.jpg')"
+                />
                 <div class="live-badges">
                   <span
                     class="badge badge--scheduled"
@@ -924,7 +943,13 @@ onBeforeUnmount(() => {
                 @click="openReservationDetail(item.id)"
               >
                 <div class="live-thumb">
-                  <img class="live-thumb__img" :src="item.thumb" :alt="item.title" loading="lazy" />
+                  <img
+                    class="live-thumb__img"
+                    :src="item.thumb"
+                    :alt="item.title"
+                    loading="lazy"
+                    @error="(event) => applyImageFallback(event, '/placeholder-live.jpg')"
+                  />
                   <div class="live-badges">
                     <span
                       class="badge badge--scheduled"
@@ -1037,7 +1062,13 @@ onBeforeUnmount(() => {
             @click="openVodDetail(item.id)"
           >
             <div class="live-thumb">
-              <img class="live-thumb__img" :src="item.thumb" :alt="item.title" loading="lazy" />
+              <img
+                class="live-thumb__img"
+                :src="item.thumb"
+                :alt="item.title"
+                loading="lazy"
+                @error="(event) => applyImageFallback(event, '/placeholder-live.jpg')"
+              />
               <div class="live-badges">
                 <span class="badge badge--vod">{{ item.statusLabel }}</span>
                 <span class="badge badge--viewer">신고 {{ item.metrics.reports }}</span>
@@ -1091,7 +1122,13 @@ onBeforeUnmount(() => {
                 @click="openVodDetail(item.id)"
               >
                 <div class="live-thumb">
-                  <img class="live-thumb__img" :src="item.thumb" :alt="item.title" loading="lazy" />
+                  <img
+                    class="live-thumb__img"
+                    :src="item.thumb"
+                    :alt="item.title"
+                    loading="lazy"
+                    @error="(event) => applyImageFallback(event, '/placeholder-live.jpg')"
+                  />
                   <div class="live-badges">
                     <span class="badge badge--vod">{{ item.statusLabel }}</span>
                     <span class="badge badge--viewer">신고 {{ item.metrics.reports }}</span>

@@ -26,6 +26,7 @@ public class BroadcastResponse {
     private BroadcastStatus status;
     private BroadcastLayout layout;
     private String categoryName; // ID 대신 이름 변환
+    private Long categoryId;
 
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime scheduledAt;
@@ -70,6 +71,7 @@ public class BroadcastResponse {
                 .status(broadcast.getStatus())
                 .layout(broadcast.getBroadcastLayout())
                 .categoryName(categoryName)
+                .categoryId(broadcast.getTagCategory().getTagCategoryId())
 
                 .scheduledAt(broadcast.getScheduledAt())
                 .startedAt(broadcast.getStartedAt())

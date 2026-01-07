@@ -16,7 +16,8 @@ export type LiveCreateDraft = {
   questions: Array<{ id: string; text: string }>
   title: string
   subtitle: string
-  category: string
+  categoryId: number | ''
+  categoryName: string
   notice: string
   date: string
   time: string
@@ -41,7 +42,8 @@ export const createEmptyDraft = (): LiveCreateDraft => ({
   questions: createDefaultQuestions(),
   title: '',
   subtitle: '',
-  category: '',
+  categoryId: '',
+  categoryName: '',
   notice: '',
   date: '',
   time: '',
@@ -69,6 +71,13 @@ export const loadDraft = (): LiveCreateDraft | null => {
             .filter((item: any) => item && typeof item.id === 'string' && typeof item.text === 'string')
             .map((item: any) => ({ id: item.id, text: item.text }))
         : createEmptyDraft().questions,
+      categoryId: typeof rest.categoryId === 'number' ? rest.categoryId : '',
+      categoryName:
+        typeof rest.categoryName === 'string'
+          ? rest.categoryName
+          : typeof (rest as any).category === 'string'
+            ? (rest as any).category
+            : '',
       products: Array.isArray(rest.products)
         ? rest.products
             .filter((item: any) => item && typeof item.id === 'string')
@@ -108,7 +117,8 @@ export const buildDraftFromReservation = async (reservationId: string): Promise<
     ...createEmptyDraft(),
     title: detail.title ?? '',
     subtitle: detail.categoryName ?? '',
-    category: detail.categoryName ?? '',
+    categoryId: detail.categoryId ?? '',
+    categoryName: detail.categoryName ?? '',
     notice: detail.notice ?? '',
     date: mappedDate,
     time: mappedTime,

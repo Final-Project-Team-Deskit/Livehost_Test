@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getPublicBroadcastDetail, getPublicBroadcastStats, listPublicBroadcastProducts, stopAdminBroadcast } from '../../../api/live'
 import { formatDateTime } from '../../../lib/live/format'
+import { applyImageFallback } from '../../../lib/live/image'
 
 const route = useRoute()
 const router = useRouter()
@@ -376,7 +377,12 @@ watch(liveId, loadDetail, { immediate: true })
           <div class="product-list">
             <article v-for="product in liveProducts" :key="product.id" class="product-row">
               <div class="product-thumb">
-                <img :src="product.thumb" :alt="product.name" loading="lazy" />
+                <img
+                  :src="product.thumb"
+                  :alt="product.name"
+                  loading="lazy"
+                  @error="(event) => applyImageFallback(event, '/placeholder-product.jpg')"
+                />
               </div>
               <div class="product-meta">
                 <p class="product-name">{{ product.name }}</p>
