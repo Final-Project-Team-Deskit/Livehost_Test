@@ -78,6 +78,8 @@ const showDeviceModal = ref(false)
 const selectedScheduled = ref<LiveItem | null>(null)
 
 const liveItems = ref<LiveItem[]>([])
+const scheduledItems = ref<LiveItem[]>([])
+const vodItems = ref<LiveItem[]>([])
 const liveProducts = ref([] as Array<{
   id: string
   title: string
