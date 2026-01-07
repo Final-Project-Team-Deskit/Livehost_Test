@@ -46,7 +46,7 @@ public class AdminService {
     // [관리자] 방송 예약 취소 (CANCELED)
     // =====================================================================
     @Transactional
-    public void cancelBroadcast(Long broadcastId) {
+    public void cancelBroadcast(Long broadcastId, String reason) {
         Broadcast broadcast = broadcastRepository.findById(broadcastId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.BROADCAST_NOT_FOUND));
 
@@ -55,6 +55,6 @@ public class AdminService {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
         }
 
-        broadcast.cancelBroadcast(); // Status -> CANCELED
+        broadcast.cancelBroadcast(reason); // Status -> CANCELED
     }
 }

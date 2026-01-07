@@ -47,9 +47,11 @@ public class BroadcastAdminController {
     // 3. 예약 방송 취소 (CANCELED)
     @PutMapping("/broadcasts/{broadcastId}/cancel")
     public ResponseEntity<ApiResult<Void>> cancelBroadcast(
-            @PathVariable Long broadcastId
+            @PathVariable Long broadcastId,
+            @RequestBody(required = false) Map<String, String> body
     ) {
-        adminService.cancelBroadcast(broadcastId);
+        String reason = body != null ? body.get("reason") : null;
+        adminService.cancelBroadcast(broadcastId, reason);
         return ResponseEntity.ok(ApiResult.success(null));
     }
 

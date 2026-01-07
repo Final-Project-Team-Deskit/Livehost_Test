@@ -2,14 +2,16 @@ package com.example.LiveHost.repository;
 
 import com.example.LiveHost.common.enums.BroadcastStatus;
 import com.example.LiveHost.common.enums.VodStatus;
-import com.example.LiveHost.dto.response.BroadcastListResponse;
 import com.example.LiveHost.dto.request.BroadcastSearch;
-import com.querydsl.core.types.Order;
-import com.querydsl.core.types.OrderSpecifier;
-import com.querydsl.core.types.Projections;
-import com.querydsl.core.types.dsl.BooleanExpression;
-import com.querydsl.jpa.impl.JPAQueryFactory;
+import com.example.LiveHost.dto.response.BroadcastListResponse;
 import lombok.RequiredArgsConstructor;
+import org.jooq.Condition;
+import org.jooq.DSLContext;
+import org.jooq.Field;
+import org.jooq.Record;
+import org.jooq.SortField;
+import org.jooq.Table;
+import org.jooq.impl.DSL;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.domain.SliceImpl;
@@ -18,56 +20,105 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
-import static com.example.LiveHost.entity.QBroadcast.broadcast;
-import static com.example.LiveHost.entity.QBroadcastResult.broadcastResult;
-import static com.example.LiveHost.others.entity.QSeller.seller;
-import static com.example.LiveHost.others.entity.QTagCategory.tagCategory;
-import static com.example.LiveHost.entity.QVod.vod;
-import static com.example.LiveHost.entity.QSanction.sanction;
-
 @RequiredArgsConstructor
 public class BroadcastRepositoryImpl implements BroadcastRepositoryCustom {
 
-    private final JPAQueryFactory queryFactory;
+    private static final Table<?> BROADCAST = DSL.table(DSL.name("broadcast"));
+    private static final Table<?> SELLER = DSL.table(DSL.name("seller"));
+    private static final Table<?> TAG_CATEGORY = DSL.table(DSL.name("tag_category"));
+    private static final Table<?> BROADCAST_RESULT = DSL.table(DSL.name("broadcast_result"));
+    private static final Table<?> VOD = DSL.table(DSL.name("vod"));
+    private static final Table<?> SANCTION = DSL.table(DSL.name("sanction"));
+
+    private static final Field<Long> BROADCAST_ID = DSL.field(DSL.name("broadcast", "broadcast_id"), Long.class);
+    private static final Field<String> BROADCAST_TITLE = DSL.field(DSL.name("broadcast", "broadcast_title"), String.class);
+    private static final Field<String> BROADCAST_NOTICE = DSL.field(DSL.name("broadcast", "broadcast_notice"), String.class);
+    private static final Field<String> BROADCAST_STATUS = DSL.field(DSL.name("broadcast", "status"), String.class);
+    private static final Field<LocalDateTime> BROADCAST_SCHEDULED_AT = DSL.field(DSL.name("broadcast", "scheduled_at"), LocalDateTime.class);
+    private static final Field<LocalDateTime> BROADCAST_STARTED_AT = DSL.field(DSL.name("broadcast", "started_at"), LocalDateTime.class);
+    private static final Field<LocalDateTime> BROADCAST_ENDED_AT = DSL.field(DSL.name("broadcast", "ended_at"), LocalDateTime.class);
+    private static final Field<String> BROADCAST_THUMB_URL = DSL.field(DSL.name("broadcast", "broadcast_thumb_url"), String.class);
+    private static final Field<Long> BROADCAST_SELLER_ID = DSL.field(DSL.name("broadcast", "seller_id"), Long.class);
+    private static final Field<Long> BROADCAST_TAG_CATEGORY_ID = DSL.field(DSL.name("broadcast", "tag_category_id"), Long.class);
+
+    private static final Field<Long> SELLER_ID = DSL.field(DSL.name("seller", "seller_id"), Long.class);
+    private static final Field<String> SELLER_NAME = DSL.field(DSL.name("seller", "name"), String.class);
+
+    private static final Field<Long> TAG_CATEGORY_ID = DSL.field(DSL.name("tag_category", "tag_category_id"), Long.class);
+    private static final Field<String> TAG_CATEGORY_NAME = DSL.field(DSL.name("tag_category", "tag_category_name"), String.class);
+
+    private static final Field<Long> BROADCAST_RESULT_BROADCAST_ID = DSL.field(DSL.name("broadcast_result", "broadcast_id"), Long.class);
+    private static final Field<Integer> BROADCAST_RESULT_VIEWS = DSL.field(DSL.name("broadcast_result", "total_views"), Integer.class);
+    private static final Field<Integer> BROADCAST_RESULT_LIKES = DSL.field(DSL.name("broadcast_result", "total_likes"), Integer.class);
+    private static final Field<java.math.BigDecimal> BROADCAST_RESULT_SALES = DSL.field(DSL.name("broadcast_result", "total_sales"), java.math.BigDecimal.class);
+
+    private static final Field<Long> VOD_BROADCAST_ID = DSL.field(DSL.name("vod", "broadcast_id"), Long.class);
+    private static final Field<String> VOD_STATUS = DSL.field(DSL.name("vod", "status"), String.class);
+
+    private static final Field<Long> SANCTION_ID = DSL.field(DSL.name("sanction", "sanction_id"), Long.class);
+    private static final Field<Long> SANCTION_BROADCAST_ID = DSL.field(DSL.name("sanction", "broadcast_id"), Long.class);
+
+    private final DSLContext dsl;
 
     @Override
     public Slice<BroadcastListResponse> searchBroadcasts(Long sellerId, BroadcastSearch condition, Pageable pageable, boolean isAdmin) {
-        boolean isReportSort = "REPORT".equalsIgnoreCase(condition.getSortType());
+        Field<Long> reportCountField = DSL.count(SANCTION_ID).cast(Long.class).as("report_count");
+        Condition filters = DSL.trueCondition()
+                .and(sellerIdEq(sellerId))
+                .and(tabCondition(condition.getTab()))
+                .and(keywordContains(condition.getKeyword()))
+                .and(categoryEq(condition.getCategoryId()))
+                .and(dateBetween(condition.getStartDate(), condition.getEndDate()))
+                .and(statusDetailFilter(condition.getStatusFilter()))
+                .and(publicFilter(condition.getIsPublic()))
+                .and(publicCondition(isAdmin))
+                .and(BROADCAST_STATUS.ne(BroadcastStatus.DELETED.name()));
 
-        List<BroadcastListResponse> content = queryFactory
-                .select(Projections.constructor(BroadcastListResponse.class,
-                        broadcast.broadcastId, broadcast.broadcastTitle, broadcast.broadcastNotice,
-                        seller.name, tagCategory.tagCategoryName, broadcast.broadcastThumbUrl,
-                        broadcast.status, broadcast.scheduledAt, broadcast.startedAt, broadcast.endedAt,
-                        broadcastResult.totalViews,  // DB 통계
-                        vod.status,                  // VOD 상태
-                        sanction.count(),            // 신고 수
-                        broadcastResult.totalSales,  // 매출
-                        broadcastResult.totalLikes   // 좋아요
-                ))
-                .from(broadcast)
-                .join(broadcast.seller, seller)
-                .join(broadcast.tagCategory, tagCategory)
-                .leftJoin(broadcastResult).on(broadcast.broadcastId.eq(broadcastResult.broadcast.broadcastId))
-                .leftJoin(vod).on(broadcast.broadcastId.eq(vod.broadcast.broadcastId))
-                .leftJoin(sanction).on(isReportSort ? sanction.broadcast.broadcastId.eq(broadcast.broadcastId) : null)
-                .where(
-                        sellerIdEq(sellerId),
-                        tabCondition(condition.getTab()),
-                        keywordContains(condition.getKeyword()),
-                        categoryEq(condition.getCategoryId()),
-                        // [수정] DTO에 있는 날짜 필드 사용
-                        dateBetween(condition.getStartDate(), condition.getEndDate()),
-                        statusDetailFilter(condition.getStatusFilter()),
-                        publicFilter(condition.getIsPublic()),
-                        publicCondition(isAdmin),
-                        broadcast.status.ne(BroadcastStatus.DELETED)
+        List<BroadcastListResponse> content = dsl
+                .select(
+                        BROADCAST_ID,
+                        BROADCAST_TITLE,
+                        BROADCAST_NOTICE,
+                        SELLER_NAME,
+                        TAG_CATEGORY_NAME,
+                        BROADCAST_THUMB_URL,
+                        BROADCAST_STATUS,
+                        BROADCAST_SCHEDULED_AT,
+                        BROADCAST_STARTED_AT,
+                        BROADCAST_ENDED_AT,
+                        BROADCAST_RESULT_VIEWS,
+                        VOD_STATUS,
+                        reportCountField,
+                        BROADCAST_RESULT_SALES,
+                        BROADCAST_RESULT_LIKES
                 )
-                .groupBy(broadcast.broadcastId)
-                .orderBy(getOrderSpecifier(condition))
+                .from(BROADCAST)
+                .join(SELLER).on(BROADCAST_SELLER_ID.eq(SELLER_ID))
+                .join(TAG_CATEGORY).on(BROADCAST_TAG_CATEGORY_ID.eq(TAG_CATEGORY_ID))
+                .leftJoin(BROADCAST_RESULT).on(BROADCAST_ID.eq(BROADCAST_RESULT_BROADCAST_ID))
+                .leftJoin(VOD).on(BROADCAST_ID.eq(VOD_BROADCAST_ID))
+                .leftJoin(SANCTION).on(SANCTION_BROADCAST_ID.eq(BROADCAST_ID))
+                .where(filters)
+                .groupBy(
+                        BROADCAST_ID,
+                        BROADCAST_TITLE,
+                        BROADCAST_NOTICE,
+                        SELLER_NAME,
+                        TAG_CATEGORY_NAME,
+                        BROADCAST_THUMB_URL,
+                        BROADCAST_STATUS,
+                        BROADCAST_SCHEDULED_AT,
+                        BROADCAST_STARTED_AT,
+                        BROADCAST_ENDED_AT,
+                        BROADCAST_RESULT_VIEWS,
+                        VOD_STATUS,
+                        BROADCAST_RESULT_SALES,
+                        BROADCAST_RESULT_LIKES
+                )
+                .orderBy(getOrderField(condition, reportCountField))
                 .offset(pageable.getOffset())
                 .limit(pageable.getPageSize() + 1)
-                .fetch();
+                .fetch(this::toBroadcastListResponse);
 
         boolean hasNext = false;
         if (content.size() > pageable.getPageSize()) {
@@ -77,130 +128,198 @@ public class BroadcastRepositoryImpl implements BroadcastRepositoryCustom {
         return new SliceImpl<>(content, pageable, hasNext);
     }
 
-    // 2. Overview 조회 (Tab=ALL, Top 5)
     @Override
-    public List<BroadcastListResponse> findTop5ByStatus(Long sellerId, List<BroadcastStatus> statuses, OrderSpecifier<?> orderSpecifier, boolean isAdmin) {
-        return queryFactory
-                .select(Projections.constructor(BroadcastListResponse.class,
-                        broadcast.broadcastId, broadcast.broadcastTitle, broadcast.broadcastNotice,
-                        seller.name, tagCategory.tagCategoryName, broadcast.broadcastThumbUrl,
-                        broadcast.status, broadcast.scheduledAt, broadcast.startedAt, broadcast.endedAt,
-                        broadcastResult.totalViews, vod.status,
-                        com.querydsl.core.types.dsl.Expressions.constant(0L), // Report Count
-                        broadcastResult.totalSales,
-                        broadcastResult.totalLikes // [추가] DB 좋아요 수
-                ))
-                .from(broadcast)
-                .join(broadcast.seller, seller)
-                .join(broadcast.tagCategory, tagCategory)
-                .leftJoin(broadcastResult).on(broadcast.broadcastId.eq(broadcastResult.broadcastId))
-                .leftJoin(vod).on(broadcast.broadcastId.eq(vod.broadcast.broadcastId))
-                .where(
-                        // ... (기존 조건들 유지) ...
-                        sellerIdEq(sellerId),
-                        broadcast.status.in(statuses),
-                        publicCondition(isAdmin),
-                        broadcast.status.ne(BroadcastStatus.DELETED)
+    public List<BroadcastListResponse> findTop5ByStatus(Long sellerId, List<BroadcastStatus> statuses, String orderByField, boolean desc, boolean isAdmin) {
+        Field<Long> reportCountField = DSL.inline(0L).as("report_count");
+        Condition filters = DSL.trueCondition()
+                .and(sellerIdEq(sellerId))
+                .and(BROADCAST_STATUS.in(statuses.stream().map(Enum::name).toList()))
+                .and(publicCondition(isAdmin))
+                .and(BROADCAST_STATUS.ne(BroadcastStatus.DELETED.name()));
+
+        Field<LocalDateTime> orderField = resolveOrderField(orderByField);
+        SortField<?> sortField = desc ? orderField.desc() : orderField.asc();
+
+        return dsl
+                .select(
+                        BROADCAST_ID,
+                        BROADCAST_TITLE,
+                        BROADCAST_NOTICE,
+                        SELLER_NAME,
+                        TAG_CATEGORY_NAME,
+                        BROADCAST_THUMB_URL,
+                        BROADCAST_STATUS,
+                        BROADCAST_SCHEDULED_AT,
+                        BROADCAST_STARTED_AT,
+                        BROADCAST_ENDED_AT,
+                        BROADCAST_RESULT_VIEWS,
+                        VOD_STATUS,
+                        reportCountField,
+                        BROADCAST_RESULT_SALES,
+                        BROADCAST_RESULT_LIKES
                 )
-                .orderBy(orderSpecifier)
+                .from(BROADCAST)
+                .join(SELLER).on(BROADCAST_SELLER_ID.eq(SELLER_ID))
+                .join(TAG_CATEGORY).on(BROADCAST_TAG_CATEGORY_ID.eq(TAG_CATEGORY_ID))
+                .leftJoin(BROADCAST_RESULT).on(BROADCAST_ID.eq(BROADCAST_RESULT_BROADCAST_ID))
+                .leftJoin(VOD).on(BROADCAST_ID.eq(VOD_BROADCAST_ID))
+                .where(filters)
+                .orderBy(sortField)
                 .limit(5)
-                .fetch();
+                .fetch(this::toBroadcastListResponse);
     }
 
-    // 3. 시간 슬롯 예약 확인 (플랫폼 전체 3개 제한)
     @Override
     public long countByTimeSlot(LocalDateTime start, LocalDateTime end) {
-        Long count = queryFactory
-                .select(broadcast.count())
-                .from(broadcast)
+        Integer count = dsl
+                .selectCount()
+                .from(BROADCAST)
                 .where(
-                        broadcast.status.eq(BroadcastStatus.RESERVED),
-                        broadcast.scheduledAt.between(start, end),
-                        broadcast.status.ne(BroadcastStatus.DELETED)
+                        BROADCAST_STATUS.eq(BroadcastStatus.RESERVED.name()),
+                        BROADCAST_SCHEDULED_AT.between(start, end),
+                        BROADCAST_STATUS.ne(BroadcastStatus.DELETED.name())
                 )
-                .fetchOne();
+                .fetchOne(0, Integer.class);
         return count != null ? count : 0;
     }
 
-    // --- Helper Methods (누락된 메서드 구현) ---
-
-    private BooleanExpression sellerIdEq(Long sellerId) {
-        return sellerId != null ? broadcast.seller.sellerId.eq(sellerId) : null;
+    private BroadcastListResponse toBroadcastListResponse(Record record) {
+        return new BroadcastListResponse(
+                record.get(BROADCAST_ID),
+                record.get(BROADCAST_TITLE),
+                record.get(BROADCAST_NOTICE),
+                record.get(SELLER_NAME),
+                record.get(TAG_CATEGORY_NAME),
+                record.get(BROADCAST_THUMB_URL),
+                toBroadcastStatus(record.get(BROADCAST_STATUS)),
+                record.get(BROADCAST_SCHEDULED_AT),
+                record.get(BROADCAST_STARTED_AT),
+                record.get(BROADCAST_ENDED_AT),
+                record.get(BROADCAST_RESULT_VIEWS),
+                toVodStatus(record.get(VOD_STATUS)),
+                record.get("report_count", Long.class),
+                record.get(BROADCAST_RESULT_SALES),
+                record.get(BROADCAST_RESULT_LIKES)
+        );
     }
 
-    private BooleanExpression categoryEq(Long categoryId) {
-        return categoryId != null ? broadcast.tagCategory.tagCategoryId.eq(categoryId) : null;
+    private BroadcastStatus toBroadcastStatus(String status) {
+        return status != null ? BroadcastStatus.valueOf(status) : null;
     }
 
-    private BooleanExpression keywordContains(String k) {
-        return (k != null && !k.isEmpty()) ? broadcast.broadcastTitle.contains(k) : null;
+    private VodStatus toVodStatus(String status) {
+        return status != null ? VodStatus.valueOf(status) : null;
     }
 
-    // [날짜 필터] 시작일~종료일 사이에 방송이 시작되었거나 예정된 경우
-    private BooleanExpression dateBetween(LocalDate start, LocalDate end) {
-        if (start == null || end == null) return null;
-        return broadcast.startedAt.between(start.atStartOfDay(), end.atTime(23, 59, 59))
-                .or(broadcast.scheduledAt.between(start.atStartOfDay(), end.atTime(23, 59, 59)));
+    private Condition sellerIdEq(Long sellerId) {
+        return sellerId != null ? BROADCAST_SELLER_ID.eq(sellerId) : DSL.trueCondition();
     }
 
-    // [권한 필터] 관리자/판매자는 모두 조회, 일반 유저는 공개된 방송만 조회
-    private BooleanExpression publicCondition(boolean isAdmin) {
-        if (isAdmin) return null;
-        // 공개 조건: 방송중, 예약, 준비중 OR (VOD이면서 공개상태)
-        return broadcast.status.in(BroadcastStatus.ON_AIR, BroadcastStatus.READY, BroadcastStatus.RESERVED)
-                .or(vod.status.eq(VodStatus.PUBLIC));
+    private Condition categoryEq(Long categoryId) {
+        return categoryId != null ? BROADCAST_TAG_CATEGORY_ID.eq(categoryId) : DSL.trueCondition();
     }
 
-    // [상세 필터] VOD 공개/비공개 선택
-    private BooleanExpression publicFilter(Boolean isPublic) {
-        if (isPublic == null) return null;
-        return isPublic ? vod.status.eq(VodStatus.PUBLIC) : vod.status.in(VodStatus.PRIVATE, VodStatus.DELETED);
+    private Condition keywordContains(String keyword) {
+        return (keyword != null && !keyword.isEmpty()) ? BROADCAST_TITLE.like("%" + keyword + "%") : DSL.trueCondition();
     }
 
-    // [상세 필터] 예약중/취소됨 등 상태 직접 필터링
-    private BooleanExpression statusDetailFilter(String status) {
-        if (status == null || "ALL".equalsIgnoreCase(status)) return null;
+    private Condition dateBetween(LocalDate start, LocalDate end) {
+        if (start == null || end == null) {
+            return DSL.trueCondition();
+        }
+        LocalDateTime startTime = start.atStartOfDay();
+        LocalDateTime endTime = end.atTime(23, 59, 59);
+        return BROADCAST_STARTED_AT.between(startTime, endTime)
+                .or(BROADCAST_SCHEDULED_AT.between(startTime, endTime));
+    }
+
+    private Condition publicCondition(boolean isAdmin) {
+        if (isAdmin) {
+            return DSL.trueCondition();
+        }
+        return BROADCAST_STATUS.in(
+                BroadcastStatus.ON_AIR.name(),
+                BroadcastStatus.READY.name(),
+                BroadcastStatus.RESERVED.name()
+        ).or(VOD_STATUS.eq(VodStatus.PUBLIC.name()));
+    }
+
+    private Condition publicFilter(Boolean isPublic) {
+        if (isPublic == null) {
+            return DSL.trueCondition();
+        }
+        if (isPublic) {
+            return VOD_STATUS.eq(VodStatus.PUBLIC.name());
+        }
+        return VOD_STATUS.in(VodStatus.PRIVATE.name(), VodStatus.DELETED.name());
+    }
+
+    private Condition statusDetailFilter(String status) {
+        if (status == null || "ALL".equalsIgnoreCase(status)) {
+            return DSL.trueCondition();
+        }
         try {
-            return broadcast.status.eq(BroadcastStatus.valueOf(status));
-        } catch (Exception e) {
-            return null; // 유효하지 않은 상태값 무시
+            return BROADCAST_STATUS.eq(BroadcastStatus.valueOf(status).name());
+        } catch (IllegalArgumentException e) {
+            return DSL.trueCondition();
         }
     }
 
-    private BooleanExpression tabCondition(String tab) {
-        if (tab == null || "ALL".equalsIgnoreCase(tab)) return null;
-        if ("LIVE".equalsIgnoreCase(tab)) return broadcast.status.in(BroadcastStatus.ON_AIR, BroadcastStatus.READY);
-        if ("RESERVED".equalsIgnoreCase(tab)) return broadcast.status.in(BroadcastStatus.RESERVED, BroadcastStatus.CANCELED);
-        if ("VOD".equalsIgnoreCase(tab)) return broadcast.status.in(BroadcastStatus.VOD, BroadcastStatus.ENDED, BroadcastStatus.STOPPED);
-        return null;
+    private Condition tabCondition(String tab) {
+        if (tab == null || "ALL".equalsIgnoreCase(tab)) {
+            return DSL.trueCondition();
+        }
+        if ("LIVE".equalsIgnoreCase(tab)) {
+            return BROADCAST_STATUS.in(BroadcastStatus.ON_AIR.name(), BroadcastStatus.READY.name());
+        }
+        if ("RESERVED".equalsIgnoreCase(tab)) {
+            return BROADCAST_STATUS.in(BroadcastStatus.RESERVED.name(), BroadcastStatus.CANCELED.name());
+        }
+        if ("VOD".equalsIgnoreCase(tab)) {
+            return BROADCAST_STATUS.in(
+                    BroadcastStatus.VOD.name(),
+                    BroadcastStatus.ENDED.name(),
+                    BroadcastStatus.STOPPED.name()
+            );
+        }
+        return DSL.trueCondition();
     }
 
-    // [정렬 로직]
-    private OrderSpecifier<?> getOrderSpecifier(BroadcastSearch condition) {
+    private SortField<?> getOrderField(BroadcastSearch condition, Field<Long> reportCountField) {
         String sort = condition.getSortType();
         String tab = condition.getTab();
 
-        // 1. 관리자 신고순
-        if ("REPORT".equalsIgnoreCase(sort)) return new OrderSpecifier<>(Order.DESC, sanction.count());
-        // 2. 판매자 매출순
-        if ("SALES".equalsIgnoreCase(sort)) return new OrderSpecifier<>(Order.DESC, broadcastResult.totalSales);
-
-        // 3. 인기순 (VOD: DB 조회수, LIVE: 시작시간 -> Redis는 메모리 정렬)
+        if ("REPORT".equalsIgnoreCase(sort)) {
+            return reportCountField.desc();
+        }
+        if ("SALES".equalsIgnoreCase(sort)) {
+            return BROADCAST_RESULT_SALES.desc();
+        }
         if ("POPULAR".equalsIgnoreCase(sort) || "VIEWER".equalsIgnoreCase(sort)) {
-            if ("VOD".equalsIgnoreCase(tab)) return new OrderSpecifier<>(Order.DESC, broadcastResult.totalViews);
-            return new OrderSpecifier<>(Order.DESC, broadcast.startedAt);
+            if ("VOD".equalsIgnoreCase(tab)) {
+                return BROADCAST_RESULT_VIEWS.desc();
+            }
+            return BROADCAST_STARTED_AT.desc();
         }
-
-        // 4. 좋아요순
-        if ("LIKE_DESC".equalsIgnoreCase(sort)) return new OrderSpecifier<>(Order.DESC, broadcastResult.totalLikes);
-        if ("LIKE_ASC".equalsIgnoreCase(sort)) return new OrderSpecifier<>(Order.ASC, broadcastResult.totalLikes);
-
-        // 5. 시작 임박순
+        if ("LIKE_DESC".equalsIgnoreCase(sort)) {
+            return BROADCAST_RESULT_LIKES.desc();
+        }
+        if ("LIKE_ASC".equalsIgnoreCase(sort)) {
+            return BROADCAST_RESULT_LIKES.asc();
+        }
         if ("RESERVED".equalsIgnoreCase(tab) || "START_ASC".equalsIgnoreCase(sort)) {
-            return new OrderSpecifier<>(Order.ASC, broadcast.scheduledAt);
+            return BROADCAST_SCHEDULED_AT.asc();
         }
+        return BROADCAST_SCHEDULED_AT.desc();
+    }
 
-        // 기본값: 최신순 (예약일 기준)
-        return new OrderSpecifier<>(Order.DESC, broadcast.scheduledAt);
+    private Field<LocalDateTime> resolveOrderField(String orderByField) {
+        if ("started_at".equalsIgnoreCase(orderByField)) {
+            return BROADCAST_STARTED_AT;
+        }
+        if ("ended_at".equalsIgnoreCase(orderByField)) {
+            return BROADCAST_ENDED_AT;
+        }
+        return BROADCAST_SCHEDULED_AT;
     }
 }
