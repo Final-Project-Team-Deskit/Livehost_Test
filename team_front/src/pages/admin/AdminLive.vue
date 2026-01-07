@@ -2,13 +2,8 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type ComponentPublicInstance } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '../../components/PageHeader.vue'
-import {
-  ADMIN_RESERVATIONS_EVENT,
-  getAdminReservationSummaries,
-  type AdminReservationSummary,
-} from '../../lib/mocks/adminReservations'
-import { ADMIN_LIVES_EVENT, getAdminLiveSummaries, type AdminLiveSummary } from '../../lib/mocks/adminLives'
-import { ADMIN_VODS_EVENT, getAdminVodSummaries, type AdminVodSummary } from '../../lib/mocks/adminVods'
+import { listAdminBroadcasts, type BroadcastListResponse } from '../../api/live'
+import { formatDateTime, parseDateTimeMs } from '../../lib/live/format'
 import {
   computeLifecycleStatus,
   getScheduledEndMs,
@@ -53,7 +48,7 @@ type AdminVodItem = LiveItem & {
   sellerName: string
   statusLabel: string
   category: string
-  metrics: AdminVodSummary['metrics']
+  metrics: { likes: number; reports: number; totalRevenue: number; maxViewers: number; watchTime?: number }
   startAtMs?: number
   endAtMs?: number
   visibility?: 'public' | 'private'
@@ -107,7 +102,7 @@ const vodCategory = ref<string>('all')
 const VOD_PAGE_SIZE = 12
 const vodPage = ref(1)
 
-const liveItems = ref<AdminLiveSummary[]>([])
+const liveItems = ref<LiveItem[]>([])
 const scheduledItems = ref<ReservationItem[]>([])
 const vodItems = ref<AdminVodItem[]>([])
 const loopGap = 14
@@ -175,57 +170,77 @@ const isPastScheduledEnd = (item: LiveItem): boolean => {
   return Date.now() > endAtMs
 }
 
-const syncScheduled = () => {
-  const items = getAdminReservationSummaries()
-  scheduledItems.value = items
-    .map((item: AdminReservationSummary) => ({
-      id: item.id,
-      title: item.title,
-      subtitle: item.subtitle,
-      thumb: item.thumb,
-      datetime: item.datetime,
-      ctaLabel: item.ctaLabel,
-      sellerName: item.sellerName,
-      status: normalizeBroadcastStatus(item.status),
-      category: (item as any).category ?? '기타',
-      startAtMs: toDateMs(item.datetime),
-      endAtMs: getScheduledEndMs(toDateMs(item.datetime)),
-    }))
-}
+const mapLiveItem = (item: BroadcastListResponse): LiveItem => ({
+  id: String(item.broadcastId),
+  title: item.title,
+  subtitle: item.categoryName ?? '',
+  thumb: item.thumbnailUrl ?? '/placeholder-live.jpg',
+  datetime: item.startAt ? formatDateTime(item.startAt) : '',
+  sellerName: item.sellerName ?? '',
+  status: item.status ?? '',
+  viewers: item.liveViewerCount ?? item.viewerCount ?? 0,
+  likes: item.totalLikes ?? 0,
+  reports: Number(item.reportCount ?? 0),
+  category: item.categoryName ?? '기타',
+  startedAt: item.startAt ? formatDateTime(item.startAt) : '',
+  startedAtMs: parseDateTimeMs(item.startAt) || undefined,
+  startAtMs: parseDateTimeMs(item.startAt) || undefined,
+  endAtMs: parseDateTimeMs(item.endAt) || undefined,
+})
 
-const syncLives = () => {
-  const items = getAdminLiveSummaries()
-  liveItems.value = items.map((item) => {
-    const startAtMs = toDateMs(item.startedAt)
-    const status = normalizeBroadcastStatus(item.status)
-    return {
-      ...item,
-      status,
-      startAtMs,
-      startedAtMs: startAtMs,
-      endAtMs: getScheduledEndMs(startAtMs),
-    }
-  })
-}
+const mapReservationItem = (item: BroadcastListResponse): ReservationItem => ({
+  id: String(item.broadcastId),
+  title: item.title,
+  subtitle: item.categoryName ?? '',
+  thumb: item.thumbnailUrl ?? '/placeholder-live.jpg',
+  datetime: item.startAt ? formatDateTime(item.startAt) : '',
+  ctaLabel: '상세보기',
+  sellerName: item.sellerName ?? '',
+  status: item.status ?? 'RESERVED',
+  category: item.categoryName ?? '기타',
+  startAtMs: parseDateTimeMs(item.startAt) || undefined,
+  endAtMs: parseDateTimeMs(item.endAt) || undefined,
+})
 
-const syncVods = () => {
-  const items = getAdminVodSummaries()
-  vodItems.value = items.map((item: AdminVodSummary) => {
-    const startAtMs = toDateMs(item.startedAt)
-    const endAtMs = toDateMs(item.endedAt)
-    const visibility = item.statusLabel === '비공개' ? 'private' : 'public'
-    return {
-      ...item,
-      subtitle: '',
-      datetime: `업로드: ${item.startedAt}`,
-      ctaLabel: '상세보기',
-      status: 'VOD',
-      startAtMs,
-      endAtMs,
-      visibility,
-      lifecycleStatus: 'VOD',
-    }
-  })
+const mapVodItem = (item: BroadcastListResponse): AdminVodItem => ({
+  id: String(item.broadcastId),
+  title: item.title,
+  subtitle: '',
+  thumb: item.thumbnailUrl ?? '/placeholder-live.jpg',
+  datetime: item.startAt ? `업로드: ${formatDateTime(item.startAt)}` : '',
+  ctaLabel: '상세보기',
+  sellerName: item.sellerName ?? '',
+  statusLabel: item.isPublic === false ? '비공개' : 'VOD',
+  status: item.status ?? 'VOD',
+  category: item.categoryName ?? '기타',
+  metrics: {
+    likes: item.totalLikes ?? 0,
+    reports: Number(item.reportCount ?? 0),
+    totalRevenue: Number(item.totalSales ?? 0),
+    maxViewers: item.viewerCount ?? 0,
+  },
+  startAtMs: parseDateTimeMs(item.startAt) || undefined,
+  endAtMs: parseDateTimeMs(item.endAt) || undefined,
+  visibility: item.isPublic === false ? 'private' : 'public',
+  lifecycleStatus: 'VOD',
+})
+
+const loadBroadcasts = async () => {
+  try {
+    const [liveData, reservedData, vodData] = await Promise.all([
+      listAdminBroadcasts({ tab: 'LIVE', size: 200 }),
+      listAdminBroadcasts({ tab: 'RESERVED', size: 200 }),
+      listAdminBroadcasts({ tab: 'VOD', size: 200 }),
+    ])
+    liveItems.value = (liveData.content ?? []).map(mapLiveItem)
+    scheduledItems.value = (reservedData.content ?? []).map(mapReservationItem)
+    vodItems.value = (vodData.content ?? []).map(mapVodItem)
+  } catch (error) {
+    console.error('Failed to load admin broadcasts', error)
+    liveItems.value = []
+    scheduledItems.value = []
+    vodItems.value = []
+  }
 }
 
 const liveItemsWithStatus = computed(() => liveItems.value.map(withLifecycleStatus))
@@ -409,7 +424,7 @@ const buildLoopItems = <T>(items: T[]): T[] => {
   return [last, ...items, first]
 }
 
-const liveLoopItems = computed<AdminLiveSummary[]>(() => buildLoopItems(liveSummary.value))
+const liveLoopItems = computed<LiveItem[]>(() => buildLoopItems(liveSummary.value))
 const scheduledLoopItems = computed<ReservationItem[]>(() => buildLoopItems(scheduledSummary.value))
 const vodLoopItems = computed<AdminVodItem[]>(() => buildLoopItems(vodSummary.value))
 
@@ -595,23 +610,15 @@ watch(
 
 onMounted(() => {
   refreshTabFromQuery()
-  syncLives()
-  syncScheduled()
-  syncVods()
+  loadBroadcasts()
   nextTick(() => {
     resetAllLoops()
     handleResize()
   })
-  window.addEventListener(ADMIN_LIVES_EVENT, syncLives)
-  window.addEventListener(ADMIN_RESERVATIONS_EVENT, syncScheduled)
-  window.addEventListener(ADMIN_VODS_EVENT, syncVods)
   window.addEventListener('resize', handleResize)
 })
 
 onBeforeUnmount(() => {
-  window.removeEventListener(ADMIN_LIVES_EVENT, syncLives)
-  window.removeEventListener(ADMIN_RESERVATIONS_EVENT, syncScheduled)
-  window.removeEventListener(ADMIN_VODS_EVENT, syncVods)
   window.removeEventListener('resize', handleResize)
   stopAutoLoop('live')
   stopAutoLoop('scheduled')
