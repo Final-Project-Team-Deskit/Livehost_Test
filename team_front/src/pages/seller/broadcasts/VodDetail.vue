@@ -6,6 +6,7 @@ import ConfirmModal from '../../../components/ConfirmModal.vue'
 import { getSellerBroadcastDetail, getSellerBroadcastReport } from '../../../api/live'
 import { resolveSellerId } from '../../../lib/live/ids'
 import { formatDateTime } from '../../../lib/live/format'
+import { applyImageFallback } from '../../../lib/live/image'
 
 const route = useRoute()
 const router = useRouter()
@@ -166,7 +167,7 @@ watch(() => vodId, () => {
     <section class="detail-card ds-surface">
       <div class="info-grid">
         <div class="thumb-box">
-          <img :src="detail.thumb" :alt="detail.title" />
+          <img :src="detail.thumb" :alt="detail.title" @error="(event) => applyImageFallback(event, '/placeholder-live.jpg')" />
         </div>
         <div class="info-meta">
           <h3>{{ detail.title }}</h3>
@@ -258,7 +259,7 @@ watch(() => vodId, () => {
               <span>재생할 VOD가 없습니다.</span>
             </div>
             <div v-if="isVodPlayable && !isPlaying" class="player-poster">
-              <img :src="detail.thumb" :alt="detail.title" />
+              <img :src="detail.thumb" :alt="detail.title" @error="(event) => applyImageFallback(event, '/placeholder-live.jpg')" />
               <button type="button" class="play-toggle" @click="startPlayback" title="재생">
                 <svg aria-hidden="true" class="icon" viewBox="0 0 24 24" focusable="false">
                   <polygon points="8 5 19 12 8 19 8 5" fill="currentColor" />

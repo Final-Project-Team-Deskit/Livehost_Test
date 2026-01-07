@@ -7,6 +7,7 @@ import { useInfiniteScroll } from '../../composables/useInfiniteScroll'
 import { getPublicBroadcastStats, getSellerBroadcastDetail, listSellerBroadcasts, type BroadcastAllResponse, type BroadcastListResponse } from '../../api/live'
 import { resolveSellerId } from '../../lib/live/ids'
 import { formatDateTime, parseDateTimeMs } from '../../lib/live/format'
+import { applyImageFallback } from '../../lib/live/image'
 import {
   computeLifecycleStatus,
   getScheduledEndMs,
@@ -725,7 +726,12 @@ onBeforeUnmount(() => {
         <article v-if="currentLive" class="live-feature ds-surface live-pane">
           <div class="live-feature__layout">
             <div class="live-feature__thumb">
-              <img :src="currentLive.thumb" :alt="currentLive.title" loading="lazy" />
+              <img
+                :src="currentLive.thumb"
+                :alt="currentLive.title"
+                loading="lazy"
+                @error="(event) => applyImageFallback(event, '/placeholder-live.jpg')"
+              />
               <span class="badge badge--live live-feature__badge">
                 {{ currentLive.statusBadge ?? getLifecycleStatus(currentLive) }}
               </span>
@@ -750,7 +756,7 @@ onBeforeUnmount(() => {
         </article>
         <p v-else class="section-empty live-pane">현재 진행 중인 방송이 없습니다.</p>
 
-        <section class="live-stats live-stats--stacked live-pane">
+        <section v-if="currentLive" class="live-stats live-stats--stacked live-pane">
           <div class="live-stats__head">
             <h4>실시간 통계</h4>
             <span class="live-stats__badge">
@@ -782,7 +788,7 @@ onBeforeUnmount(() => {
           </div>
         </section>
 
-        <article class="live-products ds-surface live-pane">
+        <article v-if="currentLive" class="live-products ds-surface live-pane">
           <div class="live-products__head">
             <div>
               <h4>판매 상품</h4>
@@ -793,7 +799,12 @@ onBeforeUnmount(() => {
           <div class="live-products__list">
             <div v-for="item in liveProducts" :key="item.id" class="product-row">
               <div class="product-thumb">
-                <img :src="item.thumb" :alt="item.title" loading="lazy" />
+                <img
+                  :src="item.thumb"
+                  :alt="item.title"
+                  loading="lazy"
+                  @error="(event) => applyImageFallback(event, '/placeholder-live.jpg')"
+                />
                 <span v-if="item.pinned" class="product-pin">PIN</span>
               </div>
               <div class="product-meta">
@@ -819,7 +830,12 @@ onBeforeUnmount(() => {
         <article v-if="currentLive" class="live-feature ds-surface">
           <div class="live-feature__layout">
             <div class="live-feature__thumb">
-              <img :src="currentLive.thumb" :alt="currentLive.title" loading="lazy" />
+              <img
+                :src="currentLive.thumb"
+                :alt="currentLive.title"
+                loading="lazy"
+                @error="(event) => applyImageFallback(event, '/placeholder-live.jpg')"
+              />
               <span class="badge badge--live live-feature__badge">
                 {{ currentLive.statusBadge ?? getLifecycleStatus(currentLive) }}
               </span>
@@ -899,7 +915,13 @@ onBeforeUnmount(() => {
             @click="openReservationDetail(item)"
           >
             <div class="live-thumb">
-              <img class="live-thumb__img" :src="item.thumb" :alt="item.title" loading="lazy" />
+              <img
+                class="live-thumb__img"
+                :src="item.thumb"
+                :alt="item.title"
+                loading="lazy"
+                @error="(event) => applyImageFallback(event, '/placeholder-live.jpg')"
+              />
               <div class="live-badges">
                 <span v-if="formatDDay(item)" class="badge badge--dday">{{ formatDDay(item) }}</span>
                 <span
@@ -955,7 +977,13 @@ onBeforeUnmount(() => {
                 @click="openReservationDetail(item)"
               >
                 <div class="live-thumb">
-                  <img class="live-thumb__img" :src="item.thumb" :alt="item.title" loading="lazy" />
+                  <img
+                    class="live-thumb__img"
+                    :src="item.thumb"
+                    :alt="item.title"
+                    loading="lazy"
+                    @error="(event) => applyImageFallback(event, '/placeholder-live.jpg')"
+                  />
                   <div class="live-badges">
                     <span v-if="formatDDay(item)" class="badge badge--dday">{{ formatDDay(item) }}</span>
                     <span
@@ -1055,7 +1083,13 @@ onBeforeUnmount(() => {
               @click="openVodDetail(item)"
             >
             <div class="live-thumb">
-              <img class="live-thumb__img" :src="item.thumb" :alt="item.title" loading="lazy" />
+              <img
+                class="live-thumb__img"
+                :src="item.thumb"
+                :alt="item.title"
+                loading="lazy"
+                @error="(event) => applyImageFallback(event, '/placeholder-live.jpg')"
+              />
               <div class="live-badges">
                 <span class="badge badge--vod">{{ item.statusBadge ?? getLifecycleStatus(item) ?? 'VOD' }}</span>
               </div>
@@ -1102,7 +1136,13 @@ onBeforeUnmount(() => {
                 @click="openVodDetail(item)"
               >
                 <div class="live-thumb">
-                  <img class="live-thumb__img" :src="item.thumb" :alt="item.title" loading="lazy" />
+                  <img
+                    class="live-thumb__img"
+                    :src="item.thumb"
+                    :alt="item.title"
+                    loading="lazy"
+                    @error="(event) => applyImageFallback(event, '/placeholder-live.jpg')"
+                  />
                   <div class="live-badges">
                     <span class="badge badge--vod">{{ item.statusBadge ?? getLifecycleStatus(item) ?? 'VOD' }}</span>
                   </div>

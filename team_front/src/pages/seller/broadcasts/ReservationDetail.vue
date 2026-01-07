@@ -6,6 +6,7 @@ import QCardModal from '../../../components/QCardModal.vue'
 import { cancelSellerBroadcast, getSellerBroadcastDetail } from '../../../api/live'
 import { resolveSellerId } from '../../../lib/live/ids'
 import { formatDateTime } from '../../../lib/live/format'
+import { applyImageFallback } from '../../../lib/live/image'
 import { normalizeBroadcastStatus } from '../../../lib/broadcastStatus'
 
 const route = useRoute()
@@ -165,13 +166,17 @@ const displayedCancelReason = computed(() =>
         <div class="upload-col">
           <p class="upload-label">썸네일</p>
           <div class="upload-preview">
-            <img :src="detail.thumb" :alt="detail.title" />
+            <img :src="detail.thumb" :alt="detail.title" @error="(event) => applyImageFallback(event, '/placeholder-live.jpg')" />
           </div>
         </div>
         <div class="upload-col">
           <p class="upload-label">대기화면</p>
           <div class="upload-preview">
-            <img :src="standbyImage" :alt="`${detail.title} 대기화면`" />
+            <img
+              :src="standbyImage"
+              :alt="`${detail.title} 대기화면`"
+              @error="(event) => applyImageFallback(event, '/placeholder-live.jpg')"
+            />
           </div>
         </div>
       </div>

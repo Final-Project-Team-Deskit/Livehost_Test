@@ -7,6 +7,7 @@ import { getLiveStatus, parseLiveDate } from '../lib/live/utils'
 import { useNow } from '../lib/live/useNow'
 import type { LiveItem, LiveProductItem } from '../lib/live/types'
 import { getPublicBroadcastDetail, listPublicBroadcastProducts } from '../api/live'
+import { applyImageFallback } from '../lib/live/image'
 
 const route = useRoute()
 const router = useRouter()
@@ -470,7 +471,12 @@ watch(showChat, (visible) => {
             :class="{ 'product-card--sold-out': product.isSoldOut }"
             @click="handleProductClick(product.id)"
           >
-            <img class="product-card__thumb" :src="product.imageUrl" :alt="product.name" />
+            <img
+              class="product-card__thumb"
+              :src="product.imageUrl"
+              :alt="product.name"
+              @error="(event) => applyImageFallback(event, '/placeholder-product.jpg')"
+            />
             <div class="product-card__info">
               <p class="product-card__name">{{ product.name }}</p>
               <p class="product-card__price">{{ formatPrice(product.price) }}</p>

@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getAdminBroadcastReport, getPublicBroadcastDetail } from '../../../api/live'
 import { formatDateTime } from '../../../lib/live/format'
+import { applyImageFallback } from '../../../lib/live/image'
 
 const route = useRoute()
 const router = useRouter()
@@ -95,7 +96,7 @@ watch(vodId, () => {
     <section class="vod-card ds-surface">
       <div class="vod-info">
         <div class="vod-thumb">
-          <img :src="detail.thumb" :alt="detail.title" />
+          <img :src="detail.thumb" :alt="detail.title" @error="(event) => applyImageFallback(event, '/placeholder-live.jpg')" />
         </div>
         <div class="vod-meta">
           <h3>{{ detail.title }}</h3>
