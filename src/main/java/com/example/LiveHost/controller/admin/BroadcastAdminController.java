@@ -3,6 +3,7 @@ package com.example.LiveHost.controller.admin;
 import com.example.LiveHost.common.exception.ApiResult;
 import com.example.LiveHost.dto.response.BroadcastResultResponse;
 import com.example.LiveHost.dto.request.BroadcastSearch;
+import com.example.LiveHost.dto.request.SanctionRequest;
 import com.example.LiveHost.dto.response.SanctionStatisticsResponse;
 import com.example.LiveHost.dto.response.StatisticsResponse;
 import com.example.LiveHost.service.AdminService;
@@ -47,9 +48,21 @@ public class BroadcastAdminController {
     // 3. 예약 방송 취소 (CANCELED)
     @PutMapping("/broadcasts/{broadcastId}/cancel")
     public ResponseEntity<ApiResult<Void>> cancelBroadcast(
-            @PathVariable Long broadcastId
+            @PathVariable Long broadcastId,
+            @RequestBody Map<String, String> body
     ) {
-        adminService.cancelBroadcast(broadcastId);
+        adminService.cancelBroadcast(broadcastId, body.get("reason"));
+        return ResponseEntity.ok(ApiResult.success(null));
+    }
+
+    // 3-1. 시청자 제재 (관리자)
+    @PostMapping("/broadcasts/{broadcastId}/sanctions")
+    public ResponseEntity<ApiResult<Void>> sanctionViewer(
+            @RequestHeader("X-Admin-Id") Long adminId,
+            @PathVariable Long broadcastId,
+            @RequestBody SanctionRequest request
+    ) {
+        adminService.sanctionViewer(adminId, broadcastId, request);
         return ResponseEntity.ok(ApiResult.success(null));
     }
 

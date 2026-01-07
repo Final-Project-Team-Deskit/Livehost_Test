@@ -77,6 +77,17 @@ public class BroadcastPublicController {
         ));
     }
 
+    // 5-1. 채팅 가능 여부 조회
+    @GetMapping("/broadcasts/{broadcastId}/chat-permission")
+    public ResponseEntity<ApiResult<Boolean>> getChatPermission(
+            @PathVariable Long broadcastId,
+            @RequestParam(value = "memberId", required = false) Long memberId
+    ) {
+        return ResponseEntity.ok(ApiResult.success(
+                broadcastService.canChat(broadcastId, memberId)
+        ));
+    }
+
     // 6. SSE 구독 연결
     @GetMapping(value = "/broadcasts/{broadcastId}/subscribe", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter subscribe(

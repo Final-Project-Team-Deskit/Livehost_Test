@@ -19,6 +19,7 @@ public class AdminService {
     private final OpenViduService openViduService;
     private final RedisService redisService;
     private final SseService sseService;
+    private final SanctionService sanctionService;
 
     @Transactional(readOnly = true)
     public SanctionStatisticsResponse getSanctionStatistics(String period) {
@@ -35,6 +36,10 @@ public class AdminService {
         Broadcast broadcast = broadcastRepository.findById(broadcastId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.BROADCAST_NOT_FOUND));
 
+        if (reason == null || reason.isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+
         broadcast.forceStopByAdmin(reason); // 상태 변경 (Sanction 테이블 저장 X)
 
         openViduService.closeSession(broadcastId);
@@ -46,15 +51,24 @@ public class AdminService {
     // [관리자] 방송 예약 취소 (CANCELED)
     // =====================================================================
     @Transactional
-    public void cancelBroadcast(Long broadcastId) {
+    public void cancelBroadcast(Long broadcastId, String reason) {
         Broadcast broadcast = broadcastRepository.findById(broadcastId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.BROADCAST_NOT_FOUND));
 
         // 이미 시작했거나 종료된 방송은 취소 불가 (강제 종료 사용해야 함)
-        if (broadcast.getStatus() != BroadcastStatus.RESERVED) {
+        if (broadcast.getStatus() != BroadcastStatus.RESERVED && broadcast.getStatus() != BroadcastStatus.READY) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
         }
 
-        broadcast.cancelBroadcast(); // Status -> CANCELED
+        if (reason == null || reason.isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+
+        broadcast.cancelBroadcast(reason); // Status -> CANCELED
+    }
+
+    @Transactional
+    public void sanctionViewer(Long adminId, Long broadcastId, com.example.LiveHost.dto.request.SanctionRequest request) {
+        sanctionService.sanctionUserByAdmin(adminId, broadcastId, request);
     }
 }

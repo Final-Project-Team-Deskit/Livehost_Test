@@ -3,28 +3,41 @@ package com.example.LiveHost.repository;
 import com.example.LiveHost.common.enums.BroadcastStatus;
 import com.example.LiveHost.common.enums.SanctionType;
 import com.example.LiveHost.dto.response.SanctionStatisticsResponse;
-import com.querydsl.core.types.Projections;
-import com.querydsl.core.types.dsl.BooleanExpression;
-import com.querydsl.core.types.dsl.Expressions;
-import com.querydsl.core.types.dsl.StringTemplate;
-import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
+import org.jooq.Condition;
+import org.jooq.DSLContext;
+import org.jooq.Field;
+import org.jooq.Record;
 
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.temporal.TemporalAdjusters;
 import java.util.List;
 
-// [필수] QClass Import (패키지 경로 확인 필요)
-import static com.example.LiveHost.entity.QBroadcast.broadcast;
-import static com.example.LiveHost.entity.QSanction.sanction;
-import static com.example.LiveHost.others.entity.QMember.member;
-import static com.example.LiveHost.others.entity.QSeller.seller;
+import static org.jooq.impl.DSL.*;
 
 @RequiredArgsConstructor
 public class SanctionRepositoryImpl implements SanctionRepositoryCustom {
 
-    private final JPAQueryFactory queryFactory;
+    private final DSLContext dsl;
+
+    private final org.jooq.Table<Record> broadcastTable = table(name("broadcast")).as("b");
+    private final org.jooq.Table<Record> sanctionTable = table(name("sanction")).as("sc");
+    private final org.jooq.Table<Record> sellerTable = table(name("seller")).as("s");
+    private final org.jooq.Table<Record> memberTable = table(name("member")).as("m");
+
+    private final Field<String> broadcastStatus = field(name("b", "status"), String.class);
+    private final Field<LocalDateTime> broadcastEndedAt = field(name("b", "ended_at"), LocalDateTime.class);
+    private final Field<Long> sellerId = field(name("s", "seller_id"), Long.class);
+    private final Field<String> sellerName = field(name("s", "name"), String.class);
+    private final Field<String> sellerLoginId = field(name("s", "login_id"), String.class);
+
+    private final Field<Long> sanctionId = field(name("sc", "sanction_id"), Long.class);
+    private final Field<Long> sanctionMemberId = field(name("sc", "member_id"), Long.class);
+    private final Field<String> sanctionStatus = field(name("sc", "status"), String.class);
+    private final Field<LocalDateTime> sanctionCreatedAt = field(name("sc", "created_at"), LocalDateTime.class);
+
+    private final Field<String> memberName = field(name("m", "name"), String.class);
 
     // =================================================================================
     // 1. 차트 데이터 (Chart)
@@ -33,39 +46,39 @@ public class SanctionRepositoryImpl implements SanctionRepositoryCustom {
     // 1-1. 판매자 강제 종료 차트 (Broadcast 테이블: status = STOPPED)
     @Override
     public List<SanctionStatisticsResponse.ChartData> getSellerForceStopChart(String periodType) {
-        StringTemplate dateExpr = getDateExpression(periodType, broadcast.endedAt); // 종료 시간 기준
+        Field<String> dateExpr = getDateExpression(periodType, broadcastEndedAt);
 
-        return queryFactory
-                .select(Projections.constructor(SanctionStatisticsResponse.ChartData.class,
-                        dateExpr,
-                        broadcast.count())) // 강제 종료 건수
-                .from(broadcast)
+        return dsl.select(dateExpr, count())
+                .from(broadcastTable)
                 .where(
-                        broadcast.status.eq(BroadcastStatus.STOPPED), // [조건] 상태가 STOPPED 인 것만
-                        getChartPeriodCondition(periodType, broadcast.endedAt) // 날짜 범위 필터링
+                        broadcastStatus.eq(BroadcastStatus.STOPPED.name()),
+                        getChartPeriodCondition(periodType, broadcastEndedAt)
                 )
                 .groupBy(dateExpr)
                 .orderBy(dateExpr.asc())
-                .fetch();
+                .fetch(record -> new SanctionStatisticsResponse.ChartData(
+                        record.get(dateExpr),
+                        record.get(count(), Long.class)
+                ));
     }
 
     // 1-2. 시청자 제재 차트 (Sanction 테이블: 모든 제재 건수)
     @Override
     public List<SanctionStatisticsResponse.ChartData> getViewerSanctionChart(String periodType) {
-        StringTemplate dateExpr = getDateExpression(periodType, sanction.createdAt); // 제재 일시 기준
+        Field<String> dateExpr = getDateExpression(periodType, sanctionCreatedAt);
 
-        return queryFactory
-                .select(Projections.constructor(SanctionStatisticsResponse.ChartData.class,
-                        dateExpr,
-                        sanction.count())) // 제재 건수
-                .from(sanction)
+        return dsl.select(dateExpr, count())
+                .from(sanctionTable)
                 .where(
-                        sanction.status.in(SanctionType.MUTE, SanctionType.OUT),
-                        getChartPeriodCondition(periodType, sanction.createdAt) // 날짜 범위 필터링
+                        sanctionStatus.in(SanctionType.MUTE.name(), SanctionType.OUT.name()),
+                        getChartPeriodCondition(periodType, sanctionCreatedAt)
                 )
                 .groupBy(dateExpr)
                 .orderBy(dateExpr.asc())
-                .fetch();
+                .fetch(record -> new SanctionStatisticsResponse.ChartData(
+                        record.get(dateExpr),
+                        record.get(count(), Long.class)
+                ));
     }
 
     // =================================================================================
@@ -75,53 +88,65 @@ public class SanctionRepositoryImpl implements SanctionRepositoryCustom {
     // 2-1. 판매자 강제 종료 순위 (Broadcast 테이블 -> Seller 조인)
     @Override
     public List<SanctionStatisticsResponse.SellerRank> getSellerForceStopRanking(String periodType, int limit) {
-        return queryFactory
-                .select(Projections.constructor(SanctionStatisticsResponse.SellerRank.class,
-                        seller.sellerId,
-                        seller.name,
-                        seller.loginId,
-                        broadcast.count()))
-                .from(broadcast)
-                .join(broadcast.seller, seller)
+        return dsl.select(sellerId, sellerName, sellerLoginId, count())
+                .from(broadcastTable)
+                .join(sellerTable).on(field(name("b", "seller_id"), Long.class).eq(sellerId))
                 .where(
-                        broadcast.status.eq(BroadcastStatus.STOPPED),
-                        getRankingPeriodCondition(periodType, broadcast.endedAt) // [추가] 기간 필터링
+                        broadcastStatus.eq(BroadcastStatus.STOPPED.name()),
+                        getRankingPeriodCondition(periodType, broadcastEndedAt)
                 )
-                .groupBy(seller.sellerId)
-                .orderBy(broadcast.count().desc())
+                .groupBy(sellerId, sellerName, sellerLoginId)
+                .orderBy(count().desc())
                 .limit(limit)
-                .fetch();
+                .fetch(this::mapSellerRank);
     }
 
     // 2-2. 시청자 제재 순위 (Sanction 테이블 -> MemberId 기준)
     @Override
     public List<SanctionStatisticsResponse.ViewerRank> getViewerSanctionRanking(String periodType, int limit) {
-        return queryFactory
-                .select(Projections.constructor(SanctionStatisticsResponse.ViewerRank.class,
-                        sanction.member.memberId.stringValue(),
-                        member.name.coalesce("Unknown"), // 닉네임 조회
-                        sanction.count()))
-                .from(sanction)
-                .leftJoin(sanction.member, member)
+        return dsl.select(sanctionMemberId, memberName, count())
+                .from(sanctionTable)
+                .leftJoin(memberTable).on(field(name("m", "member_id"), Long.class).eq(sanctionMemberId))
                 .where(
-                        getRankingPeriodCondition(periodType, sanction.createdAt) // [추가] 기간 필터링
+                        getRankingPeriodCondition(periodType, sanctionCreatedAt)
                 )
-                .groupBy(sanction.member.memberId)
-                .orderBy(sanction.count().desc())
+                .groupBy(sanctionMemberId, memberName)
+                .orderBy(count().desc())
                 .limit(limit)
-                .fetch();
+                .fetch(this::mapViewerRank);
+    }
+
+    @Override
+    public SanctionTypeResult findLatestSanction(Long broadcastIdValue, Long memberIdValue) {
+        Record record = dsl.select(sanctionId, sanctionStatus)
+                .from(sanctionTable)
+                .where(
+                        field(name("sc", "broadcast_id"), Long.class).eq(broadcastIdValue),
+                        sanctionMemberId.eq(memberIdValue)
+                )
+                .orderBy(sanctionCreatedAt.desc())
+                .limit(1)
+                .fetchOne();
+
+        if (record == null) {
+            return null;
+        }
+        return new SanctionTypeResult(
+                record.get(sanctionId),
+                record.get(sanctionStatus)
+        );
     }
 
     // Helper Method
     // [Helper 1] 날짜 포맷 변환 (Group By용)
-    private StringTemplate getDateExpression(String periodType, com.querydsl.core.types.dsl.DateTimePath<java.time.LocalDateTime> datePath) {
+    private Field<String> getDateExpression(String periodType, Field<LocalDateTime> datePath) {
         String format = "DAILY".equalsIgnoreCase(periodType) ? "%Y-%m-%d" :
                 "MONTHLY".equalsIgnoreCase(periodType) ? "%Y-%m" : "%Y";
-        return Expressions.stringTemplate("DATE_FORMAT({0}, {1})", datePath, format);
+        return field("DATE_FORMAT({0}, {1})", String.class, datePath, inline(format));
     }
 
     // [Helper 2] 차트용 기간 (Trend): 최근 1달, 최근 1년, 최근 10년
-    private BooleanExpression getChartPeriodCondition(String type, com.querydsl.core.types.dsl.DateTimePath<LocalDateTime> path) {
+    private Condition getChartPeriodCondition(String type, Field<LocalDateTime> path) {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime startDate;
 
@@ -139,7 +164,7 @@ public class SanctionRepositoryImpl implements SanctionRepositoryCustom {
     }
 
     // [Helper 3] 랭킹용 기간 (Snapshot): 오늘 하루, 이번 달, 올해
-    private BooleanExpression getRankingPeriodCondition(String type, com.querydsl.core.types.dsl.DateTimePath<LocalDateTime> path) {
+    private Condition getRankingPeriodCondition(String type, Field<LocalDateTime> path) {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime startDate;
 
@@ -154,5 +179,22 @@ public class SanctionRepositoryImpl implements SanctionRepositoryCustom {
             startDate = now.with(TemporalAdjusters.firstDayOfYear()).with(LocalTime.MIN);
         }
         return path.goe(startDate);
+    }
+
+    private SanctionStatisticsResponse.SellerRank mapSellerRank(Record record) {
+        return SanctionStatisticsResponse.SellerRank.builder()
+                .sellerId(record.get(sellerId))
+                .sellerName(record.get(sellerName))
+                .phone(record.get(sellerLoginId))
+                .sanctionCount(record.get(count(), Long.class))
+                .build();
+    }
+
+    private SanctionStatisticsResponse.ViewerRank mapViewerRank(Record record) {
+        return SanctionStatisticsResponse.ViewerRank.builder()
+                .viewerId(record.get(sanctionMemberId) != null ? record.get(sanctionMemberId).toString() : "unknown")
+                .name(record.get(memberName) != null ? record.get(memberName) : "Unknown")
+                .sanctionCount(record.get(count(), Long.class))
+                .build();
     }
 }
