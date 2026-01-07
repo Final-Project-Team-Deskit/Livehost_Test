@@ -1,9 +1,11 @@
 package com.example.LiveHost.service;
 
 import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.CannedAccessControlList;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
+import com.amazonaws.services.s3.model.S3Object;
 import com.example.LiveHost.common.enums.UploadType;
 import com.example.LiveHost.common.exception.BusinessException;
 import com.example.LiveHost.common.exception.ErrorCode;
@@ -11,6 +13,11 @@ import com.example.LiveHost.dto.response.ImageUploadResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -18,6 +25,7 @@ import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
@@ -128,6 +136,44 @@ public class AwsS3Service {
         }
     }
 
+    public ResponseEntity<InputStreamResource> streamVod(String vodUrl, String rangeHeader) {
+        String objectKey = extractObjectKey(vodUrl);
+        ObjectMetadata metadata = amazonS3.getObjectMetadata(bucket, objectKey);
+        long contentLength = metadata.getContentLength();
+
+        ByteRange range = parseRange(rangeHeader, contentLength);
+        GetObjectRequest request = new GetObjectRequest(bucket, objectKey);
+        if (range != null) {
+            request.setRange(range.start(), range.end());
+        }
+
+        S3Object s3Object = amazonS3.getObject(request);
+        InputStreamResource resource = new InputStreamResource(s3Object.getObjectContent());
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set(HttpHeaders.ACCEPT_RANGES, "bytes");
+        headers.setContentType(MediaType.parseMediaType(metadata.getContentType() != null ? metadata.getContentType() : "video/mp4"));
+        if (range != null) {
+            headers.setContentLength(range.length());
+            headers.set(HttpHeaders.CONTENT_RANGE, "bytes " + range.start() + "-" + range.end() + "/" + contentLength);
+            return new ResponseEntity<>(resource, headers, HttpStatus.PARTIAL_CONTENT);
+        }
+
+        headers.setContentLength(contentLength);
+        return new ResponseEntity<>(resource, headers, HttpStatus.OK);
+    }
+
+    public Long resolveObjectSize(String vodUrl) {
+        try {
+            String objectKey = extractObjectKey(vodUrl);
+            ObjectMetadata metadata = amazonS3.getObjectMetadata(bucket, objectKey);
+            return metadata.getContentLength();
+        } catch (Exception e) {
+            log.warn("Failed to resolve VOD size from url={}", vodUrl, e);
+            return null;
+        }
+    }
+
 
     // [비율 검증 로직] - ImageIO로 이미지를 읽어 가로/세로 비율을 계산 (오차범위 0.05 허용)
     private void validateImageRatio(MultipartFile file, UploadType type) {
@@ -161,5 +207,61 @@ public class AwsS3Service {
             throw new BusinessException(ErrorCode.INVALID_FILE_EXTENSION);
         }
         return fileName.substring(fileName.lastIndexOf(".") + 1);
+    }
+
+    private String extractObjectKey(String vodUrl) {
+        if (vodUrl == null || vodUrl.isBlank()) {
+            throw new BusinessException(ErrorCode.VOD_NOT_FOUND);
+        }
+
+        if (!vodUrl.startsWith("http")) {
+            return vodUrl;
+        }
+
+        String path = URI.create(vodUrl).getPath();
+        if (path == null) {
+            throw new BusinessException(ErrorCode.VOD_NOT_FOUND);
+        }
+        String normalized = path.startsWith("/") ? path.substring(1) : path;
+        if (normalized.startsWith(bucket + "/")) {
+            return normalized.substring(bucket.length() + 1);
+        }
+        return normalized;
+    }
+
+    private ByteRange parseRange(String rangeHeader, long contentLength) {
+        if (rangeHeader == null || !rangeHeader.startsWith("bytes=")) {
+            return null;
+        }
+        String[] parts = rangeHeader.substring(6).split("-", 2);
+        try {
+            long start;
+            long end;
+            if (parts[0].isEmpty()) {
+                long suffixLength = Long.parseLong(parts[1]);
+                start = Math.max(contentLength - suffixLength, 0);
+                end = contentLength - 1;
+            } else {
+                start = Long.parseLong(parts[0]);
+                end = parts[1].isEmpty() ? contentLength - 1 : Long.parseLong(parts[1]);
+            }
+
+            if (start < 0 || start >= contentLength) {
+                return null;
+            }
+            end = Math.min(end, contentLength - 1);
+            if (start > end) {
+                return null;
+            }
+            return new ByteRange(start, end);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private record ByteRange(long start, long end) {
+        long length() {
+            return end - start + 1;
+        }
     }
 }

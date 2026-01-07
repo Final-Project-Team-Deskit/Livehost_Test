@@ -9,6 +9,7 @@ import com.example.LiveHost.dto.response.BroadcastStatsResponse;
 import com.example.LiveHost.service.BroadcastService;
 import com.example.LiveHost.service.SseService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.InputStreamResource;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.MediaType;
@@ -75,6 +76,15 @@ public class BroadcastPublicController {
         return ResponseEntity.ok(ApiResult.success(
                 broadcastService.getBroadcastProducts(broadcastId)
         ));
+    }
+
+    // 5-2. VOD 스트리밍 (Range 지원)
+    @GetMapping("/broadcasts/{broadcastId}/vod/stream")
+    public ResponseEntity<InputStreamResource> streamVod(
+            @PathVariable Long broadcastId,
+            @RequestHeader(value = "Range", required = false) String rangeHeader
+    ) {
+        return broadcastService.streamVod(broadcastId, rangeHeader);
     }
 
     // 6. SSE 구독 연결

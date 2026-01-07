@@ -139,6 +139,11 @@ public class Broadcast {
         this.status = BroadcastStatus.CANCELED;
     }
 
+    public void cancelBroadcast(String reason) {
+        this.status = BroadcastStatus.CANCELED;
+        this.broadcastStoppedReason = reason;
+    }
+
     // 삭제 (Soft Delete)
     public void deleteBroadcast() {
         this.status = BroadcastStatus.DELETED;
