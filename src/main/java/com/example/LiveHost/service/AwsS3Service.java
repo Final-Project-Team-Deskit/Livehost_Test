@@ -2,8 +2,10 @@ package com.example.LiveHost.service;
 
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.CannedAccessControlList;
+import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
+import com.amazonaws.services.s3.model.S3Object;
 import com.example.LiveHost.common.enums.UploadType;
 import com.example.LiveHost.common.exception.BusinessException;
 import com.example.LiveHost.common.exception.ErrorCode;
@@ -18,6 +20,8 @@ import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
+import java.util.Objects;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
@@ -128,6 +132,56 @@ public class AwsS3Service {
         }
     }
 
+    public VodStreamData getVodStream(String vodUrl, long rangeStart, long rangeEnd) {
+        String objectKey = extractObjectKey(vodUrl);
+        ObjectMetadata metadata = amazonS3.getObjectMetadata(bucket, objectKey);
+        long totalLength = metadata.getContentLength();
+        long safeTotal = Math.max(totalLength, 0);
+        long safeStart = safeTotal == 0 ? 0 : Math.max(0, Math.min(rangeStart, safeTotal - 1));
+        long safeEnd = safeTotal == 0 ? 0 : Math.max(safeStart, Math.min(rangeEnd, safeTotal - 1));
+
+        GetObjectRequest request = new GetObjectRequest(bucket, objectKey)
+                .withRange(safeStart, safeEnd);
+        S3Object s3Object = amazonS3.getObject(request);
+        String contentType = metadata.getContentType();
+        long contentLength = safeTotal == 0 ? 0 : safeEnd - safeStart + 1;
+        return new VodStreamData(
+                s3Object.getObjectContent(),
+                contentLength,
+                safeTotal,
+                safeStart,
+                safeEnd,
+                contentType != null ? contentType : "video/mp4"
+        );
+    }
+
+    public long getObjectSize(String vodUrl) {
+        String objectKey = extractObjectKey(vodUrl);
+        ObjectMetadata metadata = amazonS3.getObjectMetadata(bucket, objectKey);
+        return metadata.getContentLength();
+    }
+
+    private String extractObjectKey(String vodUrl) {
+        URI uri = URI.create(vodUrl);
+        String host = uri.getHost();
+        String path = uri.getPath();
+        if (path == null || path.isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+        String normalizedPath = path.startsWith("/") ? path.substring(1) : path;
+        String key;
+        if (normalizedPath.startsWith(bucket + "/")) {
+            key = normalizedPath.substring(bucket.length() + 1);
+        } else if (host != null && host.startsWith(bucket + ".")) {
+            key = normalizedPath;
+        } else {
+            key = normalizedPath;
+        }
+        if (key.isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+        return Objects.requireNonNull(key);
+    }
 
     // [비율 검증 로직] - ImageIO로 이미지를 읽어 가로/세로 비율을 계산 (오차범위 0.05 허용)
     private void validateImageRatio(MultipartFile file, UploadType type) {
