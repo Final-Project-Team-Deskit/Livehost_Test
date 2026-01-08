@@ -6,6 +6,7 @@ import DeviceSetupModal from '../../components/DeviceSetupModal.vue'
 import { getScheduledBroadcasts } from '../../composables/useSellerBroadcasts'
 import { getSellerReservationDetail, sellerReservationSummaries } from '../../lib/mocks/sellerReservations'
 import { getSellerVodDetail, sellerVodSummaries } from '../../lib/mocks/sellerVods'
+import { useInfiniteScroll } from '../../composables/useInfiniteScroll'
 import {
   computeLifecycleStatus,
   getScheduledEndMs,
@@ -60,7 +61,8 @@ const statusPriority: Record<BroadcastStatus, number> = {
 const scheduledStatus = ref<'all' | 'reserved' | 'canceled'>('all')
 const scheduledCategory = ref<string>('all')
 const scheduledSort = ref<'nearest' | 'latest' | 'oldest'>('nearest')
-const scheduledVisibleCount = ref(8)
+const SCHEDULED_PAGE_SIZE = 12
+const scheduledPage = ref(1)
 
 const vodStartDate = ref('')
 const vodEndDate = ref('')
@@ -69,7 +71,8 @@ const vodSort = ref<'latest' | 'oldest' | 'likes_desc' | 'likes_asc' | 'viewers_
   'latest',
 )
 const vodCategory = ref<string>('all')
-const vodVisibleCount = ref(8)
+const VOD_PAGE_SIZE = 12
+const vodPage = ref(1)
 
 const showDeviceModal = ref(false)
 const selectedScheduled = ref<LiveItem | null>(null)
@@ -538,8 +541,8 @@ const vodSummary = computed(() =>
     .slice(0, 5),
 )
 
-const visibleScheduledItems = computed(() => filteredScheduledItems.value.slice(0, scheduledVisibleCount.value))
-const visibleVodItems = computed(() => filteredVodItems.value.slice(0, vodVisibleCount.value))
+const visibleScheduledItems = computed(() => filteredScheduledItems.value.slice(0, SCHEDULED_PAGE_SIZE * scheduledPage.value))
+const visibleVodItems = computed(() => filteredVodItems.value.slice(0, VOD_PAGE_SIZE * vodPage.value))
 
 const buildLoopItems = (items: LiveItem[]): LiveItem[] => {
   if (!items.length) return []
@@ -558,6 +561,22 @@ const vodLoopItems = computed<LiveItem[]>(() => buildLoopItems(vodSummary.value)
 const visibleLive = computed(() => activeTab.value === 'all' || activeTab.value === 'live')
 const visibleScheduled = computed(() => activeTab.value === 'all' || activeTab.value === 'scheduled')
 const visibleVod = computed(() => activeTab.value === 'all' || activeTab.value === 'vod')
+
+const { sentinelRef: scheduledSentinelRef } = useInfiniteScroll({
+  canLoadMore: () => filteredScheduledItems.value.length > visibleScheduledItems.value.length,
+  loadMore: () => {
+    scheduledPage.value += 1
+  },
+  enabled: () => activeTab.value === 'scheduled',
+})
+
+const { sentinelRef: vodSentinelRef } = useInfiniteScroll({
+  canLoadMore: () => filteredVodItems.value.length > visibleVodItems.value.length,
+  loadMore: () => {
+    vodPage.value += 1
+  },
+  enabled: () => activeTab.value === 'vod',
+})
 
 const loopItemsFor = (kind: LoopKind) => (kind === 'scheduled' ? scheduledLoopItems.value : vodLoopItems.value)
 const baseItemsFor = (kind: LoopKind) => (kind === 'scheduled' ? scheduledSummary.value : vodSummary.value)
@@ -695,14 +714,14 @@ watch(
 watch(
   () => [scheduledStatus.value, scheduledCategory.value, scheduledSort.value],
   () => {
-    scheduledVisibleCount.value = 8
+    scheduledPage.value = 1
   },
 )
 
 watch(
   () => [vodStartDate.value, vodEndDate.value, vodVisibility.value, vodCategory.value, vodSort.value],
   () => {
-    vodVisibleCount.value = 8
+    vodPage.value = 1
   },
 )
 
@@ -1042,14 +1061,12 @@ onBeforeUnmount(() => {
             </div>
           </article>
 
-          <button
+          <div
             v-if="filteredScheduledItems.length > visibleScheduledItems.length"
-            type="button"
-            class="live-more"
-            @click="scheduledVisibleCount += 6"
-          >
-            더 보기
-          </button>
+            ref="scheduledSentinelRef"
+            class="scroll-sentinel"
+            aria-hidden="true"
+          ></div>
         </template>
 
         <p v-else class="section-empty">등록된 방송이 없습니다. 예약 방송을 추가해보세요.</p>
@@ -1196,14 +1213,12 @@ onBeforeUnmount(() => {
             </div>
           </article>
 
-          <button
+          <div
             v-if="filteredVodItems.length > visibleVodItems.length"
-            type="button"
-            class="live-more"
-            @click="vodVisibleCount += 6"
-          >
-            더 보기
-          </button>
+            ref="vodSentinelRef"
+            class="scroll-sentinel"
+            aria-hidden="true"
+          ></div>
         </template>
 
         <p v-else class="section-empty">등록된 VOD가 없습니다. 방송이 종료되면 자동 등록됩니다.</p>
@@ -2011,6 +2026,12 @@ onBeforeUnmount(() => {
   background: var(--surface);
   font-weight: 900;
   cursor: pointer;
+}
+
+.scroll-sentinel {
+  width: 100%;
+  height: 1px;
+  grid-column: 1 / -1;
 }
 
 @media (max-width: 1200px) {

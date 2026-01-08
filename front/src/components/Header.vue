@@ -1,7 +1,7 @@
 ﻿<script setup lang="ts">
 import {computed, onBeforeUnmount, onMounted, ref, watch} from 'vue'
 import {RouterLink, useRoute, useRouter} from 'vue-router'
-import {getAuthUser, hydrateSessionUser, isAdmin, isLoggedIn as checkLoggedIn, requestLogout} from '../lib/auth'
+import {getAuthUser, hydrateSessionUser, isAdmin, isLoggedIn as checkLoggedIn, isSeller, requestLogout} from '../lib/auth'
 
 const route = useRoute()
 const router = useRouter()
@@ -19,20 +19,28 @@ const navLinks = [
 ]
 
 const sellerTabs = [
-  {label: '방송관리', to: '/seller/live', children: [
-    { label: '방송 목록', to: '/seller/live' },
-    { label: '방송 통계', to: '/seller/live/stats' },
-  ]},
+  {
+    label: '방송관리',
+    to: '/seller/live',
+    children: [
+      {label: '방송 목록', to: '/seller/live'},
+      {label: '방송 통계', to: '/seller/live/stats'},
+    ],
+  },
   {label: '상품관리', to: '/seller/products'},
 ]
 
 const adminTabs = [
   {label: '회원관리', to: '/admin/users'},
-  {label: '방송관리', to: '/admin/live', children: [
-    { label: '방송 목록', to: '/admin/live' },
-    { label: '방송 통계', to: '/admin/live/stats' },
-    { label: '제재 통계', to: '/admin/live/sanctions' },
-  ]},
+  {
+    label: '방송관리',
+    to: '/admin/live',
+    children: [
+      {label: '방송 목록', to: '/admin/live'},
+      {label: '방송 통계', to: '/admin/live/stats'},
+      {label: '제재 통계', to: '/admin/live/sanctions'},
+    ],
+  },
   {label: '상품관리', to: '/admin/products'},
   {label: '고객센터', to: '/admin/support'},
 ]
@@ -42,8 +50,11 @@ const refreshAuth = () => {
   memberCategory.value = getAuthUser()?.memberCategory ?? null
 }
 
-const sellerMode = computed(() => isLoggedIn.value && memberCategory.value === '판매자')
+const sellerMode = computed(() => isLoggedIn.value && isSeller())
 const adminMode = computed(() => isLoggedIn.value && isAdmin() && route.path.startsWith('/admin'))
+const showCart = computed(
+  () => isLoggedIn.value && !!memberCategory.value && memberCategory.value !== 'ROLE_GUEST',
+)
 
 const actionLinks = computed(() => {
   if (sellerMode.value) {
@@ -51,11 +62,10 @@ const actionLinks = computed(() => {
   }
   return isLoggedIn.value
     ? [
-      {label: '장바구니', to: '/cart', icon: 'cart'},
+      ...(showCart.value ? [{label: '장바구니', to: '/cart', icon: 'cart'}] : []),
       {label: '마이페이지', to: '/my', icon: 'user'},
     ]
     : [
-      {label: '장바구니', to: '/cart', icon: 'cart'},
       {label: '로그인', to: '/login', icon: 'user'},
     ]
 })
@@ -492,7 +502,6 @@ const handleLogout = async () => {
 
 .seller-tabs {
   flex-wrap: wrap;
-  gap: 16px;
 }
 
 .nav-link {

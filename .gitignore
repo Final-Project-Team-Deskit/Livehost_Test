@@ -35,3 +35,10 @@ out/
 
 ### VS Code ###
 .vscode/
+
+
+# 모든 yml 파일 무시
+*.yml
+# local secrets (do not commit)
+src/main/resources/application.yml
+src/main/resources/application.properties
