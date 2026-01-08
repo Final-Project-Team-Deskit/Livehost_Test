@@ -1,4 +1,5 @@
-import { getSellerReservationDetail, type SellerReservationDetail } from '../lib/mocks/sellerReservations'
+import { getSellerBroadcastDetail } from '../api/live'
+import { resolveSellerId } from '../lib/live/ids'
 
 export type LiveCreateProduct = {
   id: string
@@ -15,7 +16,8 @@ export type LiveCreateDraft = {
   questions: Array<{ id: string; text: string }>
   title: string
   subtitle: string
-  category: string
+  categoryId: number | ''
+  categoryName: string
   notice: string
   date: string
   time: string
@@ -40,7 +42,8 @@ export const createEmptyDraft = (): LiveCreateDraft => ({
   questions: createDefaultQuestions(),
   title: '',
   subtitle: '',
-  category: '',
+  categoryId: '',
+  categoryName: '',
   notice: '',
   date: '',
   time: '',
@@ -68,6 +71,13 @@ export const loadDraft = (): LiveCreateDraft | null => {
             .filter((item: any) => item && typeof item.id === 'string' && typeof item.text === 'string')
             .map((item: any) => ({ id: item.id, text: item.text }))
         : createEmptyDraft().questions,
+      categoryId: typeof rest.categoryId === 'number' ? rest.categoryId : '',
+      categoryName:
+        typeof rest.categoryName === 'string'
+          ? rest.categoryName
+          : typeof (rest as any).category === 'string'
+            ? (rest as any).category
+            : '',
       products: Array.isArray(rest.products)
         ? rest.products
             .filter((item: any) => item && typeof item.id === 'string')
@@ -93,39 +103,38 @@ export const saveDraft = (draft: LiveCreateDraft) => {
   localStorage.setItem(DRAFT_KEY, JSON.stringify(draft))
 }
 
-const parseCurrency = (value: string) => {
-  const digits = value.replace(/[^\d]/g, '')
-  const parsed = Number.parseInt(digits, 10)
-  return Number.isNaN(parsed) ? 0 : parsed
-}
-
-export const buildDraftFromReservation = (reservationId: string): LiveCreateDraft => {
-  const detail: SellerReservationDetail = getSellerReservationDetail(reservationId)
-  const [datePart, timePart] = detail.datetime.split(' ')
+export const buildDraftFromReservation = async (reservationId: string): Promise<LiveCreateDraft> => {
+  const sellerId = resolveSellerId()
+  if (!sellerId) {
+    return createEmptyDraft()
+  }
+  const detail = await getSellerBroadcastDetail(sellerId, Number.parseInt(reservationId, 10))
+  const [datePart, timePart] = (detail.scheduledAt ?? '').replace(/-/g, '.').split(' ')
   const mappedDate = datePart?.replace(/\./g, '-') ?? ''
   const mappedTime = timePart ?? ''
 
   return {
     ...createEmptyDraft(),
-    title: detail.title,
-    subtitle: detail.subtitle,
-    category: detail.category,
-    notice: detail.notice,
+    title: detail.title ?? '',
+    subtitle: detail.categoryName ?? '',
+    categoryId: detail.categoryId ?? '',
+    categoryName: detail.categoryName ?? '',
+    notice: detail.notice ?? '',
     date: mappedDate,
     time: mappedTime,
-    thumb: detail.thumb,
-    standbyThumb: (detail as any).standbyThumb ?? '',
-    products: detail.products.map((item) => ({
-      id: item.id,
-      name: item.name,
-      option: item.option ?? item.name,
-      price: parseCurrency(item.price),
-      broadcastPrice: parseCurrency(item.salePrice),
-      stock: parseCurrency(item.stock),
-      quantity: parseCurrency(item.qty) || 1,
-      thumb: item.thumb,
+    thumb: detail.thumbnailUrl ?? '',
+    standbyThumb: detail.waitScreenUrl ?? '',
+    products: (detail.products ?? []).map((item) => ({
+      id: String(item.bpId ?? item.productId),
+      name: item.name ?? '',
+      option: item.name ?? '',
+      price: item.originalPrice ?? 0,
+      broadcastPrice: item.bpPrice ?? item.originalPrice ?? 0,
+      stock: item.bpQuantity ?? 0,
+      quantity: item.bpQuantity ?? 1,
+      thumb: item.imageUrl ?? '',
     })),
-    questions: mapQuestions(detail.cueQuestions ?? []),
+    questions: mapQuestions((detail.qcards ?? []).map((card) => card.question ?? '').filter((q) => q)),
     reservationId,
   }
 }

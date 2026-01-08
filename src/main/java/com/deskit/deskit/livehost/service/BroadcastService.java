@@ -207,6 +207,7 @@ public class BroadcastService {
     @Transactional(readOnly = true)
     public List<ProductSelectResponse> getSellerProducts(Long sellerId, String keyword) {
         var productTable = table(name("product")).as("p");
+        var productImageTable = table(name("product_image")).as("pi");
         var productId = field(name("p", "product_id"), Long.class);
         var productName = field(name("p", "product_name"), String.class);
         var price = field(name("p", "price"), Integer.class);
@@ -214,6 +215,10 @@ public class BroadcastService {
         var sellerField = field(name("p", "seller_id"), Long.class);
         var statusField = field(name("p", "status"), String.class);
         var deletedAt = field(name("p", "deleted_at"), LocalDateTime.class);
+        var imageUrl = field(name("pi", "product_image_url"), String.class);
+        var imageType = field(name("pi", "image_type"), String.class);
+        var slotIndex = field(name("pi", "slot_index"), Integer.class);
+        var imageDeletedAt = field(name("pi", "deleted_at"), LocalDateTime.class);
 
         List<String> statuses = List.of(Status.ON_SALE.name(), Status.READY.name(), Status.LIMITED_SALE.name());
 
@@ -224,8 +229,15 @@ public class BroadcastService {
             condition = condition.and(productName.containsIgnoreCase(keyword));
         }
 
-        return dsl.select(productId, productName, price, stockQty)
+        return dsl.select(productId, productName, price, stockQty, imageUrl)
                 .from(productTable)
+                .leftJoin(productImageTable)
+                .on(
+                        field(name("pi", "product_id"), Long.class).eq(productId),
+                        imageType.eq("THUMBNAIL"),
+                        slotIndex.eq(0),
+                        imageDeletedAt.isNull()
+                )
                 .where(condition)
                 .orderBy(productId.asc())
                 .fetch(record -> ProductSelectResponse.builder()
@@ -233,7 +245,7 @@ public class BroadcastService {
                         .productName(record.get(productName))
                         .price(record.get(price))
                         .stockQty(record.get(stockQty))
-                        .imageUrl(null)
+                        .imageUrl(record.get(imageUrl))
                         .build());
     }
 
@@ -789,7 +801,7 @@ public class BroadcastService {
             if (schedule.scheduledAt() == null) {
                 continue;
             }
-            LocalDateTime scheduledEnd = schedule.scheduledAt().plusMinutes(60);
+            LocalDateTime scheduledEnd = schedule.scheduledAt().plusMinutes(30);
             if (!scheduledEnd.isAfter(now)) {
                 String noticeKey = redisService.getScheduleNoticeKey(schedule.broadcastId(), "ended");
                 if (redisService.setIfAbsent(noticeKey, "sent", java.time.Duration.ofHours(2))) {

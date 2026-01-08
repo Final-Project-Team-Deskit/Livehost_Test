@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import type { LiveItem } from '../lib/live/types'
 import { getLiveStatus, parseLiveDate } from '../lib/live/utils'
 import { useNow } from '../lib/live/useNow'
+import { applyImageFallback } from '../lib/live/image'
 
 const props = defineProps<{
   item: LiveItem
@@ -64,7 +65,11 @@ const handleWatchNow = () => {
 <template>
   <article class="card" :class="{ 'card--active': props.isActive }">
     <div class="media">
-      <img :src="props.item.thumbnailUrl" :alt="props.item.title" />
+      <img
+        :src="props.item.thumbnailUrl"
+        :alt="props.item.title"
+        @error="(event) => applyImageFallback(event, '/placeholder-live.jpg')"
+      />
       <div class="top-badges">
         <span v-if="status === 'LIVE'" class="badge badge-live">LIVE</span>
         <span

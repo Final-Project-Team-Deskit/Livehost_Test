@@ -1,13 +1,69 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getAdminVodDetail } from '../../../lib/mocks/adminVods'
+import { getAdminBroadcastReport, getPublicBroadcastDetail } from '../../../api/live'
+import { formatDateTime } from '../../../lib/live/format'
+import { applyImageFallback } from '../../../lib/live/image'
 
 const route = useRoute()
 const router = useRouter()
 
 const vodId = computed(() => (typeof route.params.vodId === 'string' ? route.params.vodId : ''))
-const detail = computed(() => getAdminVodDetail(vodId.value))
+const detail = ref<{
+  thumb: string
+  title: string
+  startedAt: string
+  endedAt: string
+  statusLabel: string
+  sellerName: string
+  metrics: { maxViewers: number; reports: number; sanctions: number; likes: number; totalRevenue: number }
+  vod: { url: string }
+  productResults: Array<{ id: string; name: string; price: number; soldQty: number; revenue: number }>
+} | null>(null)
+
+const loadDetail = async () => {
+  if (!vodId.value) {
+    detail.value = null
+    return
+  }
+  const id = Number.parseInt(vodId.value, 10)
+  if (Number.isNaN(id)) {
+    detail.value = null
+    return
+  }
+  try {
+    const [report, info] = await Promise.all([
+      getAdminBroadcastReport(id),
+      getPublicBroadcastDetail(id),
+    ])
+    detail.value = {
+      thumb: info.thumbnailUrl ?? '',
+      title: report.title ?? info.title ?? '',
+      startedAt: report.startAt ? formatDateTime(report.startAt) : '',
+      endedAt: report.endAt ? formatDateTime(report.endAt) : '',
+      statusLabel: report.vodStatus ?? report.status ?? '',
+      sellerName: info.sellerName ?? '',
+      metrics: {
+        maxViewers: report.maxViewers ?? 0,
+        reports: report.reportCount ?? 0,
+        sanctions: report.sanctionCount ?? 0,
+        likes: report.totalLikes ?? 0,
+        totalRevenue: Number(report.totalSales ?? 0),
+      },
+      vod: { url: report.vodUrl ?? '' },
+      productResults: (report.productStats ?? []).map((item) => ({
+        id: String(item.productId),
+        name: item.productName ?? '',
+        price: item.price ?? 0,
+        soldQty: item.salesQuantity ?? 0,
+        revenue: Number(item.salesAmount ?? 0),
+      })),
+    }
+  } catch (error) {
+    console.error('Failed to load vod report', error)
+    detail.value = null
+  }
+}
 
 const goBack = () => {
   router.back()
@@ -18,10 +74,18 @@ const goToList = () => {
 }
 
 const formatNumber = (value: number) => value.toLocaleString('ko-KR')
+
+onMounted(() => {
+  loadDetail()
+})
+
+watch(vodId, () => {
+  loadDetail()
+})
 </script>
 
 <template>
-  <div class="vod-wrap">
+  <div v-if="detail" class="vod-wrap">
     <header class="vod-header">
       <button type="button" class="back-link" @click="goBack">← 뒤로 가기</button>
       <button type="button" class="btn" @click="goToList">목록으로</button>
@@ -32,7 +96,7 @@ const formatNumber = (value: number) => value.toLocaleString('ko-KR')
     <section class="vod-card ds-surface">
       <div class="vod-info">
         <div class="vod-thumb">
-          <img :src="detail.thumb" :alt="detail.title" />
+          <img :src="detail.thumb" :alt="detail.title" @error="(event) => applyImageFallback(event, '/placeholder-live.jpg')" />
         </div>
         <div class="vod-meta">
           <h3>{{ detail.title }}</h3>

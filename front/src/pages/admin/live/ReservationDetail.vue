@@ -2,17 +2,27 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import QCardModal from '../../../components/QCardModal.vue'
-import {
-  cancelAdminReservation,
-  getAdminReservationDetail,
-  type AdminReservationDetail,
-} from '../../../lib/mocks/adminReservations'
+import { cancelAdminBroadcast, getPublicBroadcastDetail } from '../../../api/live'
+import { formatDateTime } from '../../../lib/live/format'
 import { normalizeBroadcastStatus } from '../../../lib/broadcastStatus'
 
 const route = useRoute()
 const router = useRouter()
 
-const detail = ref<AdminReservationDetail | null>(null)
+const detail = ref<{
+  id: string
+  title: string
+  status: string
+  category: string
+  sellerName: string
+  notice: string
+  thumb: string
+  standbyThumb?: string
+  datetime: string
+  cueQuestions?: string[]
+  products: Array<{ id: string; name: string; price: string; salePrice: string; qty: number; stock: number }>
+  cancelReason?: string
+} | null>(null)
 const showCueCard = ref(false)
 const cueIndex = ref(0)
 
@@ -25,8 +35,43 @@ const cancelError = ref('')
 
 const cancelReasonOptions = ['판매자 요청', '방송 기획 변경', '상품 준비 지연', '기타']
 
-const loadDetail = () => {
-  detail.value = getAdminReservationDetail(reservationId.value)
+const loadDetail = async () => {
+  if (!reservationId.value) {
+    detail.value = null
+    return
+  }
+  const id = Number.parseInt(reservationId.value, 10)
+  if (Number.isNaN(id)) {
+    detail.value = null
+    return
+  }
+  try {
+    const response = await getPublicBroadcastDetail(id)
+    detail.value = {
+      id: String(response.broadcastId),
+      title: response.title ?? '',
+      status: response.status ?? '',
+      category: response.categoryName ?? '기타',
+      sellerName: response.sellerName ?? '',
+      notice: response.notice ?? '',
+      thumb: response.thumbnailUrl ?? '',
+      standbyThumb: response.waitScreenUrl ?? undefined,
+      datetime: response.scheduledAt ? formatDateTime(response.scheduledAt) : '',
+      cueQuestions: (response.qcards ?? []).map((card) => card.question ?? '').filter((q) => q),
+      products: (response.products ?? []).map((item) => ({
+        id: String(item.bpId ?? item.productId),
+        name: item.name ?? '',
+        price: `₩${(item.originalPrice ?? 0).toLocaleString('ko-KR')}`,
+        salePrice: `₩${(item.bpPrice ?? item.originalPrice ?? 0).toLocaleString('ko-KR')}`,
+        qty: item.bpQuantity ?? 0,
+        stock: item.bpQuantity ?? 0,
+      })),
+      cancelReason: response.notice ?? '',
+    }
+  } catch (error) {
+    console.error('Failed to load reservation detail', error)
+    detail.value = null
+  }
 }
 
 const goBack = () => {
@@ -69,7 +114,9 @@ const saveCancel = () => {
   const ok = window.confirm('예약을 취소하시겠습니까?')
   if (!ok) return
   if (!detail.value) return
-  cancelAdminReservation(detail.value.id)
+  cancelAdminBroadcast(Number.parseInt(detail.value.id, 10), cancelReason.value === '기타' ? cancelDetail.value.trim() : cancelReason.value).catch((error) => {
+    console.error('Failed to cancel reservation', error)
+  })
   detail.value = {
     ...detail.value,
     status: 'CANCELED',

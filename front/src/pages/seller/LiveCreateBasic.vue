@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PageContainer from '../../components/PageContainer.vue'
 import PageHeader from '../../components/PageHeader.vue'
-import { addScheduledBroadcast } from '../../composables/useSellerBroadcasts'
 import {
   DRAFT_KEY,
   buildDraftFromReservation,
@@ -13,7 +12,19 @@ import {
   type LiveCreateDraft,
   type LiveCreateProduct,
 } from '../../composables/useLiveCreateDraft'
-import { productsData } from '../../lib/products-data'
+import {
+  createSellerBroadcast,
+  listCategories,
+  listReservationSlots,
+  listSellerProducts,
+  updateSellerBroadcast,
+  uploadSellerImage,
+  type BroadcastCreateRequest,
+  type CategoryResponse,
+  type ReservationSlotResponse,
+} from '../../api/live'
+import { resolveSellerId } from '../../lib/live/ids'
+import { applyImageFallback } from '../../lib/live/image'
 
 const router = useRouter()
 const route = useRoute()
@@ -26,6 +37,52 @@ const error = ref('')
 const showTermsModal = ref(false)
 const showProductModal = ref(false)
 const modalProducts = ref<LiveCreateProduct[]>([])
+const categories = ref<CategoryResponse[]>([])
+const isLoadingCategories = ref(false)
+const availableProducts = ref<LiveCreateProduct[]>([])
+const reservationSlots = ref<ReservationSlotResponse[]>([])
+const isLoadingSlots = ref(false)
+const minDate = ref('')
+const maxDate = ref('')
+
+type CropState = {
+  file: File | null
+  url: string
+  imageWidth: number
+  imageHeight: number
+  frameWidth: number
+  frameHeight: number
+  fitScale: number
+  userScale: number
+  offsetX: number
+  offsetY: number
+  dragging: boolean
+  dragStartX: number
+  dragStartY: number
+  pointerId: number | null
+}
+
+const createCropState = (): CropState => ({
+  file: null,
+  url: '',
+  imageWidth: 0,
+  imageHeight: 0,
+  frameWidth: 0,
+  frameHeight: 0,
+  fitScale: 1,
+  userScale: 1,
+  offsetX: 0,
+  offsetY: 0,
+  dragging: false,
+  dragStartX: 0,
+  dragStartY: 0,
+  pointerId: null,
+})
+
+const thumbCrop = reactive(createCropState())
+const standbyCrop = reactive(createCropState())
+const thumbFrameRef = ref<HTMLElement | null>(null)
+const standbyFrameRef = ref<HTMLElement | null>(null)
 
 const reservationId = computed(() => {
   const queryValue = route.query.reservationId
@@ -35,18 +92,94 @@ const reservationId = computed(() => {
 const isEditMode = computed(() => route.query.mode === 'edit' && !!reservationId.value)
 const modalCount = computed(() => modalProducts.value.length)
 
-const availableProducts = computed(() =>
-  productsData.map<LiveCreateProduct>((product) => ({
-    id: `prod-${product.product_id}`,
-    name: product.name,
-    option: product.short_desc ?? '-',
-    price: product.price,
-    broadcastPrice: product.price,
-    stock: product.salesVolume ?? 100,
-    quantity: 1,
-    thumb: product.imageUrl,
-  })),
-)
+const computeDateRange = () => {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const start = new Date(today)
+  start.setDate(today.getDate() + 1)
+  const end = new Date(today)
+  end.setDate(today.getDate() + 14)
+  const toInput = (date: Date) =>
+    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+  minDate.value = toInput(start)
+  maxDate.value = toInput(end)
+}
+
+const loadCategories = async () => {
+  isLoadingCategories.value = true
+  try {
+    categories.value = await listCategories()
+  } catch (loadError) {
+    console.error('Failed to load categories', loadError)
+    categories.value = []
+  } finally {
+    isLoadingCategories.value = false
+  }
+}
+
+const loadSellerProducts = async (keyword?: string) => {
+  const sellerId = resolveSellerId()
+  if (!sellerId) {
+    availableProducts.value = []
+    return
+  }
+  try {
+    const data = await listSellerProducts(sellerId, keyword)
+    const mapped = data
+      .filter((item) => (item.stockQty ?? 0) > 0)
+      .map<LiveCreateProduct>((item) => ({
+        id: String(item.productId),
+        name: item.productName,
+        option: item.productName,
+        price: item.price,
+        broadcastPrice: item.price,
+        stock: item.stockQty,
+        quantity: 1,
+        thumb: item.imageUrl ?? undefined,
+      }))
+    availableProducts.value = mapped
+  } catch (loadError) {
+    console.error('Failed to load seller products', loadError)
+    availableProducts.value = []
+  }
+}
+
+const normalizeSlotTime = (slotDateTime: string) => {
+  const [datePart, timePart] = slotDateTime.replace('T', ' ').split(' ')
+  const time = timePart?.slice(0, 5) ?? ''
+  return { datePart, time }
+}
+
+const loadReservationSlots = async (date: string) => {
+  const sellerId = resolveSellerId()
+  if (!sellerId || !date) {
+    reservationSlots.value = []
+    return
+  }
+  isLoadingSlots.value = true
+  try {
+    const slots = await listReservationSlots(sellerId, date)
+    reservationSlots.value = slots.filter((slot) => slot.selectable)
+  } catch (loadError) {
+    console.error('Failed to load reservation slots', loadError)
+    reservationSlots.value = []
+  } finally {
+    isLoadingSlots.value = false
+  }
+}
+
+const syncCategoryFromName = () => {
+  if (draft.value.categoryId || !draft.value.categoryName || !categories.value.length) return
+  const match = categories.value.find((item) => item.categoryName === draft.value.categoryName)
+  if (match) {
+    draft.value.categoryId = match.categoryId
+  }
+}
+
+const syncCategoryFromId = () => {
+  const match = categories.value.find((item) => item.categoryId === draft.value.categoryId)
+  draft.value.categoryName = match?.categoryName ?? ''
+}
 
 const filteredProducts = computed(() => {
   const q = productSearch.value.trim().toLowerCase()
@@ -71,10 +204,6 @@ const addProduct = (product: LiveCreateProduct, target: LiveCreateProduct[]) => 
 }
 
 const removeProduct = (productId: string, target: LiveCreateProduct[]) => target.filter((item) => item.id !== productId)
-
-const toggleProductInDraft = (product: LiveCreateProduct) => {
-  draft.value.products = isSelected(product.id) ? removeProduct(product.id, draft.value.products) : addProduct(product, draft.value.products)
-}
 
 const toggleProductInModal = (product: LiveCreateProduct) => {
   modalProducts.value = isSelected(product.id, modalProducts.value)
@@ -109,25 +238,62 @@ const syncDraft = () => {
     ...draft.value,
     title: draft.value.title.trim(),
     subtitle: draft.value.subtitle?.trim() ?? '',
-    category: draft.value.category.trim(),
+    categoryId: draft.value.categoryId,
+    categoryName: draft.value.categoryName.trim(),
     notice: draft.value.notice.trim(),
     questions: trimmedQuestions,
     reservationId: reservationId.value || draft.value.reservationId,
   })
 }
 
-const restoreDraft = () => {
+const restoreDraft = async () => {
   const savedDraft = loadDraft()
   const baseDraft = savedDraft && (!isEditMode.value || savedDraft.reservationId === reservationId.value)
     ? { ...createEmptyDraft(), ...savedDraft }
     : createEmptyDraft()
 
   const reservationDraft = isEditMode.value
-    ? { ...baseDraft, ...buildDraftFromReservation(reservationId.value), reservationId: reservationId.value }
+    ? { ...baseDraft, ...(await buildDraftFromReservation(reservationId.value)), reservationId: reservationId.value }
     : baseDraft
 
   draft.value = reservationDraft
   modalProducts.value = reservationDraft.products.map((p) => ({ ...p }))
+  syncCategoryFromName()
+}
+
+const updateCropFrame = (state: CropState, frameRef: HTMLElement | null) => {
+  if (!frameRef) return
+  const rect = frameRef.getBoundingClientRect()
+  state.frameWidth = rect.width
+  state.frameHeight = rect.height
+}
+
+const prepareCropState = (state: CropState, file: File, frameRef: HTMLElement | null) => {
+  const reader = new FileReader()
+  reader.onload = () => {
+    const result = typeof reader.result === 'string' ? reader.result : ''
+    if (!result) return
+    state.url = result
+    state.file = file
+    state.userScale = 1
+    state.offsetX = 0
+    state.offsetY = 0
+    updateCropFrame(state, frameRef)
+    const image = new Image()
+    image.onload = () => {
+      state.imageWidth = image.width
+      state.imageHeight = image.height
+      if (state.frameWidth && state.frameHeight) {
+        const scaleX = state.frameWidth / state.imageWidth
+        const scaleY = state.frameHeight / state.imageHeight
+        state.fitScale = Math.min(scaleX, scaleY)
+      } else {
+        state.fitScale = 1
+      }
+    }
+    image.src = result
+  }
+  reader.readAsDataURL(file)
 }
 
 const handleThumbUpload = (event: Event) => {
@@ -140,11 +306,7 @@ const handleThumbUpload = (event: Event) => {
     input.value = ''
     return
   }
-  const reader = new FileReader()
-  reader.onload = () => {
-    draft.value.thumb = typeof reader.result === 'string' ? reader.result : ''
-  }
-  reader.readAsDataURL(file)
+  prepareCropState(thumbCrop, file, thumbFrameRef.value)
 }
 
 const handleStandbyUpload = (event: Event) => {
@@ -157,19 +319,91 @@ const handleStandbyUpload = (event: Event) => {
     input.value = ''
     return
   }
-  const reader = new FileReader()
-  reader.onload = () => {
-    draft.value.standbyThumb = typeof reader.result === 'string' ? reader.result : ''
+  prepareCropState(standbyCrop, file, standbyFrameRef.value)
+}
+
+const handleCropPointerDown = (event: PointerEvent, state: CropState) => {
+  if (!state.url) return
+  state.dragging = true
+  state.pointerId = event.pointerId
+  state.dragStartX = event.clientX - state.offsetX
+  state.dragStartY = event.clientY - state.offsetY
+}
+
+const handleCropPointerMove = (event: PointerEvent, state: CropState) => {
+  if (!state.dragging || state.pointerId !== event.pointerId) return
+  state.offsetX = event.clientX - state.dragStartX
+  state.offsetY = event.clientY - state.dragStartY
+}
+
+const handleCropPointerUp = (event: PointerEvent, state: CropState) => {
+  if (state.pointerId !== event.pointerId) return
+  state.dragging = false
+  state.pointerId = null
+}
+
+const dataUrlToFile = async (dataUrl: string, filename: string) => {
+  const response = await fetch(dataUrl)
+  const blob = await response.blob()
+  return new File([blob], filename, { type: blob.type })
+}
+
+const applyCrop = async (state: CropState, type: 'THUMBNAIL' | 'WAIT_SCREEN') => {
+  if (!state.url || !state.file) return
+  updateCropFrame(state, type === 'THUMBNAIL' ? thumbFrameRef.value : standbyFrameRef.value)
+  const frameWidth = state.frameWidth || 640
+  const frameHeight = state.frameHeight || 360
+  const canvas = document.createElement('canvas')
+  canvas.width = 1280
+  canvas.height = 720
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
+  const img = new Image()
+  await new Promise<void>((resolve) => {
+    img.onload = () => resolve()
+    img.src = state.url
+  })
+  const scale = state.fitScale * state.userScale
+  const ratioX = canvas.width / frameWidth
+  const ratioY = canvas.height / frameHeight
+  const drawWidth = img.width * scale * ratioX
+  const drawHeight = img.height * scale * ratioY
+  const centerX = canvas.width / 2 + state.offsetX * ratioX
+  const centerY = canvas.height / 2 + state.offsetY * ratioY
+  ctx.drawImage(img, centerX - drawWidth / 2, centerY - drawHeight / 2, drawWidth, drawHeight)
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.92)
+  const sellerId = resolveSellerId()
+  if (!sellerId) return
+  const file = await dataUrlToFile(dataUrl, type === 'THUMBNAIL' ? 'thumbnail.jpg' : 'waitscreen.jpg')
+  try {
+    const response = await uploadSellerImage(sellerId, type, file)
+    if (type === 'THUMBNAIL') {
+      draft.value.thumb = response.fileUrl
+    } else {
+      draft.value.standbyThumb = response.fileUrl
+    }
+  } catch (uploadError) {
+    console.error('Failed to upload image', uploadError)
+    if (type === 'THUMBNAIL') {
+      thumbError.value = '이미지 업로드에 실패했습니다.'
+    } else {
+      standbyError.value = '이미지 업로드에 실패했습니다.'
+    }
   }
-  reader.readAsDataURL(file)
 }
 
-const isQuestionValid = (text: string) => {
-  const trimmed = text.trim()
-  return !!trimmed
+const cropImageStyle = (state: CropState) => ({
+  transform: `translate(-50%, -50%) translate(${state.offsetX}px, ${state.offsetY}px) scale(${state.fitScale * state.userScale})`,
+})
+
+const extractErrorCode = (err: unknown) => {
+  const payload = (err as any)?.response?.data
+  return payload?.error?.code ?? null
 }
 
-const submit = () => {
+const submit = async () => {
   error.value = ''
   thumbError.value = ''
   standbyError.value = ''
@@ -177,8 +411,20 @@ const submit = () => {
   const trimmedQuestions = draft.value.questions.map((q) => ({ ...q, text: q.text.trim() })).filter((q) => q.text.length > 0)
   draft.value.questions = trimmedQuestions
 
-  if (!draft.value.title.trim() || !draft.value.category || !draft.value.date || !draft.value.time) {
+  if (!draft.value.title.trim() || !draft.value.categoryId || !draft.value.date || !draft.value.time) {
     error.value = '방송 제목, 카테고리, 일정을 입력해주세요.'
+    return
+  }
+
+  if (!draft.value.thumb) {
+    thumbError.value = '방송 썸네일을 업로드해주세요.'
+    return
+  }
+
+  const slotTimes = timeOptions.value
+  if (slotTimes.length && !slotTimes.includes(draft.value.time)) {
+    error.value = '선택한 시간은 예약 가능한 시간이 아닙니다.'
+    await loadReservationSlots(draft.value.date)
     return
   }
 
@@ -195,29 +441,51 @@ const submit = () => {
   const confirmed = window.confirm(isEditMode.value ? '예약 수정을 진행할까요?' : '방송 등록을 진행할까요?')
   if (!confirmed) return
 
-  const id = draft.value.reservationId || `schedule-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
-  const datetime = `${draft.value.date} ${draft.value.time}`
-  const scheduled = {
-    id,
+  const sellerId = resolveSellerId()
+  if (!sellerId) return
+  const scheduledAt = `${draft.value.date} ${draft.value.time}:00`
+  const payload: BroadcastCreateRequest = {
     title: draft.value.title.trim(),
-    subtitle: draft.value.subtitle?.trim() || '예약 방송',
-    thumb: draft.value.thumb,
-    datetime,
-    ctaLabel: '방송 시작',
-    products: draft.value.products,
-    standbyThumb: draft.value.standbyThumb || undefined,
-    termsAgreed: draft.value.termsAgreed,
-    category: draft.value.category,
-    notice: draft.value.notice,
+    notice: draft.value.notice.trim(),
+    categoryId: Number(draft.value.categoryId),
+    scheduledAt,
+    thumbnailUrl: draft.value.thumb,
+    waitScreenUrl: draft.value.standbyThumb || null,
+    broadcastLayout: 'FULL',
+    products: draft.value.products.map((product) => ({
+      productId: Number.parseInt(product.id, 10),
+      bpPrice: product.broadcastPrice,
+      bpQuantity: product.quantity,
+    })),
+    qcards: trimmedQuestions.map((q) => ({ question: q.text })),
   }
 
-  addScheduledBroadcast(scheduled)
-  localStorage.removeItem(DRAFT_KEY)
-  alert(isEditMode.value ? '예약 수정이 완료되었습니다.' : '방송 등록이 완료되었습니다.')
-  const redirectPath = isEditMode.value
-    ? `/seller/broadcasts/reservations/${id}`
-    : '/seller/live?tab=scheduled'
-  router.push(redirectPath).catch(() => {})
+  try {
+    const broadcastId = isEditMode.value && reservationId.value
+      ? await updateSellerBroadcast(sellerId, Number(reservationId.value), payload)
+      : await createSellerBroadcast(sellerId, payload)
+    localStorage.removeItem(DRAFT_KEY)
+    alert(isEditMode.value ? '예약 수정이 완료되었습니다.' : '방송 등록이 완료되었습니다.')
+    const redirectPath = `/seller/broadcasts/reservations/${broadcastId}`
+    router.push(redirectPath).catch(() => {})
+  } catch (submitError) {
+    const code = extractErrorCode(submitError)
+    if (code === 'B005') {
+      error.value = '해당 시간대 예약이 마감되었습니다. 다시 시간을 선택해주세요.'
+      alert('해당 시간대 예약이 마감되었습니다. 다시 시간을 선택해주세요.')
+      await loadReservationSlots(draft.value.date)
+      return
+    }
+    if (code === 'B004') {
+      error.value = '예약은 최대 7개까지만 가능합니다.'
+      return
+    }
+    if (code === 'SY001') {
+      error.value = '요청이 많습니다. 잠시 후 다시 시도해주세요.'
+      return
+    }
+    error.value = '방송 등록에 실패했습니다. 다시 시도해주세요.'
+  }
 }
 
 const goPrev = () => {
@@ -234,6 +502,9 @@ const cancel = () => {
 }
 
 const openProductModal = () => {
+  if (!availableProducts.value.length) {
+    loadSellerProducts()
+  }
   modalProducts.value = draft.value.products.map((p) => ({ ...p }))
   productSearch.value = ''
   showProductModal.value = true
@@ -258,15 +529,19 @@ const confirmRemoveProduct = (productId: string) => {
 }
 
 const timeOptions = computed(() => {
-  const options: string[] = []
-  for (let hour = 0; hour < 24; hour += 1) {
-    for (const minute of [0, 30]) {
-      const hh = hour.toString().padStart(2, '0')
-      const mm = minute.toString().padStart(2, '0')
-      options.push(`${hh}:${mm}`)
-    }
-  }
-  return options
+  if (!draft.value.date) return []
+  return reservationSlots.value
+    .map((slot) => normalizeSlotTime(slot.slotDateTime))
+    .filter((slot) => slot.datePart === draft.value.date)
+    .map((slot) => slot.time)
+    .filter(Boolean)
+})
+
+onMounted(() => {
+  computeDateRange()
+  loadCategories().then(() => {
+    syncCategoryFromName()
+  })
 })
 
 watch(
@@ -276,6 +551,35 @@ watch(
   },
   { immediate: true },
 )
+
+watch(
+  () => draft.value.categoryId,
+  () => {
+    syncCategoryFromId()
+  },
+)
+
+watch(
+  categories,
+  () => {
+    syncCategoryFromId()
+  },
+  { deep: true },
+)
+
+watch(
+  () => draft.value.date,
+  (date) => {
+    if (!date) return
+    loadReservationSlots(date)
+  },
+)
+
+watch(timeOptions, (options) => {
+  if (draft.value.time && !options.includes(draft.value.time)) {
+    draft.value.time = ''
+  }
+})
 
 watch(
   draft,
@@ -302,13 +606,11 @@ watch(
       <div class="field-grid">
         <label class="field">
           <span class="field__label">카테고리</span>
-          <select v-model="draft.category">
+          <select v-model="draft.categoryId" :disabled="isLoadingCategories">
             <option value="" disabled>카테고리를 선택하세요</option>
-            <option value="가구">가구</option>
-            <option value="전자기기">전자기기</option>
-            <option value="패션">패션</option>
-            <option value="뷰티">뷰티</option>
-            <option value="악세사리">악세사리</option>
+            <option v-for="category in categories" :key="category.categoryId" :value="category.categoryId">
+              {{ category.categoryName }}
+            </option>
           </select>
         </label>
       </div>
@@ -325,11 +627,11 @@ watch(
       <div class="field-grid">
         <label class="field">
           <span class="field__label">방송 날짜</span>
-          <input v-model="draft.date" type="date" />
+          <input v-model="draft.date" type="date" :min="minDate" :max="maxDate" />
         </label>
         <label class="field">
           <span class="field__label">방송 시간</span>
-          <select v-model="draft.time">
+          <select v-model="draft.time" :disabled="isLoadingSlots || !draft.date">
             <option value="" disabled>시간을 선택하세요</option>
             <option v-for="time in timeOptions" :key="time" :value="time">{{ time }}</option>
           </select>
@@ -361,7 +663,7 @@ watch(
                 <td>
                   <div class="product-cell">
                     <div class="thumb" v-if="product.thumb">
-                      <img :src="product.thumb" :alt="product.name" />
+                      <img :src="product.thumb" :alt="product.name" @error="(event) => applyImageFallback(event, '/placeholder-product.jpg')" />
                     </div>
                     <div class="product-text">
                       <strong>{{ product.name }}</strong>
@@ -409,16 +711,58 @@ watch(
             <span class="field__label">방송 썸네일 업로드</span>
             <input type="file" accept="image/*" @change="handleThumbUpload" />
             <span v-if="thumbError" class="error">{{ thumbError }}</span>
-            <div v-if="draft.thumb" class="preview">
-              <img :src="draft.thumb" alt="방송 썸네일 미리보기" />
+            <div v-if="thumbCrop.url" class="cropper">
+              <div
+                ref="thumbFrameRef"
+                class="cropper-frame"
+                @pointerdown="(event) => handleCropPointerDown(event, thumbCrop)"
+                @pointermove="(event) => handleCropPointerMove(event, thumbCrop)"
+                @pointerup="(event) => handleCropPointerUp(event, thumbCrop)"
+                @pointerleave="(event) => handleCropPointerUp(event, thumbCrop)"
+              >
+                <img
+                  class="cropper-image"
+                  :src="thumbCrop.url"
+                  alt="방송 썸네일 조정"
+                  :style="cropImageStyle(thumbCrop)"
+                />
+              </div>
+              <div class="cropper-controls">
+                <input v-model.number="thumbCrop.userScale" type="range" min="1" max="3" step="0.05" />
+                <button type="button" class="btn ghost" @click="applyCrop(thumbCrop, 'THUMBNAIL')">적용</button>
+              </div>
+            </div>
+            <div v-else-if="draft.thumb" class="preview">
+              <img :src="draft.thumb" alt="방송 썸네일 미리보기" @error="(event) => applyImageFallback(event, '/placeholder-live.jpg')" />
             </div>
           </label>
           <label class="field">
             <span class="field__label">대기화면 업로드</span>
             <input type="file" accept="image/*" @change="handleStandbyUpload" />
             <span v-if="standbyError" class="error">{{ standbyError }}</span>
-            <div v-if="draft.standbyThumb" class="preview">
-              <img :src="draft.standbyThumb" alt="대기화면 미리보기" />
+            <div v-if="standbyCrop.url" class="cropper">
+              <div
+                ref="standbyFrameRef"
+                class="cropper-frame"
+                @pointerdown="(event) => handleCropPointerDown(event, standbyCrop)"
+                @pointermove="(event) => handleCropPointerMove(event, standbyCrop)"
+                @pointerup="(event) => handleCropPointerUp(event, standbyCrop)"
+                @pointerleave="(event) => handleCropPointerUp(event, standbyCrop)"
+              >
+                <img
+                  class="cropper-image"
+                  :src="standbyCrop.url"
+                  alt="대기화면 조정"
+                  :style="cropImageStyle(standbyCrop)"
+                />
+              </div>
+              <div class="cropper-controls">
+                <input v-model.number="standbyCrop.userScale" type="range" min="1" max="3" step="0.05" />
+                <button type="button" class="btn ghost" @click="applyCrop(standbyCrop, 'WAIT_SCREEN')">적용</button>
+              </div>
+            </div>
+            <div v-else-if="draft.standbyThumb" class="preview">
+              <img :src="draft.standbyThumb" alt="대기화면 미리보기" @error="(event) => applyImageFallback(event, '/placeholder-live.jpg')" />
             </div>
           </label>
         </div>
@@ -463,7 +807,7 @@ watch(
                     @change="toggleProductInModal(product)"
                   />
                   <div class="product-thumb" v-if="product.thumb">
-                    <img :src="product.thumb" :alt="product.name" />
+                    <img :src="product.thumb" :alt="product.name" @error="(event) => applyImageFallback(event, '/placeholder-product.jpg')" />
                   </div>
                   <div class="product-content">
                     <div class="product-name">{{ product.name }}</div>
@@ -509,6 +853,42 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.cropper {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.cropper-frame {
+  position: relative;
+  width: 100%;
+  max-width: 360px;
+  aspect-ratio: 16 / 9;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  overflow: hidden;
+  touch-action: none;
+}
+
+.cropper-image {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform-origin: center center;
+  max-width: none;
+  max-height: none;
+  user-select: none;
+  pointer-events: none;
+}
+
+.cropper-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .step-meta {

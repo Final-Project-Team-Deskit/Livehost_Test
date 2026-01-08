@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { liveItems, type ProductItem, type SetupItem } from '../lib/home-data'
+import { type ProductItem, type SetupItem } from '../lib/home-data'
 import { listPopularProducts, listPopularSetups } from '../api/home'
+import { listPublicBroadcasts, type BroadcastAllResponse, type BroadcastListResponse } from '../api/live'
 import LiveCarousel from '../components/LiveCarousel.vue'
 import SetupCarousel from '../components/SetupCarousel.vue'
 import ProductCarousel from '../components/ProductCarousel.vue'
 import PageContainer from '../components/PageContainer.vue'
+import type { LiveItem } from '../lib/live/types'
+import { getLiveStatus, parseLiveDate } from '../lib/live/utils'
 
 const popularProducts = ref<ProductItem[]>([])
 const popularSetups = ref<SetupItem[]>([])
@@ -13,6 +16,7 @@ const popularProductsLoading = ref(true)
 const popularSetupsLoading = ref(true)
 const popularProductsError = ref(false)
 const popularSetupsError = ref(false)
+const liveItems = ref<LiveItem[]>([])
 
 const buildProductItems = (items: Awaited<ReturnType<typeof listPopularProducts>>) =>
   items.map((item) => ({
@@ -31,6 +35,68 @@ const buildSetupItems = (items: Awaited<ReturnType<typeof listPopularSetups>>) =
     description: item.short_desc ?? '',
     imageUrl: item.image_url || '/placeholder-setup.jpg',
   }))
+
+const mapBroadcasts = (items: BroadcastListResponse[]): LiveItem[] =>
+  items.map((item) => {
+    const status = (item.status ?? '').toUpperCase()
+    const endAt =
+      item.endAt ?? (['ENDED', 'VOD', 'STOPPED'].includes(status) ? item.startAt ?? '' : '')
+    return {
+      id: String(item.broadcastId),
+      title: item.title,
+      description: item.notice ?? '',
+      thumbnailUrl: item.thumbnailUrl ?? '/placeholder-live.jpg',
+      startAt: item.startAt ?? '',
+      endAt: endAt ?? '',
+      viewerCount: status === 'ON_AIR' ? item.liveViewerCount ?? 0 : item.viewerCount ?? 0,
+      sellerName: item.sellerName ?? undefined,
+    }
+  })
+
+const loadLiveItems = async () => {
+  try {
+    const data = await listPublicBroadcasts({ tab: 'ALL' })
+    const collection: BroadcastListResponse[] = Array.isArray((data as BroadcastAllResponse).onAir)
+      ? [
+          ...((data as BroadcastAllResponse).onAir ?? []),
+          ...((data as BroadcastAllResponse).reserved ?? []),
+          ...((data as BroadcastAllResponse).vod ?? []),
+        ]
+      : (data as { content: BroadcastListResponse[] }).content ?? []
+    const now = new Date()
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const windowEnd = new Date(
+      todayStart.getFullYear(),
+      todayStart.getMonth(),
+      todayStart.getDate() + 6,
+      23,
+      59,
+      59,
+      999,
+    )
+    const mapped = mapBroadcasts(collection)
+      .filter((item) => {
+        const status = getLiveStatus(item, now)
+        if (status === 'LIVE') return true
+        if (status === 'UPCOMING') {
+          const startAt = parseLiveDate(item.startAt).getTime()
+          return startAt >= todayStart.getTime() && startAt <= windowEnd.getTime()
+        }
+        return false
+      })
+      .sort((a, b) => {
+        const statusA = getLiveStatus(a, now)
+        const statusB = getLiveStatus(b, now)
+        if (statusA !== statusB) return statusA === 'LIVE' ? -1 : 1
+        return parseLiveDate(a.startAt).getTime() - parseLiveDate(b.startAt).getTime()
+      })
+      .slice(0, 8)
+    liveItems.value = mapped
+  } catch (error) {
+    console.error('Failed to load live items', error)
+    liveItems.value = []
+  }
+}
 
 const loadPopulars = async () => {
   popularProductsLoading.value = true
@@ -60,6 +126,7 @@ const loadPopulars = async () => {
 
 onMounted(() => {
   loadPopulars()
+  loadLiveItems()
 })
 </script>
 
