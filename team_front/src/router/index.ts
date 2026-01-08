@@ -232,6 +232,7 @@ export const router = createRouter({
 })
 
 router.beforeEach(async (to) => {
+  if (import.meta.env.DEV) return true
   let loggedIn = isLoggedIn()
   const isSellerPath = to.path.startsWith('/seller')
   const isAdminPath = to.path.startsWith('/admin')
