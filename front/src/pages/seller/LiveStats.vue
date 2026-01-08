@@ -1,18 +1,16 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import PageHeader from '../../components/PageHeader.vue'
 import StatsBarChart from '../../components/stats/StatsBarChart.vue'
 import StatsRankList from '../../components/stats/StatsRankList.vue'
-import {
-  getSellerRevenueRankings,
-  getSellerViewerRankings,
-  revenueData,
-  revenuePerViewerData,
-  type RankGroup,
-  type StatsRange,
-} from '../../lib/mocks/liveStats'
+import { getSellerStatistics, type StatisticsResponse } from '../../api/live'
+import { resolveSellerId } from '../../lib/live/ids'
 
 type RankView = 'best' | 'worst'
+type StatsRange = 'daily' | 'monthly' | 'yearly'
+type ChartDatum = { label: string; value: number }
+type RankItem = { rank: number; title: string; value: number }
+type RankGroup = { best: RankItem[]; worst: RankItem[] }
 
 const revenueRange = ref<StatsRange>('monthly')
 const perViewerRange = ref<StatsRange>('monthly')
@@ -22,15 +20,82 @@ const viewerRankView = ref<RankView>('best')
 const revenueRanks = ref<RankGroup>({ best: [], worst: [] })
 const viewerRanks = ref<RankGroup>({ best: [], worst: [] })
 
-const revenueChart = computed(() => revenueData[revenueRange.value])
-const perViewerChart = computed(() => revenuePerViewerData[perViewerRange.value])
+const statsCache = ref<Record<StatsRange, StatisticsResponse | null>>({
+  daily: null,
+  monthly: null,
+  yearly: null,
+})
+
+const revenueChart = computed<ChartDatum[]>(() => {
+  const data = statsCache.value[revenueRange.value]
+  return (data?.salesChart ?? []).map((item) => ({ label: item.label, value: Number(item.value) }))
+})
+const perViewerChart = computed<ChartDatum[]>(() => {
+  const data = statsCache.value[perViewerRange.value]
+  return (data?.arpuChart ?? []).map((item) => ({ label: item.label, value: Number(item.value) }))
+})
+
+const buildRankGroup = (items: Array<{ title: string; value: number }>): RankGroup => {
+  const sortedDesc = [...items].sort((a, b) => b.value - a.value)
+  const sortedAsc = [...items].sort((a, b) => a.value - b.value)
+  return {
+    best: sortedDesc.slice(0, 5).map((item, index) => ({ ...item, rank: index + 1 })),
+    worst: sortedAsc.slice(0, 5).map((item, index) => ({ ...item, rank: index + 1 })),
+  }
+}
+
+const loadStats = async (range: StatsRange) => {
+  const sellerId = resolveSellerId()
+  if (!sellerId) return
+  if (statsCache.value[range]) return
+  try {
+    const data = await getSellerStatistics(sellerId, range.toUpperCase())
+    statsCache.value = { ...statsCache.value, [range]: data }
+  } catch (error) {
+    console.error('Failed to load seller stats', error)
+  }
+}
+
+const loadRanks = async (range: StatsRange) => {
+  await loadStats(range)
+  const data = statsCache.value[range]
+  if (!data) return
+  const revenueItems = (data.bestBroadcasts ?? []).map((item) => ({
+    title: item.title,
+    value: Number(item.totalSales ?? 0),
+  }))
+  const worstItems = (data.worstBroadcasts ?? []).map((item) => ({
+    title: item.title,
+    value: Number(item.totalSales ?? 0),
+  }))
+  revenueRanks.value = {
+    best: revenueItems.slice(0, 5).map((item, index) => ({ rank: index + 1, title: item.title, value: item.value })),
+    worst: worstItems.slice(0, 5).map((item, index) => ({ rank: index + 1, title: item.title, value: item.value })),
+  }
+
+  const viewerItems = (data.topViewerBroadcasts ?? []).map((item) => ({
+    title: item.title,
+    value: Number(item.totalViews ?? 0),
+  }))
+  viewerRanks.value = buildRankGroup(viewerItems)
+}
 
 const formatCurrency = (value: number) => `₩${value.toLocaleString('ko-KR')}`
 const formatViewerCount = (value: number) => `${value.toLocaleString('ko-KR')}명`
 
 onMounted(() => {
-  revenueRanks.value = getSellerRevenueRankings()
-  viewerRanks.value = getSellerViewerRankings()
+  loadStats(revenueRange.value)
+  loadStats(perViewerRange.value)
+  loadRanks(revenueRange.value)
+})
+
+watch(revenueRange, (range) => {
+  loadStats(range)
+  loadRanks(range)
+})
+
+watch(perViewerRange, (range) => {
+  loadStats(range)
 })
 </script>
 

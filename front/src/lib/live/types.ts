@@ -10,3 +10,13 @@ export type LiveItem = {
   streamUrl?: string
   sellerName?: string
 }
+
+export type LiveProductItem = {
+  id: string
+  name: string
+  imageUrl: string
+  price: number
+  status: string
+  isSoldOut: boolean
+  isPinned?: boolean
+}

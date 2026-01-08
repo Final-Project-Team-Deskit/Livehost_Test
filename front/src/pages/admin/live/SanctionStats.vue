@@ -1,81 +1,82 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import PageHeader from '../../../components/PageHeader.vue'
 import StatsBarChart from '../../../components/stats/StatsBarChart.vue'
 import StatsRankList from '../../../components/stats/StatsRankList.vue'
+import { getAdminSanctionStatistics, type SanctionStatisticsResponse } from '../../../api/live'
 
 type Metric = 'daily' | 'monthly' | 'yearly'
 
 const stopMetric = ref<Metric>('daily')
 const viewerMetric = ref<Metric>('daily')
 
-const formatDay = (date: Date) => {
-  const month = `${date.getMonth() + 1}`.padStart(2, '0')
-  const day = `${date.getDate()}`.padStart(2, '0')
-  return `${month}.${day}`
+const statsCache = ref<Record<Metric, SanctionStatisticsResponse | null>>({
+  daily: null,
+  monthly: null,
+  yearly: null,
+})
+
+const periodMap: Record<Metric, string> = {
+  daily: 'DAILY',
+  monthly: 'MONTHLY',
+  yearly: 'YEARLY',
 }
 
-const buildDailySeries = (values: number[]) => {
-  const today = new Date()
-  const start = new Date(today)
-  start.setDate(today.getDate() - (values.length - 1))
-  return values.map((value, index) => {
-    const current = new Date(start)
-    current.setDate(start.getDate() + index)
-    return { label: formatDay(current), value }
-  })
+const loadStats = async (range: Metric) => {
+  if (statsCache.value[range]) return
+  try {
+    const data = await getAdminSanctionStatistics(periodMap[range])
+    statsCache.value = { ...statsCache.value, [range]: data }
+  } catch (error) {
+    console.error('Failed to load sanction stats', error)
+  }
 }
 
-const buildMonthlySeries = (values: number[]) => {
-  const today = new Date()
-  const start = new Date(today)
-  start.setMonth(today.getMonth() - (values.length - 1), 1)
-  return values.map((value, index) => {
-    const current = new Date(start)
-    current.setMonth(start.getMonth() + index, 1)
-    return { label: `${current.getMonth() + 1}월`, value }
-  })
-}
+const mapChart = (items: Array<{ label: string; count: number }> | undefined) =>
+  (items ?? []).map((item) => ({ label: item.label, value: Number(item.count ?? 0) }))
 
-const buildYearlySeries = (values: number[]) => {
-  const today = new Date()
-  const startYear = today.getFullYear() - (values.length - 1)
-  return values.map((value, index) => ({ label: `${startYear + index}`, value }))
-}
+const stopCountData = computed(() => mapChart(statsCache.value[stopMetric.value]?.forceStopChart))
+const viewerSanctionData = computed(() => mapChart(statsCache.value[viewerMetric.value]?.viewerBanChart))
 
-const stopCountData: Record<Metric, Array<{ label: string; value: number }>> = {
-  daily: buildDailySeries([6, 5, 7, 4, 6, 5, 8]),
-  monthly: buildMonthlySeries([12, 14, 16, 18, 19, 21, 23, 20, 18, 17, 19, 22]),
-  yearly: buildYearlySeries([58, 64, 71, 79, 83]),
-}
+const buildRanks = (items: Array<{ name?: string; sellerName?: string; sanctionCount: number }>) =>
+  items.slice(0, 5).map((item, index) => ({
+    rank: index + 1,
+    title: item.sellerName ?? item.name ?? '알 수 없음',
+    value: Number(item.sanctionCount ?? 0),
+  }))
 
-const viewerSanctionData: Record<Metric, Array<{ label: string; value: number }>> = {
-  daily: buildDailySeries([18, 15, 12, 14, 17, 13, 19]),
-  monthly: buildMonthlySeries([208, 214, 226, 242, 255, 268, 274, 261, 248, 239, 245, 258]),
-  yearly: buildYearlySeries([980, 1040, 1115, 1205, 1280]),
-}
+const topSellerStops = computed(() =>
+  buildRanks(statsCache.value[stopMetric.value]?.worstSellers ?? []),
+)
+const topViewerSanctions = computed(() =>
+  buildRanks(statsCache.value[viewerMetric.value]?.worstViewers ?? []),
+)
 
-const topSellerStops = [
-  { rank: 1, title: '판매자 A', value: 12 },
-  { rank: 2, title: '판매자 B', value: 9 },
-  { rank: 3, title: '판매자 C', value: 7 },
-  { rank: 4, title: '판매자 D', value: 6 },
-  { rank: 5, title: '판매자 E', value: 5 },
-]
+const summaryCards = computed(() => {
+  const stopChart = statsCache.value[stopMetric.value]?.forceStopChart ?? []
+  const viewerChart = statsCache.value[viewerMetric.value]?.viewerBanChart ?? []
+  const stopTotal = stopChart.reduce((sum, item) => sum + Number(item.count ?? 0), 0)
+  const viewerTotal = viewerChart.reduce((sum, item) => sum + Number(item.count ?? 0), 0)
+  const latestLabel = viewerChart[viewerChart.length - 1]?.label ?? '-'
+  return [
+    { label: '총 송출 중지', value: `${stopTotal.toLocaleString('ko-KR')}건` },
+    { label: '시청자 제재', value: `${viewerTotal.toLocaleString('ko-KR')}건` },
+    { label: '최근 제재일', value: latestLabel },
+  ]
+})
 
-const topViewerSanctions = [
-  { rank: 1, title: '시청자1', value: 18 },
-  { rank: 2, title: '시청자2', value: 16 },
-  { rank: 3, title: '시청자3', value: 14 },
-  { rank: 4, title: '시청자4', value: 12 },
-  { rank: 5, title: '시청자5', value: 10 },
-]
+onMounted(() => {
+  loadStats(stopMetric.value)
+  loadStats(viewerMetric.value)
+})
 
-const summaryCards = [
-  { label: '총 송출 중지', value: '95건' },
-  { label: '시청자 제재', value: '1,280건' },
-  { label: '최근 제재일', value: '2025-12-12' },
-]
+watch(stopMetric, (range) => {
+  loadStats(range)
+})
+
+watch(viewerMetric, (range) => {
+  loadStats(range)
+})
 </script>
 
 <template>
@@ -108,7 +109,7 @@ const summaryCards = [
             </button>
           </div>
         </header>
-        <StatsBarChart :data="stopCountData[stopMetric]" />
+        <StatsBarChart :data="stopCountData" />
       </article>
 
       <article class="ds-surface panel">
@@ -129,7 +130,7 @@ const summaryCards = [
             </button>
           </div>
         </header>
-        <StatsBarChart :data="viewerSanctionData[viewerMetric]" />
+        <StatsBarChart :data="viewerSanctionData" />
       </article>
     </section>
 

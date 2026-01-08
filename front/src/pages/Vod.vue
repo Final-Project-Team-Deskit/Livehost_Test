@@ -3,10 +3,11 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PageContainer from '../components/PageContainer.vue'
 import PageHeader from '../components/PageHeader.vue'
-import { liveItems } from '../lib/live/data'
 import { getLiveStatus, parseLiveDate } from '../lib/live/utils'
 import { useNow } from '../lib/live/useNow'
-import { getProductsForLive, type LiveProductItem } from '../lib/live/detail'
+import type { LiveItem, LiveProductItem } from '../lib/live/types'
+import { getPublicBroadcastDetail, listPublicBroadcastProducts } from '../api/live'
+import { applyImageFallback } from '../lib/live/image'
 
 const route = useRoute()
 const router = useRouter()
@@ -17,12 +18,57 @@ const vodId = computed(() => {
   return Array.isArray(value) ? value[0] : value
 })
 
-const vodItem = computed(() => {
+const vodItem = ref<LiveItem | null>(null)
+const products = ref<LiveProductItem[]>([])
+
+const loadVodDetail = async () => {
   if (!vodId.value) {
-    return undefined
+    vodItem.value = null
+    products.value = []
+    return
   }
-  return liveItems.find((entry) => entry.id === vodId.value)
-})
+  const id = Number.parseInt(vodId.value, 10)
+  if (Number.isNaN(id)) {
+    vodItem.value = null
+    products.value = []
+    return
+  }
+  try {
+    const [detail, productList] = await Promise.all([
+      getPublicBroadcastDetail(id),
+      listPublicBroadcastProducts(id).catch(() => []),
+    ])
+    const statusValue = (detail.status ?? '').toUpperCase()
+    const startAt = detail.startedAt ?? detail.scheduledAt ?? ''
+    const endAt = ['ENDED', 'VOD', 'STOPPED'].includes(statusValue) ? (detail.startedAt ?? detail.scheduledAt ?? '') : ''
+    vodItem.value = {
+      id: String(detail.broadcastId),
+      title: detail.title ?? '',
+      description: detail.notice ?? '',
+      thumbnailUrl: detail.thumbnailUrl ?? detail.waitScreenUrl ?? '',
+      startAt,
+      endAt,
+      viewerCount: detail.totalViews ?? undefined,
+      sellerName: detail.sellerName ?? undefined,
+      vodUrl: detail.vodUrl ?? undefined,
+    }
+    products.value = (productList ?? []).map((item) => ({
+      id: String(item.productId ?? item.bpId),
+      name: item.name ?? '',
+      imageUrl: item.imageUrl ?? '/placeholder-product.jpg',
+      price: item.bpPrice ?? item.originalPrice ?? 0,
+      status: item.status ?? 'SELLING',
+      isSoldOut:
+        ['SOLDOUT', 'SOLD_OUT', 'SOLDOUT', 'SOLD_OUT'].includes((item.status ?? '').toUpperCase()) ||
+        item.bpQuantity === 0,
+      isPinned: item.isPinned ?? false,
+    }))
+  } catch (error) {
+    console.error('Failed to load vod detail', error)
+    vodItem.value = null
+    products.value = []
+  }
+}
 
 const status = computed(() => {
   if (!vodItem.value) {
@@ -99,38 +145,7 @@ const syncChatHeight = () => {
   playerHeight.value = playerPanelRef.value.getBoundingClientRect().height
 }
 
-const products = computed<LiveProductItem[]>(() => {
-  if (!vodItem.value) {
-    return []
-  }
-  return getProductsForLive(vodItem.value.id)
-})
-
-const messages = ref(
-  [
-    {
-      id: 'sys-1',
-      user: 'system',
-      text: 'VOD 채팅 기록을 보고 계십니다.',
-      at: new Date(Date.now() - 1000 * 60 * 6),
-      kind: 'system',
-    },
-    {
-      id: 'msg-1',
-      user: 'desklover',
-      text: '이 라이브 제품 너무 좋았어요!',
-      at: new Date(Date.now() - 1000 * 60 * 4),
-      kind: 'user',
-    },
-    {
-      id: 'msg-2',
-      user: 'setup_master',
-      text: '배송도 빨랐습니다 👍',
-      at: new Date(Date.now() - 1000 * 60 * 2),
-      kind: 'user',
-    },
-  ] as Array<{ id: string; user: string; text: string; at: Date; kind?: 'system' | 'user' }>,
-)
+const messages = ref([] as Array<{ id: string; user: string; text: string; at: Date; kind?: 'system' | 'user' }>)
 
 const chatListRef = ref<HTMLDivElement | null>(null)
 const chatInput = ref('')
@@ -178,6 +193,14 @@ watch(
     if (nextStatus === 'LIVE' && nextItem) {
       router.replace({ name: 'live-detail', params: { id: nextItem.id } })
     }
+  },
+  { immediate: true },
+)
+
+watch(
+  vodId,
+  () => {
+    loadVodDetail()
   },
   { immediate: true },
 )
@@ -452,7 +475,12 @@ watch(showChat, (visible) => {
             :class="{ 'product-card--sold-out': product.isSoldOut }"
             @click="handleProductClick(product.id)"
           >
-            <img class="product-card__thumb" :src="product.imageUrl" :alt="product.name" />
+            <img
+              class="product-card__thumb"
+              :src="product.imageUrl"
+              :alt="product.name"
+              @error="(event) => applyImageFallback(event, '/placeholder-product.jpg')"
+            />
             <div class="product-card__info">
               <p class="product-card__name">{{ product.name }}</p>
               <p class="product-card__price">{{ formatPrice(product.price) }}</p>
