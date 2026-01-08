@@ -129,10 +129,14 @@ public class SecurityConfig {
 						).permitAll()
 						.requestMatchers(
 								"/",
-                "/chat",
+								"/chat",
                 "/chat/**",
                 "/reissue",
                 "/api/home/**",
+                "/api/broadcasts/**",
+                "/api/categories",
+                "/api/vods/**",
+                "/api/webhook/**",
                 "/api/admin/auth/**",
                 "/api/invitations/validate",
                 "/oauth/**",
